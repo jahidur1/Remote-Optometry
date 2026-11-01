@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { generateWeeklyRoster, type GenerateWeeklyRosterInput } from "@/ai/flows/generate-weekly-roster";
 import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
-import { BrainCircuit, Sparkles, AlertTriangle, CheckCircle, Info, Loader2, Play, History, ShieldCheck, Target, ArrowRight } from "lucide-react";
+import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
@@ -30,7 +30,7 @@ export default function RosterSolver() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  const draftsQuery = query(collection(db, 'roster_drafts'), orderBy('createdAt', 'desc'), limit(5));
+  const draftsQuery = query(collection(db, 'roster_drafts'), orderBy('createdAt', 'desc'), limit(10));
   const { data: recentDrafts } = useCollection(draftsQuery);
 
   const handleRunSolver = async () => {
@@ -127,11 +127,11 @@ export default function RosterSolver() {
         actorId: profile.uid
       });
 
-      logAudit(db, profile.uid, 'RUN_ROSTER_SOLVER', draftId, { weekId, status: result.status, solveTime: result.solverMetadata?.solveTimeMs });
+      logAudit(db, profile.uid, 'RUN_ROSTER_SOLVER', draftId, { weekId, status: result.status });
       
       setProgress(100);
       setStatus("success");
-      toast({ title: "Roster Draft Generated", description: `Optimized solution for Week ${weekId} saved and awaiting review.` });
+      toast({ title: "Draft Generated", description: `Optimized solution for Week ${weekId} saved to review workspace.` });
 
     } catch (e: any) {
       console.error(e);
@@ -144,16 +144,8 @@ export default function RosterSolver() {
     if (!solverResult) return;
     const result = await explainSchedulingConflicts({
       problemDescription: `Weekly Roster Generation for Week ${weekId}`,
-      hardConstraints: [
-        "Exact Daily Staffing Quotas (7x6 Matrix)", 
-        "Protected FCFS Weekly-Offs", 
-        "Approved Clinical Leaves & Unavailability"
-      ],
-      softConstraints: [
-        "Employee Shift Preferences", 
-        "Gender Balance Target Bands",
-        "Fairness Distribution"
-      ],
+      hardConstraints: ["Exact Staffing Quotas", "Protected Weekly-Offs", "Approved Absences"],
+      softConstraints: ["Employee Preferences", "Gender Balance Targets"],
       solverOutcome: solverResult.status,
       detectedConflicts: solverResult.issuesEncountered
     });
@@ -191,8 +183,8 @@ export default function RosterSolver() {
                   <BrainCircuit className="h-5 w-5 text-primary" />
                   <CardTitle className="text-lg uppercase font-black">Optimization Status</CardTitle>
                 </div>
-                {status === 'success' && <Badge className="bg-emerald-500 font-bold uppercase text-[10px] px-3">Optimal Solution Found</Badge>}
-                {status === 'conflict' && <Badge variant="destructive" className="font-bold uppercase text-[10px] px-3 tracking-widest">Infeasible Path</Badge>}
+                {status === 'success' && <Badge className="bg-emerald-500 font-bold uppercase text-[10px] px-3">Solution Found</Badge>}
+                {status === 'conflict' && <Badge variant="destructive" className="font-bold uppercase text-[10px] px-3 tracking-widest">Infeasible</Badge>}
               </div>
             </CardHeader>
             <CardContent className="space-y-8">
@@ -202,9 +194,6 @@ export default function RosterSolver() {
                   <span className="text-2xl font-black text-primary italic">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-3 bg-background shadow-inner" />
-                <div className="absolute bottom-0 right-0 p-4 opacity-5">
-                  <ShieldCheck className="size-32" />
-                </div>
               </div>
 
               {solverResult && (
@@ -220,11 +209,6 @@ export default function RosterSolver() {
                       <p className="text-[12px] text-foreground/80 leading-relaxed font-medium">
                         {solverResult.summary}
                       </p>
-                      {solverResult.solverMetadata && (
-                        <div className="pt-2 flex gap-4 text-[9px] font-bold text-muted-foreground uppercase">
-                          <span>Solve Time: {solverResult.solverMetadata.solveTimeMs}ms</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -242,7 +226,7 @@ export default function RosterSolver() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <History className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg uppercase font-black">Recent Generations</CardTitle>
+                <CardTitle className="text-lg uppercase font-black">Generation History</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
@@ -258,16 +242,11 @@ export default function RosterSolver() {
                     </div>
                     <Link href={`/admin/roster/review/${draft.id}`}>
                       <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest px-4">
-                        Review Workspace <ArrowRight className="ml-2 size-3" />
+                        Review & Publish <ArrowRight className="ml-2 size-3" />
                       </Button>
                     </Link>
                   </div>
                 ))}
-                {recentDrafts?.length === 0 && (
-                   <div className="text-center py-8 text-xs text-muted-foreground italic">
-                     No recent solver executions found.
-                   </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -275,18 +254,15 @@ export default function RosterSolver() {
 
         <Card className="lg:col-span-1 shadow-md border-t-4 border-t-secondary bg-muted/5">
           <CardHeader>
-            <CardTitle className="text-lg uppercase font-black">AI Interpretation</CardTitle>
-            <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-secondary">Constraint Summary</CardDescription>
+            <CardTitle className="text-lg uppercase font-black">AI Insights</CardTitle>
+            <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-secondary">Solver Analysis</CardDescription>
           </CardHeader>
           <CardContent>
             {!explanation ? (
               <div className="h-64 flex flex-col items-center justify-center text-center space-y-6 pt-12">
-                <div className="relative">
-                  <History className="size-16 text-muted-foreground/10" />
-                  <Loader2 className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-6 text-secondary/30 ${status === 'running' ? 'animate-spin opacity-100' : 'opacity-0'}`} />
-                </div>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest max-w-[200px]">
-                  {status === 'running' ? 'Monitoring Solver Threads...' : 'Run a roster generation to unlock AI insights.'}
+                <History className="size-16 text-muted-foreground/10" />
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                  Run a solver execution to unlock AI interpretation.
                 </p>
               </div>
             ) : (
@@ -302,7 +278,7 @@ export default function RosterSolver() {
                 
                 {explanation.conflictExplanations.length > 0 && (
                   <div className="space-y-4">
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-destructive">Bottlenecks Detected</h5>
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-destructive">Conflicts Detected</h5>
                     <div className="space-y-3">
                       {explanation.conflictExplanations.map((c: any, i: number) => (
                         <div key={i} className="p-4 rounded-xl border-l-4 border-l-destructive bg-destructive/5 space-y-2">

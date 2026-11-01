@@ -3,19 +3,17 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, orderBy } from 'firebase/firestore';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, Save, ArrowLeft, Loader2, AlertTriangle, ShieldCheck, Lock, Info, Send } from "lucide-react";
+import { CheckCircle2, Save, ArrowLeft, Loader2, AlertTriangle, ShieldCheck, Lock, Info, Send, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
 import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
-import { format } from 'date-fns';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -91,7 +89,7 @@ export default function RosterReviewWorkspace() {
         updatedAt: new Date().toISOString()
       });
       logAudit(db, profile?.uid || 'system', 'UPDATE_ROSTER_DRAFT', draftId);
-      toast({ title: "Draft Saved", description: "Changes preserved in review state." });
+      toast({ title: "Draft Saved", description: "Manual adjustments preserved." });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -115,7 +113,7 @@ export default function RosterReviewWorkspace() {
       await updateDoc(doc(db, 'roster_drafts', draftId), { status: 'published' });
       
       logAudit(db, profile.uid, 'PUBLISH_ROSTER', versionId, { weekId });
-      toast({ title: "Roster Published", description: "This schedule is now live for all employees." });
+      toast({ title: "Roster Published", description: "Schedule is now live for all professionals." });
       router.push('/admin/roster');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -152,19 +150,19 @@ export default function RosterReviewWorkspace() {
         <CardHeader className="bg-muted/5 border-b flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldCheck className="size-5 text-primary" /> Workforce Assignment Grid
+              <ShieldCheck className="size-5 text-primary" /> Professional Assignment Grid
             </CardTitle>
-            <CardDescription>Locked cells indicate protected unavailability (Weekly Offs / Leaves).</CardDescription>
+            <CardDescription>Locked cells indicate protected Weekly Offs or Approved Leaves.</CardDescription>
           </div>
           <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-emerald-500/20 text-emerald-600 bg-emerald-500/5">
-             Version: {draft?.version || '1.0'}
+             Draft ID: {draftId.slice(-8)}
           </Badge>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="w-[200px] border-r">Employee Professional</TableHead>
+                <TableHead className="w-[200px] border-r">Professional</TableHead>
                 {DAYS.map(day => (
                   <TableHead key={day} className="text-center w-[160px] min-w-[160px] border-r last:border-0 uppercase text-[10px] font-black tracking-widest">
                     {day}
@@ -224,7 +222,6 @@ export default function RosterReviewWorkspace() {
         </CardContent>
       </Card>
 
-      {/* Validation HUD */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t z-50 p-4 shadow-2xl">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-8">
            <div className="flex items-center gap-3 shrink-0">
@@ -232,7 +229,7 @@ export default function RosterReviewWorkspace() {
                  <Target className="size-6 text-primary" />
               </div>
               <div>
-                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Real-time Validation</p>
+                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Roster Integrity HUD</p>
                  <p className="text-sm font-bold uppercase tracking-tight">Shift Quota Adherence</p>
               </div>
            </div>
@@ -259,10 +256,10 @@ export default function RosterReviewWorkspace() {
            
            <div className="hidden lg:block bg-muted/30 p-3 rounded-xl border border-dashed text-right shrink-0">
               <p className="text-[9px] font-bold text-muted-foreground uppercase flex items-center justify-end gap-1">
-                 <Info className="size-3" /> System Integrity Check
+                 <Info className="size-3" /> System Guard
               </p>
               <p className="text-[10px] text-foreground font-medium leading-tight mt-1">
-                 Manual edits trigger instant re-validation.<br/>Over-staffing blocks public rollout.
+                 Manual edits trigger instant re-validation.<br/>Over-staffing blocks publication.
               </p>
            </div>
         </div>
@@ -270,5 +267,3 @@ export default function RosterReviewWorkspace() {
     </div>
   );
 }
-
-import { Target } from 'lucide-react';

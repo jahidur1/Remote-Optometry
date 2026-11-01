@@ -2,15 +2,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
-import { collection, query, orderBy, limit, onSnapshot, doc } from "firebase/firestore"
+import { collection, query, orderBy, limit, onSnapshot, doc, where } from "firebase/firestore"
 import { useFirestore, useUser, useDoc, useCollection } from "@/firebase"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MapPin, CalendarDays, MessageCircle, AlertCircle, CheckCircle2, ArrowRight, Loader2, Info } from "lucide-react"
+import { Clock, CalendarDays, MessageCircle, AlertCircle, CheckCircle2, ArrowRight, Loader2, Info } from "lucide-react"
 import Link from "next/link"
 import { DemoBadge } from "@/components/ui/demo-badge"
-import { format } from "date-fns"
 
 export default function EmployeePortal() {
   const db = useFirestore();
@@ -18,7 +17,7 @@ export default function EmployeePortal() {
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Current operational week
+  // Current operational week (In production, this would be dynamic)
   const currentWeek = '2024-52'; 
 
   // Fetch active booking window
@@ -36,13 +35,16 @@ export default function EmployeePortal() {
   const bookingRef = bookingId ? doc(db, 'weekoff_bookings', bookingId) : null;
   const { data: userBooking } = useDoc(bookingRef);
 
-  // Fetch latest published roster for the week
-  const publishedQuery = query(
-    collection(db, 'published_rosters'),
-    where('weekId', '==', currentWeek),
-    orderBy('publishedAt', 'desc'),
-    limit(1)
-  );
+  // Fetch ONLY the latest published roster for the week
+  const publishedQuery = useMemo(() => {
+    return query(
+      collection(db, 'published_rosters'),
+      where('weekId', '==', currentWeek),
+      orderBy('publishedAt', 'desc'),
+      limit(1)
+    );
+  }, [currentWeek]);
+
   const { data: publishedRosters, loading: rosterLoading } = useCollection(publishedQuery);
   const publishedRoster = publishedRosters?.[0];
 
@@ -50,6 +52,7 @@ export default function EmployeePortal() {
 
   const myAssignments = useMemo(() => {
     if (!publishedRoster || !profile?.employeeId) return [];
+    // Only show assignments for the logged-in employee
     return publishedRoster.assignments.filter((a: any) => a.employeeId === profile.employeeId);
   }, [publishedRoster, profile]);
 
@@ -77,24 +80,27 @@ export default function EmployeePortal() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
-          {/* Roster Assignment Card */}
+          {/* Published Roster Card */}
           <Card className="border-l-4 border-l-primary shadow-sm overflow-hidden">
              <CardHeader className="bg-muted/5">
                 <div className="flex items-center justify-between">
                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Clock className="size-5 text-primary" /> Active Assignments
+                      <Clock className="size-5 text-primary" /> Weekly Schedule
                    </CardTitle>
                    {publishedRoster && (
                       <Badge className="bg-emerald-500 uppercase text-[9px] font-black tracking-widest">
-                         Published V{new Date(publishedRoster.publishedAt).getTime().toString().slice(-4)}
+                         Published V{publishedRoster.version.toString().slice(-4)}
                       </Badge>
                    )}
                 </div>
-                <CardDescription>Officially authorized clinical schedule for Week {currentWeek}.</CardDescription>
+                <CardDescription>Officially authorized clinical assignments for Week {currentWeek}.</CardDescription>
              </CardHeader>
              <CardContent className="pt-6 space-y-3">
                 {myAssignments.length > 0 ? (
-                  myAssignments.map((a: any, i: number) => {
+                  myAssignments.sort((a: any, b: any) => {
+                    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                    return days.indexOf(a.dayOfWeek) - days.indexOf(b.dayOfWeek);
+                  }).map((a: any, i: number) => {
                     const shift = shifts?.find(s => s.id === a.shiftId);
                     return (
                       <div key={i} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-all border-l-4 border-l-secondary">
@@ -112,14 +118,14 @@ export default function EmployeePortal() {
                 ) : (
                   <div className="text-center py-12 bg-muted/5 rounded-2xl border border-dashed">
                      <CalendarDays className="size-12 text-muted-foreground/20 mx-auto mb-4" />
-                     <p className="text-sm font-bold text-muted-foreground">No authorized assignments for this week cycle.</p>
-                     <p className="text-[10px] text-muted-foreground/60 uppercase mt-1">Please check back after Admin publication.</p>
+                     <p className="text-sm font-bold text-muted-foreground">No authorized assignments found.</p>
+                     <p className="text-[10px] text-muted-foreground/60 uppercase mt-1">Assignments are visible only after Admin publication.</p>
                   </div>
                 )}
              </CardContent>
           </Card>
 
-          {/* Booking Pulse Card */}
+          {/* FCFS Weekly-Off Section */}
           {activeConfig && (
             <Card className={userBooking ? "border-emerald-500/20 bg-emerald-500/5 shadow-sm" : "border-secondary/20 bg-secondary/5 shadow-sm"}>
               <CardHeader className="pb-2">
@@ -195,17 +201,17 @@ export default function EmployeePortal() {
           <Card className="bg-muted/50 border-dashed">
             <CardHeader className="pb-2">
                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="size-3 text-secondary" /> Operational Integrity
+                <AlertCircle className="size-3 text-secondary" /> Roster Governance
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-primary">Immutable History</p>
-                <p className="text-[9px] text-muted-foreground leading-relaxed">Published assignments are locked. Correction versions are created for all approved changes.</p>
+                <p className="text-[10px] font-bold text-primary">Authorized Publication</p>
+                <p className="text-[9px] text-muted-foreground leading-relaxed">Only Admin-approved rosters are displayed here. Versions are tracked for transparency.</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-primary">FCFS Verification</p>
-                <p className="text-[9px] text-muted-foreground leading-relaxed">Weekly-off priority is strictly determined by atomic transaction order.</p>
+                <p className="text-[10px] font-bold text-primary">Constraint Integrity</p>
+                <p className="text-[9px] text-muted-foreground leading-relaxed">Assignments strictly respect confirmed Weekly Offs and Approved Leaves.</p>
               </div>
             </CardContent>
           </Card>
