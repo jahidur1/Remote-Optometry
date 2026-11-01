@@ -1,117 +1,139 @@
 
-"use client"
+'use client';
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Save, Clock, Users } from "lucide-react"
+import { useState, useEffect } from 'react';
+import { doc, setDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Clock, RefreshCcw, Info } from "lucide-react";
+import { useToast } from '@/hooks/use-toast';
 
-const shifts = [
-  { id: "S1", name: "Morning (Optom)", start: "08:00", end: "16:00", defaultQuota: 4 },
-  { id: "S2", name: "Morning (Support)", start: "08:30", end: "16:30", defaultQuota: 2 },
-  { id: "S3", name: "Mid-Day (Optom)", start: "11:00", end: "19:00", defaultQuota: 2 },
-  { id: "S4", name: "Afternoon (Optom)", start: "14:00", end: "22:00", defaultQuota: 4 },
-  { id: "S5", name: "Evening (Support)", start: "15:00", end: "23:00", defaultQuota: 2 },
-  { id: "S6", name: "Night Remote (Optom)", start: "22:00", end: "06:00", defaultQuota: 1 },
-]
+const DEFAULT_SHIFTS = [
+  { id: "SO", name: "Super Opening", startTime: "09:30", endTime: "18:30", displayOrder: 1 },
+  { id: "OP", name: "Opening", startTime: "10:00", endTime: "19:00", displayOrder: 2 },
+  { id: "MD", name: "Mid Shift", startTime: "11:00", endTime: "20:00", displayOrder: 3 },
+  { id: "C1", name: "Closing", startTime: "12:00", endTime: "21:00", displayOrder: 4 },
+  { id: "C2", name: "Closing 2", startTime: "12:00", endTime: "21:00", displayOrder: 5 },
+  { id: "SC", name: "Super Closing", startTime: "12:30", endTime: "22:00", displayOrder: 6 },
+];
 
 export default function ShiftMaster() {
-  const [quotaMatrix, setQuotaMatrix] = useState(
-    shifts.map(s => Array(7).fill(s.defaultQuota))
-  )
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const db = useFirestore();
+  const { toast } = useToast();
 
-  const handleQuotaChange = (shiftIdx: number, dayIdx: number, val: string) => {
-    const newVal = parseInt(val) || 0
-    const newMatrix = [...quotaMatrix]
-    newMatrix[shiftIdx][dayIdx] = newVal
-    setQuotaMatrix(newMatrix)
-  }
+  const fetchShifts = async () => {
+    setLoading(true);
+    try {
+      const q = query(collection(db, 'shift_master'), orderBy('displayOrder'));
+      const querySnapshot = await getDocs(q);
+      const shiftData = querySnapshot.docs.map(doc => doc.data());
+      setShifts(shiftData);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchShifts();
+  }, []);
+
+  const handleInitialize = async () => {
+    setLoading(true);
+    try {
+      for (const shift of DEFAULT_SHIFTS) {
+        await setDoc(doc(db, 'shift_master', shift.id), shift);
+      }
+      toast({ title: "Shift Master Initialized", description: "The 6 core shifts have been provisioned." });
+      fetchShifts();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Shift Master</h1>
-          <p className="text-muted-foreground">Configure shifts and manage the 7-day employee quota matrix.</p>
+          <p className="text-muted-foreground">Permanent definitions of the six core ROC shifts.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Plus className="mr-2 h-4 w-4" /> Add Shift
-          </Button>
-          <Button className="bg-secondary">
-            <Save className="mr-2 h-4 w-4" /> Save Configuration
-          </Button>
-        </div>
+        <Button variant="outline" onClick={handleInitialize} disabled={loading}>
+          <RefreshCcw className="mr-2 h-4 w-4" /> Reset to Defaults
+        </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <div className="grid gap-6">
+        <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-secondary" />
-              <CardTitle>Shift Records</CardTitle>
+              <CardTitle>Core Shift Records</CardTitle>
             </div>
-            <CardDescription>Primary shift definitions for the ROC.</CardDescription>
+            <CardDescription>
+              Closing and Closing 2 are maintained as separate entities for quota and reporting accuracy.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {shifts.map((shift) => (
-                <div key={shift.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                  <div>
-                    <p className="font-medium">{shift.name}</p>
-                    <p className="text-xs text-muted-foreground">{shift.start} - {shift.end}</p>
-                  </div>
-                  <Badge variant="outline">{shift.id}</Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-accent" />
-              <CardTitle>Staffing Quota Matrix</CardTitle>
-            </div>
-            <CardDescription>Daily staff requirements per shift (Mon - Sun).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
+            {shifts.length === 0 && !loading ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <p className="text-muted-foreground mb-4">No shift records found.</p>
+                <Button onClick={handleInitialize}>Provision Shift Master</Button>
+              </div>
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[200px]">Shift</TableHead>
-                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                      <TableHead key={day} className="text-center">{day}</TableHead>
-                    ))}
+                    <TableHead>Shift ID</TableHead>
+                    <TableHead>Shift Name</TableHead>
+                    <TableHead>Timings (Start - End)</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {shifts.map((shift, sIdx) => (
+                  {shifts.map((shift) => (
                     <TableRow key={shift.id}>
+                      <TableCell className="font-mono text-xs font-bold text-secondary">{shift.id}</TableCell>
                       <TableCell className="font-medium">{shift.name}</TableCell>
-                      {quotaMatrix[sIdx].map((val, dIdx) => (
-                        <TableCell key={dIdx}>
-                          <Input
-                            type="number"
-                            value={val}
-                            className="w-12 mx-auto text-center h-8 px-1"
-                            onChange={(e) => handleQuotaChange(sIdx, dIdx, e.target.value)}
-                          />
-                        </TableCell>
-                      ))}
+                      <TableCell>
+                        <Badge variant="secondary" className="font-mono">
+                          {shift.startTime} - {shift.endTime}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Permanent</Badge>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-muted/30 border-accent/20">
+          <CardContent className="pt-6">
+            <div className="flex gap-3">
+              <Info className="size-5 text-accent mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-bold">Shift Identity Rule</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Every shift must match exactly one of the six authorized records. Modifications to timings or IDs 
+                  require Super Admin intervention to prevent data corruption in the Roster Solver.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
-  )
+  );
 }

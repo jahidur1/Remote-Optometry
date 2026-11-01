@@ -15,7 +15,8 @@ import {
   MessageSquare,
   Settings,
   LogOut,
-  Stethoscope
+  Stethoscope,
+  CalendarRange
 } from "lucide-react"
 
 import {
@@ -45,6 +46,12 @@ const adminItems = [
     title: "Shift Master",
     url: "/admin/shifts",
     icon: Clock,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Weekly-Off Config",
+    url: "/admin/weekoff-config",
+    icon: CalendarRange,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
