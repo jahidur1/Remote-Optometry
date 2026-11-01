@@ -11,6 +11,8 @@ export type UserProfile = {
   email: string | null;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE';
   displayName: string | null;
+  status?: 'Active' | 'Inactive';
+  employeeId?: string;
 };
 
 export function useUser() {
@@ -39,12 +41,22 @@ export function useUser() {
     const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         setProfile(docSnap.data() as UserProfile);
+      } else {
+        setProfile(null);
       }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching user profile:", error);
       setLoading(false);
     });
 
     return () => unsubscribeProfile();
   }, [user, firestore]);
 
-  return { user, profile, loading };
+  return { 
+    user, 
+    profile, 
+    loading, 
+    emailVerified: user?.emailVerified ?? false 
+  };
 }

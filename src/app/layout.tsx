@@ -1,7 +1,9 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase';
+import { SessionTimeout } from '@/components/auth/session-timeout';
 
 export const metadata: Metadata = {
   title: 'ROC Workforce — Intelligent Workforce & Shift Management',
@@ -22,6 +24,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-secondary/30">
         <FirebaseClientProvider>
+          <SessionTimeout />
           {children}
         </FirebaseClientProvider>
         <Toaster />
