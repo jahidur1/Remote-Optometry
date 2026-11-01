@@ -1,21 +1,25 @@
 
 'use client';
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { collection, query, orderBy, limit, onSnapshot, doc } from "firebase/firestore"
-import { useFirestore, useUser, useDoc } from "@/firebase"
+import { useFirestore, useUser, useDoc, useCollection } from "@/firebase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MapPin, CalendarDays, MessageCircle, AlertCircle, CheckCircle2, ArrowRight, Loader2 } from "lucide-react"
+import { Clock, MapPin, CalendarDays, MessageCircle, AlertCircle, CheckCircle2, ArrowRight, Loader2, Info } from "lucide-react"
 import Link from "next/link"
 import { DemoBadge } from "@/components/ui/demo-badge"
+import { format } from "date-fns"
 
 export default function EmployeePortal() {
   const db = useFirestore();
   const { profile, loading: userLoading } = useUser();
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Current operational week
+  const currentWeek = '2024-52'; 
 
   // Fetch active booking window
   useEffect(() => {
@@ -30,16 +34,28 @@ export default function EmployeePortal() {
   // Check user's booking for active week
   const bookingId = activeConfig && profile?.employeeId ? `${activeConfig.weekId}_${profile.employeeId}` : null;
   const bookingRef = bookingId ? doc(db, 'weekoff_bookings', bookingId) : null;
-  const { data: userBooking, loading: bookingLoading } = useDoc(bookingRef);
+  const { data: userBooking } = useDoc(bookingRef);
 
-  const upcomingShifts = [
-    { day: "Today", shift: "Morning Optom", time: "08:00 - 16:00", location: "Remote Station 4" },
-    { day: "Tomorrow", shift: "Mid-Day Optom", time: "11:00 - 19:00", location: "Main Center" },
-  ];
+  // Fetch latest published roster for the week
+  const publishedQuery = query(
+    collection(db, 'published_rosters'),
+    where('weekId', '==', currentWeek),
+    orderBy('publishedAt', 'desc'),
+    limit(1)
+  );
+  const { data: publishedRosters, loading: rosterLoading } = useCollection(publishedQuery);
+  const publishedRoster = publishedRosters?.[0];
+
+  const { data: shifts } = useCollection(query(collection(db, 'shift_master')));
+
+  const myAssignments = useMemo(() => {
+    if (!publishedRoster || !profile?.employeeId) return [];
+    return publishedRoster.assignments.filter((a: any) => a.employeeId === profile.employeeId);
+  }, [publishedRoster, profile]);
 
   const isWindowOpen = activeConfig && new Date() >= new Date(activeConfig.bookingOpen) && new Date() <= new Date(activeConfig.bookingClose);
 
-  if (userLoading || loading) {
+  if (userLoading || loading || rosterLoading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <Loader2 className="size-8 animate-spin text-secondary" />
@@ -61,6 +77,48 @@ export default function EmployeePortal() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
+          {/* Roster Assignment Card */}
+          <Card className="border-l-4 border-l-primary shadow-sm overflow-hidden">
+             <CardHeader className="bg-muted/5">
+                <div className="flex items-center justify-between">
+                   <CardTitle className="text-lg flex items-center gap-2">
+                      <Clock className="size-5 text-primary" /> Active Assignments
+                   </CardTitle>
+                   {publishedRoster && (
+                      <Badge className="bg-emerald-500 uppercase text-[9px] font-black tracking-widest">
+                         Published V{new Date(publishedRoster.publishedAt).getTime().toString().slice(-4)}
+                      </Badge>
+                   )}
+                </div>
+                <CardDescription>Officially authorized clinical schedule for Week {currentWeek}.</CardDescription>
+             </CardHeader>
+             <CardContent className="pt-6 space-y-3">
+                {myAssignments.length > 0 ? (
+                  myAssignments.map((a: any, i: number) => {
+                    const shift = shifts?.find(s => s.id === a.shiftId);
+                    return (
+                      <div key={i} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-all border-l-4 border-l-secondary">
+                        <div>
+                          <p className="font-bold text-sm uppercase tracking-tight">{a.dayOfWeek}</p>
+                          <p className="text-[11px] font-bold text-secondary uppercase mt-0.5">{shift?.name || a.shiftId}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono mt-1">{shift?.startTime} — {shift?.endTime}</p>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">
+                           Confirmed
+                        </Badge>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="text-center py-12 bg-muted/5 rounded-2xl border border-dashed">
+                     <CalendarDays className="size-12 text-muted-foreground/20 mx-auto mb-4" />
+                     <p className="text-sm font-bold text-muted-foreground">No authorized assignments for this week cycle.</p>
+                     <p className="text-[10px] text-muted-foreground/60 uppercase mt-1">Please check back after Admin publication.</p>
+                  </div>
+                )}
+             </CardContent>
+          </Card>
+
           {/* Booking Pulse Card */}
           {activeConfig && (
             <Card className={userBooking ? "border-emerald-500/20 bg-emerald-500/5 shadow-sm" : "border-secondary/20 bg-secondary/5 shadow-sm"}>
@@ -109,47 +167,15 @@ export default function EmployeePortal() {
                   </div>
                 )}
               </CardContent>
-              {userBooking && (
-                <CardFooter className="pt-0 pb-4">
-                   <Link href="/employee/book-off" className="text-[10px] font-black text-emerald-600 uppercase hover:underline">
-                      View Reservation Details →
-                   </Link>
-                </CardFooter>
-              )}
             </Card>
           )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Upcoming Schedule</CardTitle>
-              <CardDescription>Published clinical shifts for the next 48 hours.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {upcomingShifts.map((s, i) => (
-                <div key={i} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-all border-l-4 border-l-primary">
-                  <div className="flex items-center gap-4">
-                    <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
-                      <Clock className="size-5 text-primary opacity-60" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">{s.shift}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{s.day} • {s.time}</p>
-                      <p className="text-[10px] flex items-center gap-1 mt-1 text-primary/70 font-medium">
-                        <MapPin className="size-3" /> {s.location}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant={i === 0 ? "default" : "secondary"} className="text-[10px] font-bold">
-                    {i === 0 ? "LIVE" : "CONFIRMED"}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-primary text-primary-foreground shadow-xl border-none">
+          <Card className="bg-primary text-primary-foreground shadow-xl border-none overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-4">
+               <Info className="size-12 text-white opacity-5" />
+            </div>
             <CardHeader>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <MessageCircle className="size-4 text-accent" /> Professional Hub
@@ -157,11 +183,11 @@ export default function EmployeePortal() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1">
-                <p className="text-xs font-bold text-white/90">Shift Swap Portal</p>
-                <p className="text-[10px] text-white/60 leading-relaxed">Initiate a request to exchange a confirmed shift with a colleague.</p>
+                <p className="text-xs font-bold text-white/90">Clinical Support</p>
+                <p className="text-[10px] text-white/60 leading-relaxed">Reach out for roster technical support or clinical emergencies.</p>
               </div>
               <Button variant="outline" className="w-full bg-white/10 hover:bg-white/20 border-white/20 text-white font-bold text-xs" size="sm">
-                Request Swap
+                Open Support Ticket
               </Button>
             </CardContent>
           </Card>
@@ -169,17 +195,17 @@ export default function EmployeePortal() {
           <Card className="bg-muted/50 border-dashed">
             <CardHeader className="pb-2">
                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="size-3 text-secondary" /> Clinical Standards
+                <AlertCircle className="size-3 text-secondary" /> Operational Integrity
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-primary">Immutable Bookings</p>
-                <p className="text-[9px] text-muted-foreground leading-relaxed">Weekly-off records are protected once secured. Overrides require Super Admin clearance.</p>
+                <p className="text-[10px] font-bold text-primary">Immutable History</p>
+                <p className="text-[9px] text-muted-foreground leading-relaxed">Published assignments are locked. Correction versions are created for all approved changes.</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-primary">Notification Hygiene</p>
-                <p className="text-[9px] text-muted-foreground leading-relaxed">WhatsApp shift alerts are dispatched daily at 22:00 IST. Please maintain updated contact details.</p>
+                <p className="text-[10px] font-bold text-primary">FCFS Verification</p>
+                <p className="text-[9px] text-muted-foreground leading-relaxed">Weekly-off priority is strictly determined by atomic transaction order.</p>
               </div>
             </CardContent>
           </Card>

@@ -86,6 +86,28 @@
         "createdAt": { "type": "string", "format": "date-time" }
       }
     },
+    "RosterPublished": {
+      "title": "Published Roster",
+      "description": "Official authorized roster version.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string" },
+        "version": { "type": "number" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "publisherId": { "type": "string" },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "employeeId": { "type": "string" },
+              "dayOfWeek": { "type": "string" },
+              "shiftId": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "AuditLog": {
       "title": "Audit Log",
       "description": "Immutable log of sensitive actions.",
@@ -122,6 +144,10 @@
     "/roster_drafts/{draftId}": {
       "schema": "RosterDraft",
       "description": "Unpublished roster generations."
+    },
+    "/published_rosters/{versionId}": {
+      "schema": "RosterPublished",
+      "description": "The official authorized roster versions."
     },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
