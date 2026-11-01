@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -92,7 +91,6 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
     try {
       if (!employee) {
-        // Validation for new employees
         const qEmail = query(collection(db, 'employees'), where('email', '==', formData.email));
         const emailSnap = await getDocs(qEmail);
         if (!emailSnap.empty) {
@@ -246,10 +244,10 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="EMPLOYEE">Clinical Professional</SelectItem>
+                    <SelectItem value="ADMIN">System Administrator</SelectItem>
                     {profile?.role === 'SUPER_ADMIN' && (
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      <SelectItem value="SUPER_ADMIN">Executive Board</SelectItem>
                     )}
                   </SelectContent>
                 </Select>

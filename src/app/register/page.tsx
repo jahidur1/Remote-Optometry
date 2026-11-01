@@ -33,7 +33,6 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate phone (10 digits)
     if (!/^[6-9]\d{9}$/.test(formData.phone)) {
       toast({
         variant: "destructive",
@@ -48,7 +47,6 @@ export default function RegisterPage() {
     try {
       const formattedPhone = `+91${formData.phone}`;
       
-      // Pre-check for existing authorized record
       const phoneQuery = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
       const phoneSnap = await getDocs(phoneQuery);
 
@@ -56,7 +54,6 @@ export default function RegisterPage() {
         throw new Error("This phone number is already registered in the clinical directory.");
       }
 
-      // Generate a permanent Employee ID
       const empId = `EMP-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString().slice(-4)}`;
       const empRef = doc(db, 'employees', empId);
 
@@ -73,7 +70,7 @@ export default function RegisterPage() {
         joinedAt: new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        eligibility: ["OP", "MD", "C1"] // Default shift eligibility
+        eligibility: ["OP", "MD", "C1"]
       };
 
       await setDoc(empRef, payload);
@@ -123,7 +120,7 @@ export default function RegisterPage() {
                 <Label htmlFor="name" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Full Name</Label>
                 <Input 
                   id="name" 
-                  placeholder="e.g. Dr. Sarah Smith" 
+                  placeholder="e.g. Dr. Dr. Sarah Smith" 
                   className="h-11 font-bold"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
