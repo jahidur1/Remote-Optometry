@@ -21,6 +21,7 @@ service cloud.firestore {
     // Employees Collection
     match /employees/{employeeId} {
       // Allow public read and create for enrollment and authorization checks
+      // Required because registration happens BEFORE auth
       allow read, create: if true; 
       allow update, delete: if isAdmin();
     }
