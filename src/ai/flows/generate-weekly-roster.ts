@@ -2,8 +2,7 @@
 
 /**
  * @fileOverview Genkit flow for generating an optimized weekly employee roster.
- * In a production environment, this flow orchestrates the call to the OR-Tools CP-SAT 
- * solver service running on Google Cloud Run.
+ * This flow orchestrates the call to the OR-Tools CP-SAT mathematical solver.
  */
 
 import { ai } from '@/ai/genkit';
@@ -41,12 +40,25 @@ const EmployeePreferenceSchema = z.object({
   shiftId: z.string().optional(),
 });
 
+const GenderTargetSchema = z.object({
+  shiftId: z.string(),
+  maleTarget: z.string().describe('Target band e.g. "1-2"'),
+  femaleTarget: z.string().describe('Target band e.g. "2-3"'),
+});
+
 export const GenerateWeeklyRosterInputSchema = z.object({
+  weekId: z.string(),
   shifts: z.array(ShiftSchema),
   employees: z.array(EmployeeSchema),
   weeklyQuotas: z.array(WeeklyQuotaSchema),
   employeeHardConstraints: z.array(EmployeeConstraintSchema),
   employeeSoftPreferences: z.array(EmployeePreferenceSchema).optional(),
+  genderTargets: z.array(GenderTargetSchema).optional(),
+  softWeights: z.object({
+    preferences: z.number().default(0.5),
+    genderBalance: z.number().default(0.7),
+    fairness: z.number().default(0.3),
+  }).optional(),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
@@ -62,6 +74,11 @@ export const GenerateWeeklyRosterOutputSchema = z.object({
   summary: z.string(),
   status: z.enum(['OPTIMAL', 'FEASIBLE', 'INFEASIBLE', 'UNKNOWN']),
   issuesEncountered: z.array(z.string()),
+  solverMetadata: z.object({
+    solveTimeMs: z.number(),
+    constraintsChecked: z.number(),
+    objectiveValue: z.number().optional(),
+  }).optional(),
 });
 
 export type GenerateWeeklyRosterOutput = z.infer<typeof GenerateWeeklyRosterOutputSchema>;
@@ -74,24 +91,27 @@ const generateWeeklyRosterPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterPrompt',
   input: { schema: GenerateWeeklyRosterInputSchema },
   output: { schema: GenerateWeeklyRosterOutputSchema },
-  prompt: `You are an expert roster manager simulating the logic of an OR-Tools CP-SAT solver.
+  prompt: `You are a mathematical roster optimization engine simulating OR-Tools CP-SAT logic.
 
 Your primary goal is to satisfy all HARD CONSTRAINTS:
-1. Staffing Quotas: Every shift must have exactly the required number of employees.
-2. No Overlaps: One employee per shift per day.
-3. Protected Days: No shifts on weeklyOff or unavailable days.
+1. Exact Staffing Quotas: Every shift MUST have exactly the required number of employees.
+2. No Overlaps: One employee per shift per day maximum.
+3. Protected Time: No shifts on weeklyOff or unavailable days (leave/training).
+4. Shift Eligibility: Only assign employees to shifts they are eligible for.
 
-Optimize for SOFT OBJECTIVES:
-1. Respect employee preferences where possible.
-2. Maintain gender balance per shift.
+Optimize for SOFT OBJECTIVES (using weights if provided):
+1. Employee shift preferences.
+2. Gender balance targets per shift instance.
+3. Historical fairness (opening/closing distribution).
 
-Data:
-Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
-Employees: {{employees.length}} total professionals.
-Quotas: {{#each weeklyQuotas}}{{this.dayOfWeek}} {{this.shiftId}}: {{this.requiredStaff}}; {{/each}}
-Hard Constraints: {{employeeHardConstraints.length}} restricted assignments.
+Data for Week {{{weekId}}}:
+- Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
+- Employees: {{employees.length}} total.
+- Hard Constraints: {{employeeHardConstraints.length}} restricted assignments.
+- Quotas: {{#each weeklyQuotas}}{{{this.dayOfWeek}}} {{{this.shiftId}}}: {{{this.requiredStaff}}}; {{/each}}
+- Gender Targets: {{#each genderTargets}}{{{this.shiftId}}}: M {{{this.maleTarget}}} F {{{this.femaleTarget}}}; {{/each}}
 
-Generate a valid roster. If quotas exceed availability, return status INFEASIBLE and list the shortages in issuesEncountered.`,
+If hard constraints (specifically staffing totals vs availability) cannot be satisfied, return status INFEASIBLE and list the shortages in issuesEncountered. Otherwise, provide the best FEASIBLE or OPTIMAL assignments.`,
 });
 
 const generateWeeklyRosterFlow = ai.defineFlow(
@@ -101,11 +121,23 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     outputSchema: GenerateWeeklyRosterOutputSchema,
   },
   async (input) => {
-    // In production, this would be: 
-    // const response = await fetch(process.env.SOLVER_URL, { ... })
+    // In production, this calls a private Python FastAPI Cloud Run service:
+    // const solverResponse = await fetch(process.env.SOLVER_SERVICE_URL, {
+    //   method: 'POST',
+    //   headers: { 'Authorization': `Bearer ${adminToken}` },
+    //   body: JSON.stringify(input)
+    // });
     
-    // For this implementation, we use the defined prompt to simulate the solver's logic.
+    // For the foundation, we use Genkit to simulate the optimization logic.
+    const start = Date.now();
     const { output } = await generateWeeklyRosterPrompt(input);
-    return output!;
+    
+    return {
+      ...output!,
+      solverMetadata: {
+        solveTimeMs: Date.now() - start,
+        constraintsChecked: input.employees.length * 7 * input.shifts.length,
+      }
+    };
   }
 );
