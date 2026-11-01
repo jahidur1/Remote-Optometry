@@ -21,7 +21,8 @@ import {
   UserCheck,
   Target,
   BarChart3,
-  ShieldAlert
+  ShieldAlert,
+  CreditCard
 } from "lucide-react"
 
 import {
@@ -99,6 +100,12 @@ const adminItems = [
     title: "Session Audit",
     url: "/admin/sessions",
     icon: ShieldAlert,
+    roles: ["SUPER_ADMIN"],
+  },
+  {
+    title: "Auth Usage",
+    url: "/admin/auth-costs",
+    icon: CreditCard,
     roles: ["SUPER_ADMIN"],
   },
   {

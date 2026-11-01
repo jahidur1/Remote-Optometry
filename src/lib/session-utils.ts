@@ -32,11 +32,16 @@ export async function createOrUpdateSession(
   const now = new Date();
   const deadline = addDays(now, 365);
 
+  // Derive initial label if not provided
+  const derivedLabel = label || (typeof navigator !== 'undefined' ? 
+    `${navigator.platform} (${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'})` : 
+    'Unknown Device');
+
   const sessionData = {
     id: sessionId,
     uid,
     employeeId,
-    label: label || (typeof navigator !== 'undefined' ? navigator.userAgent.substring(0, 50) : 'Unknown Device'),
+    label: derivedLabel,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Server',
     verifiedAt: now.toISOString(),
     deadlineAt: deadline.toISOString(),

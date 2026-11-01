@@ -20,6 +20,7 @@ import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw }
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createOrUpdateSession } from '@/lib/session-utils';
+import { logAudit } from '@/lib/audit';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -90,6 +91,10 @@ export default function LoginPage() {
       setConfirmationResult(result);
       setStep('otp');
       setResendCooldown(60);
+      
+      // Log Attempt for Cost Tracking
+      logAudit(db, 'system', 'AUTH_OTP_REQUEST', phoneNumber, { source: 'web_portal' });
+      
       toast({ title: "OTP Sent", description: "Verification code sent to your registered mobile." });
     } catch (error: any) {
       toast({
@@ -113,7 +118,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Set local persistence for the 365-day foundation
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
@@ -136,8 +140,11 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         }, { merge: true });
 
-        // IMPORTANT: Create the 365-day session record
+        // IMPORTANT: Create/Refresh 365-day session record
         await createOrUpdateSession(db, user.uid, employee.id);
+        
+        // Log Success for Metrics
+        logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
 
         toast({
           title: "Verified",
@@ -207,7 +214,10 @@ export default function LoginPage() {
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="otp" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">6-Digit Verification Code</Label>
+                <div className="flex justify-between items-center px-1">
+                  <Label htmlFor="otp" className="text-xs font-black uppercase tracking-widest text-muted-foreground">6-Digit Code</Label>
+                  <button type="button" onClick={() => setStep('phone')} className="text-[10px] text-secondary font-black hover:underline">CHANGE NUMBER</button>
+                </div>
                 <div className="relative">
                   <Key className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
                   <Input
@@ -222,7 +232,7 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="flex justify-between items-center px-1">
-                   <p className="text-[10px] text-muted-foreground uppercase font-black">Sent to +91 {phoneNumber}</p>
+                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Sent to +91 {phoneNumber}</p>
                    {resendCooldown > 0 ? (
                      <p className="text-[10px] text-accent font-black">Resend in {resendCooldown}s</p>
                    ) : (
@@ -234,9 +244,6 @@ export default function LoginPage() {
               </div>
               <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-12 text-base font-bold shadow-lg shadow-accent/10" type="submit" disabled={loading || otp.length < 6}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Verify & Access Portal"}
-              </Button>
-              <Button variant="ghost" className="w-full text-xs font-bold text-muted-foreground h-8" onClick={() => setStep('phone')} type="button">
-                Change Number
               </Button>
             </form>
           )}
