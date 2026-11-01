@@ -248,7 +248,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Corporate Banner Footer */}
       <div className="p-12 rounded-[3rem] bg-primary text-primary-foreground shadow-2xl relative overflow-hidden group">
          <div className="absolute top-0 right-0 p-12 transform translate-x-12 -translate-y-12 opacity-5 group-hover:scale-110 transition-transform duration-1000 ease-in-out">
             <ShieldCheck size={420} />
