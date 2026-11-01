@@ -18,7 +18,8 @@ import {
   Stethoscope,
   CalendarRange,
   PlaneTakeoff,
-  UserCheck
+  UserCheck,
+  Target
 } from "lucide-react"
 
 import {
@@ -54,6 +55,12 @@ const adminItems = [
     title: "Weekly-Off Config",
     url: "/admin/weekoff-config",
     icon: CalendarRange,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Shift Quotas",
+    url: "/admin/quotas",
+    icon: Target,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {

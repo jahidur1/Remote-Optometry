@@ -50,6 +50,18 @@
         "displayOrder": { "type": "number" }
       }
     },
+    "RosterQuota": {
+      "title": "Roster Quota Configuration",
+      "description": "Exact staffing requirements and gender targets for a roster week.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string" },
+        "quotas": { "type": "object", "description": "Map of dayOfWeek_shiftId to requiredCount" },
+        "genderTargets": { "type": "object", "description": "Map of shiftId to { male: string, female: string }" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "actorId": { "type": "string" }
+      }
+    },
     "WeekOffConfig": {
       "title": "Weekly-Off Configuration",
       "description": "Admin settings for a specific week's booking window.",
@@ -152,6 +164,10 @@
     "/shift_master/{shiftId}": {
       "schema": "Shift",
       "description": "Definitions of the 6 core shifts."
+    },
+    "/roster_quotas/{weekId}": {
+      "schema": "RosterQuota",
+      "description": "Exact shift quotas and gender targets."
     },
     "/weekoff_configs/{weekId}": {
       "schema": "WeekOffConfig",
