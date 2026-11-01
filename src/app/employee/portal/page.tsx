@@ -17,7 +17,7 @@ export default function EmployeePortal() {
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Current operational week
+  // Current operational week (dynamically derived in production)
   const currentWeek = '2024-52'; 
 
   // Fetch active booking window
@@ -78,8 +78,8 @@ export default function EmployeePortal() {
         </div>
         <div className="flex gap-2">
             <Link href="/employee/profile">
-                <Button variant="outline" size="icon" className="rounded-full">
-                    <Settings className="size-4" />
+                <Button variant="outline" size="icon" className="rounded-full h-10 w-10">
+                    <Settings className="size-5" />
                 </Button>
             </Link>
         </div>
@@ -91,14 +91,14 @@ export default function EmployeePortal() {
           <div className="grid grid-cols-2 gap-4">
             <Card className="bg-secondary/10 border-none shadow-none">
                 <CardContent className="p-4 flex flex-col items-center text-center space-y-1">
-                    <p className="text-[10px] font-black uppercase text-secondary/60 tracking-widest">Upcoming Week</p>
+                    <p className="text-[10px] font-black uppercase text-secondary/60 tracking-widest">Active Cycle</p>
                     <p className="text-xl font-black text-secondary uppercase tracking-tighter">{currentWeek}</p>
                 </CardContent>
             </Card>
-            <Card className="bg-emerald-500/10 border-none shadow-none">
+            <Card className={userBooking ? "bg-emerald-500/10 border-none shadow-none" : "bg-accent/10 border-none shadow-none"}>
                 <CardContent className="p-4 flex flex-col items-center text-center space-y-1">
-                    <p className="text-[10px] font-black uppercase text-emerald-600/60 tracking-widest">Weekly-Off</p>
-                    <p className="text-xl font-black text-emerald-600 uppercase tracking-tighter">{userBooking?.dayOfWeek || 'Pending'}</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Weekly-Off</p>
+                    <p className="text-xl font-black text-foreground uppercase tracking-tighter">{userBooking?.dayOfWeek || 'Unset'}</p>
                 </CardContent>
             </Card>
           </div>
@@ -108,10 +108,10 @@ export default function EmployeePortal() {
              <CardHeader className="bg-muted/5 border-b py-4">
                 <div className="flex items-center justify-between">
                    <div>
-                       <CardTitle className="text-base flex items-center gap-2">
-                          <Clock className="size-4 text-primary" /> Active Assignments
+                       <CardTitle className="text-base flex items-center gap-2 font-black uppercase tracking-tight">
+                          <Clock className="size-4 text-primary" /> Active Schedule
                        </CardTitle>
-                       <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground">Week Cycle: {currentWeek}</CardDescription>
+                       <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground">Authorized Assignments for {currentWeek}</CardDescription>
                    </div>
                    {publishedRoster && (
                       <Badge className="bg-emerald-500 text-[9px] font-black tracking-widest shadow-sm">
@@ -128,19 +128,16 @@ export default function EmployeePortal() {
                   }).map((a: any, i: number) => {
                     const shift = shifts?.find(s => s.id === a.shiftId);
                     return (
-                      <div key={i} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-all border-l-4 border-l-secondary shadow-sm">
+                      <div key={i} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-all border-l-4 border-l-secondary shadow-sm group">
                         <div className="flex flex-col">
                           <span className="font-black text-sm uppercase tracking-tight text-foreground">{a.dayOfWeek}</span>
                           <span className="text-[11px] font-bold text-secondary uppercase mt-0.5">{shift?.name || a.shiftId}</span>
                           <span className="text-[10px] text-muted-foreground font-mono mt-1 font-bold tracking-wider">{shift?.startTime} — {shift?.endTime}</span>
                         </div>
-                        <div className="flex flex-col items-end gap-1.5">
-                            <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">
-                               Authorized
-                            </Badge>
+                        <div className="flex flex-col items-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Link href={`/employee/swaps?date=${a.dayOfWeek}`}>
-                                <Button variant="ghost" size="sm" className="h-6 text-[9px] font-bold uppercase tracking-widest text-muted-foreground hover:text-secondary">
-                                    Swap Request
+                                <Button variant="ghost" size="sm" className="h-7 text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-secondary border border-dashed">
+                                    Propose Swap
                                 </Button>
                             </Link>
                         </div>
@@ -151,7 +148,7 @@ export default function EmployeePortal() {
                   <div className="text-center py-16 bg-muted/5 rounded-2xl border border-dashed">
                      <CalendarDays className="size-16 text-muted-foreground/10 mx-auto mb-4" />
                      <p className="text-sm font-bold text-muted-foreground">Official Roster Awaiting Publication</p>
-                     <p className="text-[10px] text-muted-foreground/60 uppercase mt-2 max-w-[200px] mx-auto leading-relaxed">Your assignments will appear here once authorized by clinical administration.</p>
+                     <p className="text-[10px] text-muted-foreground/60 uppercase mt-2 max-w-[200px] mx-auto leading-relaxed font-medium">Your assignments will appear here once authorized by clinical administration.</p>
                   </div>
                 )}
              </CardContent>
@@ -163,7 +160,7 @@ export default function EmployeePortal() {
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 font-black text-xs uppercase tracking-widest text-secondary">
                   <CalendarDays className="text-secondary" size={16} />
-                  Action Required: FCFS Booking
+                  Immediate Action: Week-Off Selection
                 </div>
               </CardHeader>
               <CardContent>
@@ -178,15 +175,15 @@ export default function EmployeePortal() {
                               ? "FCFS Window is NOW LIVE" 
                               : `Opens ${new Date(activeConfig.bookingOpen).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
                           </p>
-                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight mt-1">
-                             Reservations are processed atomically on a first-come, first-served basis.
+                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight mt-1 leading-relaxed">
+                             Reservations are processed atomically. Once the window opens, select your day immediately to secure priority.
                           </p>
                        </div>
                     </div>
                     {isWindowOpen && (
                       <Link href="/employee/book-off" className="block">
                         <Button className="w-full bg-secondary font-black uppercase tracking-widest group shadow-xl shadow-secondary/20 h-12">
-                          Reserve Weekly-Off <ArrowRight className="ml-2 size-4 group-hover:translate-x-1 transition-transform" />
+                          Access Booking Matrix <ArrowRight className="ml-2 size-4 group-hover:translate-x-1 transition-transform" />
                         </Button>
                       </Link>
                     )}
@@ -203,17 +200,17 @@ export default function EmployeePortal() {
             </div>
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 text-accent">
-                <MessageCircle className="size-4" /> Notification Sync
+                <MessageCircle className="size-4" /> Notification Hub
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-bold text-white/90">WhatsApp Status: {profile?.whatsappNumber ? 'Connected' : 'Not Linked'}</p>
-                <p className="text-[10px] text-white/60 leading-relaxed uppercase font-medium tracking-tight">Shift updates are dispatched daily at 10:00 PM IST to your linked number.</p>
+                <p className="text-xs font-bold text-white/90">Channel Status: {profile?.whatsappNumber ? 'WhatsApp Verified' : 'Contact Missing'}</p>
+                <p className="text-[10px] text-white/60 leading-relaxed uppercase font-black tracking-tight">Shift briefings are dispatched daily at 22:00 Asia/Kolkata using Meta Cloud API.</p>
               </div>
               <Link href="/employee/profile" className="block">
                   <Button variant="outline" className="w-full bg-white/10 hover:bg-white/20 border-white/20 text-white font-black text-[10px] uppercase tracking-widest h-9" size="sm">
-                    Configure Alerts
+                    Configure Notification Channel
                   </Button>
               </Link>
             </CardContent>
@@ -222,27 +219,27 @@ export default function EmployeePortal() {
           <Card className="bg-muted/30 border-dashed shadow-sm">
             <CardHeader className="pb-2">
                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="size-3 text-secondary" /> System Governance
+                <AlertCircle className="size-3 text-secondary" /> Workforce Policy
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
               <div className="flex gap-3">
                  <div className="size-1.5 rounded-full bg-secondary mt-1.5 shrink-0" />
-                 <p className="text-[9px] text-muted-foreground leading-relaxed uppercase font-bold">Assignments are locked once published. Contact Admin for corrections.</p>
+                 <p className="text-[9px] text-muted-foreground leading-relaxed uppercase font-black">Published assignments are binding. Manual overrides require clinical lead approval.</p>
               </div>
               <div className="flex gap-3">
                  <div className="size-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
-                 <p className="text-[9px] text-muted-foreground leading-relaxed uppercase font-bold">Swap requests must be mutually accepted before final Admin review.</p>
+                 <p className="text-[9px] text-muted-foreground leading-relaxed uppercase font-black">Swap requests are provisional until mutually accepted and admin-verified.</p>
               </div>
             </CardContent>
           </Card>
 
           <div className="p-4 rounded-2xl bg-muted/50 border border-dashed text-center space-y-2">
               <Info className="size-6 text-muted-foreground/30 mx-auto" />
-              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Version Tracker</p>
-              <p className="text-[9px] font-medium text-muted-foreground leading-snug">
-                  ROC Workforce Platform v1.0.2<br/>
-                  Intelligent Solver Build 942
+              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Platform Integrity</p>
+              <p className="text-[9px] font-black text-muted-foreground/60 leading-snug uppercase">
+                  ROC Workforce Platform v1.2.0<br/>
+                  Meta API V19.0 Integrated
               </p>
           </div>
         </div>

@@ -52,6 +52,7 @@ export async function logNotification(
     const permissionError = new FirestorePermissionError({
       path: 'whatsapp_logs',
       operation: 'create',
+      requestResourceData: { employeeId, date, rosterVersion }
     });
     errorEmitter.emit('permission-error', permissionError);
   }
