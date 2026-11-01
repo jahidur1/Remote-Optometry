@@ -108,6 +108,33 @@
         }
       }
     },
+    "WhatsAppLog": {
+      "title": "WhatsApp Delivery Log",
+      "description": "Tracking for automated shift notifications.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "maskedPhone": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "rosterVersion": { "type": "string" },
+        "status": { "type": "string", "enum": ["success", "failed", "retrying"] },
+        "messageId": { "type": "string" },
+        "failureReason": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ShiftSwapRequest": {
+        "title": "Shift Swap Request",
+        "description": "Employee-to-employee shift change requests.",
+        "type": "object",
+        "properties": {
+            "requesterId": { "type": "string" },
+            "targetEmployeeId": { "type": "string" },
+            "date": { "type": "string" },
+            "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "cancelled"] },
+            "createdAt": { "type": "string", "format": "date-time" }
+        }
+    },
     "AuditLog": {
       "title": "Audit Log",
       "description": "Immutable log of sensitive actions.",
@@ -148,6 +175,14 @@
     "/published_rosters/{versionId}": {
       "schema": "RosterPublished",
       "description": "The official authorized roster versions."
+    },
+    "/whatsapp_logs/{logId}": {
+      "schema": "WhatsAppLog",
+      "description": "Automated notification history."
+    },
+    "/shift_swaps/{swapId}": {
+      "schema": "ShiftSwapRequest",
+      "description": "Workflow for employee shift exchanges."
     },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
