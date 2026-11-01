@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,11 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Stethoscope, Loader2, UserPlus, ArrowLeft, ShieldCheck, Mail, Phone } from 'lucide-react';
+import { UserPlus, ArrowLeft, ShieldCheck, Mail, Phone, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -51,7 +50,14 @@ export default function RegisterPage() {
       const formattedPhone = `+91${formData.phone}`;
       
       const phoneQuery = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
-      const phoneSnap = await getDocs(phoneQuery);
+      const phoneSnap = await getDocs(phoneQuery).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'employees',
+          operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+      });
 
       if (!phoneSnap.empty) {
         throw new Error("This phone number is already registered in the clinical directory.");
@@ -76,12 +82,12 @@ export default function RegisterPage() {
         eligibility: ["OP", "MD", "C1"]
       };
 
-      setDoc(empRef, payload).catch(async (error) => {
+      setDoc(empRef, payload).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: empRef.path,
           operation: 'create',
           requestResourceData: payload,
-        });
+        } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
       });
       
@@ -94,6 +100,7 @@ export default function RegisterPage() {
       
       router.push('/login');
     } catch (error: any) {
+      // Generic errors are still shown in the toast for the user
       toast({
         variant: "destructive",
         title: "Provisioning Failed",
@@ -116,7 +123,7 @@ export default function RegisterPage() {
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-lg shadow-accent/20">
             <UserPlus className="size-8" />
           </div>
-          <CardTitle className="text-3xl font-bold font-headline">Clinical <span className="text-secondary">Enrollment</span></CardTitle>
+          <CardTitle className="text-3xl font-bold font-headline text-foreground">Clinical <span className="text-secondary">Enrollment</span></CardTitle>
           <CardDescription className="text-muted-foreground/80 font-medium">
             Authorize your professional record for Phone OTP access
           </CardDescription>
@@ -129,8 +136,8 @@ export default function RegisterPage() {
                 <Label htmlFor="name" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Full Name</Label>
                 <Input 
                   id="name" 
-                  placeholder="e.g. Dr. Dr. Sarah Smith" 
-                  className="h-11 font-bold"
+                  placeholder="JAHIDUR RAHAMAN" 
+                  className="h-11 font-bold text-foreground"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                   required 
@@ -143,8 +150,8 @@ export default function RegisterPage() {
                    <Input 
                     id="email" 
                     type="email"
-                    placeholder="name@roc.example" 
-                    className="pl-10 h-11 font-bold"
+                    placeholder="jahidur1204@gmail.com" 
+                    className="pl-10 h-11 font-bold text-foreground"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     required 
@@ -165,8 +172,8 @@ export default function RegisterPage() {
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="99999 00000"
-                      className="pl-10 h-11 text-lg font-bold tracking-[0.1em]"
+                      placeholder="9832441153"
+                      className="pl-10 h-11 text-lg font-bold tracking-[0.1em] text-foreground"
                       value={formData.phone}
                       onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
                       required
@@ -177,7 +184,7 @@ export default function RegisterPage() {
               <div className="space-y-2">
                 <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Assigned Role</Label>
                 <Select value={formData.role} onValueChange={(v) => setFormData({...formData, role: v})}>
-                  <SelectTrigger className="h-11 font-bold">
+                  <SelectTrigger className="h-11 font-bold text-foreground">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -193,7 +200,7 @@ export default function RegisterPage() {
                <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Gender Identity</Label>
                   <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
-                    <SelectTrigger className="h-11 font-bold">
+                    <SelectTrigger className="h-11 font-bold text-foreground">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -206,8 +213,8 @@ export default function RegisterPage() {
                <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Clinical Department</Label>
                   <Input 
-                    placeholder="e.g. Remote Optometry" 
-                    className="h-11 font-bold"
+                    placeholder="Remote Optometry" 
+                    className="h-11 font-bold text-foreground"
                     value={formData.department}
                     onChange={(e) => setFormData({...formData, department: e.target.value})}
                   />

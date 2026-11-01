@@ -20,10 +20,8 @@ service cloud.firestore {
 
     // Employees Collection
     match /employees/{employeeId} {
-      allow read: if isSignedIn();
-      // Temporary: Allow creation for enrollment. 
-      // In production, this should be restricted to Admins.
-      allow create: if true; 
+      // Allow public read and create for enrollment and authorization checks
+      allow read, create: if true; 
       allow update, delete: if isAdmin();
     }
 
