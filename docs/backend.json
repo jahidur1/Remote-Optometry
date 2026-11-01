@@ -11,7 +11,8 @@
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "displayName": { "type": "string" },
         "employeeId": { "type": "string", "description": "Link to the Employee record" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
       },
       "required": ["uid", "email", "role"]
     },
@@ -25,107 +26,15 @@
         "email": { "type": "string", "format": "email" },
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
-        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
         "whatsappNumber": { "type": "string" },
-        "joinedAt": { "type": "string", "format": "date-time" }
+        "joinedAt": { "type": "string", "format": "date" },
+        "department": { "type": "string" },
+        "designation": { "type": "string" },
+        "eligibility": { "type": "array", "items": { "type": "string" } },
+        "authUid": { "type": "string" }
       },
       "required": ["id", "fullName", "email", "role", "status"]
-    },
-    "Shift": {
-      "title": "Shift",
-      "description": "One of the six master shift definitions.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "description": { "type": "string" }
-      },
-      "required": ["id", "name", "startTime", "endTime"]
-    },
-    "DailyShiftQuota": {
-      "title": "Daily Shift Quota",
-      "description": "Exact required employee count per shift per day.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string" },
-        "dayOfWeek": { "type": "string" },
-        "quotas": {
-          "type": "object",
-          "additionalProperties": { "type": "integer" }
-        }
-      }
-    },
-    "WeekoffSchedule": {
-      "title": "Weekoff Schedule Configuration",
-      "description": "Admin configuration for a specific week's booking window.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string", "description": "YYYY-WW" },
-        "windowOpen": { "type": "string", "format": "date-time" },
-        "windowClose": { "type": "string", "format": "date-time" },
-        "quotas": {
-          "type": "object",
-          "properties": {
-            "Monday": { "type": "integer" },
-            "Tuesday": { "type": "integer" },
-            "Wednesday": { "type": "integer" },
-            "Thursday": { "type": "integer" },
-            "Friday": { "type": "integer" },
-            "Saturday": { "type": "integer" },
-            "Sunday": { "type": "integer" }
-          }
-        }
-      },
-      "required": ["weekId", "windowOpen", "windowClose", "quotas"]
-    },
-    "WeekoffBooking": {
-      "title": "Weekoff Booking",
-      "description": "A confirmed FCFS weekly-off booking.",
-      "type": "object",
-      "properties": {
-        "employeeId": { "type": "string" },
-        "weekId": { "type": "string" },
-        "dayOfWeek": { "type": "string" },
-        "bookedAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["Confirmed", "Cancelled", "Overridden"] },
-        "auditReason": { "type": "string" }
-      },
-      "required": ["employeeId", "weekId", "dayOfWeek", "bookedAt", "status"]
-    },
-    "EmployeeLeave": {
-      "title": "Employee Leave",
-      "description": "Approved absence records.",
-      "type": "object",
-      "properties": {
-        "employeeId": { "type": "string" },
-        "startDate": { "type": "string", "format": "date" },
-        "endDate": { "type": "string", "format": "date" },
-        "type": { "type": "string" },
-        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] }
-      }
-    },
-    "RosterDraft": {
-      "title": "Roster Draft",
-      "description": "A draft version of a weekly roster.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string" },
-        "version": { "type": "integer" },
-        "assignments": { "type": "array" },
-        "status": { "type": "string", "enum": ["Draft", "Validated", "Published"] }
-      }
-    },
-    "PublishedRoster": {
-      "title": "Published Roster",
-      "description": "The final approved roster version for a week.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string" },
-        "publishedAt": { "type": "string", "format": "date-time" },
-        "assignments": { "type": "array" }
-      }
     },
     "AuditLog": {
       "title": "Audit Log",
@@ -136,18 +45,6 @@
         "actorId": { "type": "string" },
         "targetId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
-        "details": { "type": "object" }
-      }
-    },
-    "NotificationLog": {
-      "title": "Notification Log",
-      "description": "Logs for WhatsApp or system alerts.",
-      "type": "object",
-      "properties": {
-        "employeeId": { "type": "string" },
-        "type": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "status": { "type": "string" },
         "details": { "type": "object" }
       }
     }
@@ -164,41 +61,9 @@
       "schema": "Employee",
       "description": "Master employee records."
     },
-    "/shift_master/{shiftId}": {
-      "schema": "Shift",
-      "description": "The 6 master shift definitions."
-    },
-    "/daily_shift_quotas/{quotaId}": {
-      "schema": "DailyShiftQuota",
-      "description": "Daily staffing requirements."
-    },
-    "/weekoff_schedules/{weekId}": {
-      "schema": "WeekoffSchedule",
-      "description": "Weekly-off booking window configs."
-    },
-    "/weekoff_bookings/{bookingId}": {
-      "schema": "WeekoffBooking",
-      "description": "Individual bookings."
-    },
-    "/employee_leaves/{leaveId}": {
-      "schema": "EmployeeLeave",
-      "description": "Approved leaves."
-    },
-    "/roster_drafts/{draftId}": {
-      "schema": "RosterDraft",
-      "description": "Draft rosters before publication."
-    },
-    "/published_rosters/{rosterId}": {
-      "schema": "PublishedRoster",
-      "description": "Finalized weekly rosters."
-    },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "System-wide audit trail."
-    },
-    "/notification_logs/{logId}": {
-      "schema": "NotificationLog",
-      "description": "WhatsApp and system alert history."
     }
   }
 }
