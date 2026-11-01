@@ -62,78 +62,28 @@
         "actorId": { "type": "string" }
       }
     },
-    "WeekOffConfig": {
-      "title": "Weekly-Off Configuration",
-      "description": "Admin settings for a specific week's booking window.",
+    "RosterDraft": {
+      "title": "Roster Draft",
+      "description": "Generated shift assignments awaiting review.",
       "type": "object",
       "properties": {
-        "weekId": { "type": "string", "description": "Format: YYYY-WW" },
-        "bookingOpen": { "type": "string", "format": "date-time" },
-        "bookingClose": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["scheduled", "open", "closed", "completed"] },
-        "quotas": {
-          "type": "object",
-          "properties": {
-            "Monday": { "type": "number" },
-            "Tuesday": { "type": "number" },
-            "Wednesday": { "type": "number" },
-            "Thursday": { "type": "number" },
-            "Friday": { "type": "number" }
+        "weekId": { "type": "string" },
+        "version": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "validated", "published"] },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "employeeId": { "type": "string" },
+              "dayOfWeek": { "type": "string" },
+              "shiftId": { "type": "string" }
+            }
           }
         },
-        "booked": {
-          "type": "object",
-          "properties": {
-            "Monday": { "type": "number" },
-            "Tuesday": { "type": "number" },
-            "Wednesday": { "type": "number" },
-            "Thursday": { "type": "number" },
-            "Friday": { "type": "number" }
-          }
-        }
-      }
-    },
-    "WeekOffBooking": {
-      "title": "Weekly-Off Booking",
-      "description": "A confirmed weekly-off reservation for an employee.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "description": "weekId_employeeId" },
-        "weekId": { "type": "string" },
-        "employeeId": { "type": "string" },
-        "dayOfWeek": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["confirmed", "cancelled", "overridden"] },
-        "actorId": { "type": "string" }
-      }
-    },
-    "EmployeePreference": {
-      "title": "Employee Preference",
-      "description": "Soft preferences for shifts/days off.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "employeeId": { "type": "string" },
-        "weekId": { "type": "string" },
-        "dayOfWeek": { "type": "string" },
-        "shiftId": { "type": "string" },
-        "type": { "type": "string", "enum": ["preferShift", "preferDayOff"] }
-      }
-    },
-    "LeaveRequest": {
-      "title": "Leave Request",
-      "description": "Administrative leave or unavailability.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "employeeId": { "type": "string" },
-        "startDate": { "type": "string", "format": "date" },
-        "endDate": { "type": "string", "format": "date" },
-        "type": { "type": "string", "enum": ["leave", "training", "other"] },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
-        "reason": { "type": "string" },
-        "approvedBy": { "type": "string" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "solverStatus": { "type": "string" },
+        "solverMetadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     },
     "AuditLog": {
@@ -169,21 +119,9 @@
       "schema": "RosterQuota",
       "description": "Exact shift quotas and gender targets."
     },
-    "/weekoff_configs/{weekId}": {
-      "schema": "WeekOffConfig",
-      "description": "Admin configuration for weekly-off booking."
-    },
-    "/weekoff_bookings/{bookingId}": {
-      "schema": "WeekOffBooking",
-      "description": "Confirmed employee weekly-off bookings."
-    },
-    "/employee_preferences/{prefId}": {
-      "schema": "EmployeePreference",
-      "description": "Employee shift preferences."
-    },
-    "/employee_leaves/{leaveId}": {
-      "schema": "LeaveRequest",
-      "description": "Employee leave and unavailability records."
+    "/roster_drafts/{draftId}": {
+      "schema": "RosterDraft",
+      "description": "Unpublished roster generations."
     },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
