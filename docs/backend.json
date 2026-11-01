@@ -70,7 +70,33 @@
             "Saturday": { "type": "number" },
             "Sunday": { "type": "number" }
           }
+        },
+        "booked": {
+          "type": "object",
+          "properties": {
+            "Monday": { "type": "number" },
+            "Tuesday": { "type": "number" },
+            "Wednesday": { "type": "number" },
+            "Thursday": { "type": "number" },
+            "Friday": { "type": "number" },
+            "Saturday": { "type": "number" },
+            "Sunday": { "type": "number" }
+          }
         }
+      }
+    },
+    "WeekOffBooking": {
+      "title": "Weekly-Off Booking",
+      "description": "A confirmed weekly-off reservation for an employee.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "weekId_employeeId" },
+        "weekId": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["confirmed", "cancelled", "overridden"] },
+        "actorId": { "type": "string" }
       }
     },
     "AuditLog": {
@@ -105,6 +131,10 @@
     "/weekoff_configs/{weekId}": {
       "schema": "WeekOffConfig",
       "description": "Admin configuration for weekly-off booking."
+    },
+    "/weekoff_bookings/{bookingId}": {
+      "schema": "WeekOffBooking",
+      "description": "Confirmed employee weekly-off bookings."
     },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
