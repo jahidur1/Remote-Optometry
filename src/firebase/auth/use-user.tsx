@@ -50,7 +50,6 @@ export function useUser() {
       }
     });
 
-    // Device-specific session policy enforcement (365-day)
     const sessionId = getLocalSessionId();
     const sessionDocRef = doc(firestore, 'sessions', `${user.uid}_${sessionId}`);
     
@@ -64,8 +63,6 @@ export function useUser() {
         setSessionData(data);
         setSessionValid(isActive);
       } else {
-        // If Firebase Auth is valid but session record is missing, 
-        // it means the device hasn't completed an OTP check recently or storage was cleared.
         setSessionValid(false);
       }
       setLoading(false);

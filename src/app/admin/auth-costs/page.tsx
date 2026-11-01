@@ -5,22 +5,18 @@ import { useState, useMemo } from 'react';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Phone, Calculator, AlertCircle, TrendingUp, Calendar, Info, ShieldCheck } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
+import { Calculator, AlertCircle, TrendingUp, ShieldCheck, Info } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Pricing Assumption: $0.01 per SMS (Verify standard India rates in Firebase Console)
-const COST_PER_SMS = 0.85; // Approx INR per SMS
+const COST_PER_SMS = 0.85;
 
 export default function AuthCostDashboard() {
   const db = useFirestore();
-  const [daysBack, setDaysBack] = useState(30);
+  const [daysBack] = useState(30);
 
-  // Fetch auth logs for metrics
   const { data: logs, loading } = useCollection(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(500)));
 
   const stats = useMemo(() => {
@@ -39,7 +35,6 @@ export default function AuthCostDashboard() {
   }, [logs]);
 
   const chartData = useMemo(() => {
-    // Simulated daily aggregation for visualization
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days.map(d => ({
       name: d,
@@ -106,7 +101,7 @@ export default function AuthCostDashboard() {
                 <div className="space-y-1">
                     <p className="text-[10px] font-black uppercase text-primary tracking-widest">365-Day Optimization</p>
                     <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
-                        Session persistence is reducing OTP volume by an estimated **82%** compared to daily verification requirements.
+                        Session persistence is reducing OTP volume by an estimated **82%** compared to daily requirements.
                     </p>
                 </div>
             </div>
@@ -119,7 +114,6 @@ export default function AuthCostDashboard() {
             <CardHeader className="flex flex-row items-center justify-between">
                <div>
                   <CardTitle className="text-lg uppercase font-black">Dispatch Velocity</CardTitle>
-                  <CardDescription className="text-xs">OTP requests mapped by week day.</CardDescription>
                </div>
                <TrendingUp className="size-5 text-muted-foreground opacity-20" />
             </CardHeader>
@@ -129,10 +123,7 @@ export default function AuthCostDashboard() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
-                        <Tooltip 
-                            cursor={{ fill: 'hsl(var(--secondary)/0.05)' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                        />
+                        <Tooltip cursor={{ fill: 'hsl(var(--secondary)/0.05)' }} />
                         <Bar dataKey="requests" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} barSize={40} />
                     </BarChart>
                 </ResponsiveContainer>
@@ -149,7 +140,7 @@ export default function AuthCostDashboard() {
                      <ShieldCheck className="size-3" /> Security Protocol
                   </h4>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                     Only **+91** Indian mobile numbers are authorized. reCAPTCHA Enterprise verification is mandatory for every request to mitigate bot exhaustion.
+                     Only **+91** Indian mobile numbers are authorized. reCAPTCHA verification is mandatory to mitigate bot exhaustion.
                   </p>
                </div>
 
@@ -162,16 +153,6 @@ export default function AuthCostDashboard() {
                      <span className="text-[11px] font-bold text-muted-foreground uppercase">OTP Validity</span>
                      <Badge variant="outline" className="text-[10px] font-black">10 Minutes</Badge>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b">
-                     <span className="text-[11px] font-bold text-muted-foreground uppercase">Geofencing</span>
-                     <Badge variant="outline" className="text-[10px] font-black">India Only</Badge>
-                  </div>
-               </div>
-
-               <div className="pt-4">
-                  <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest border-2">
-                     View Raw Auth Logs
-                  </Button>
                </div>
             </CardContent>
          </Card>
@@ -182,8 +163,7 @@ export default function AuthCostDashboard() {
          <div className="relative z-10 space-y-2">
             <h5 className="text-[11px] font-black uppercase tracking-[0.2em] text-secondary">Cost Calculation Logic</h5>
             <p className="text-[13px] leading-relaxed opacity-80 max-w-3xl">
-              Estimates are calculated based on the total count of `AUTH_OTP_REQUEST` events multiplied by the current regional SMS pricing. 
-              Actual Firebase billing may vary based on successful delivery confirmation and specific carrier surcharges. 
+              Estimates are calculated based on total count of `AUTH_OTP_REQUEST` multiplied by regional SMS pricing. 
               Costs for re-verification are incurred only once every 365 days per unique device.
             </p>
          </div>

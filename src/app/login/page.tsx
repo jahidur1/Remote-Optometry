@@ -92,7 +92,6 @@ export default function LoginPage() {
       setStep('otp');
       setResendCooldown(60);
       
-      // Log Attempt for Cost Tracking
       logAudit(db, 'system', 'AUTH_OTP_REQUEST', phoneNumber, { source: 'web_portal' });
       
       toast({ title: "OTP Sent", description: "Verification code sent to your registered mobile." });
@@ -140,10 +139,8 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         }, { merge: true });
 
-        // IMPORTANT: Create/Refresh 365-day session record
         await createOrUpdateSession(db, user.uid, employee.id);
         
-        // Log Success for Metrics
         logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
 
         toast({

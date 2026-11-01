@@ -1,12 +1,9 @@
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Firestore } from 'firebase/firestore';
+import { doc, setDoc, Firestore } from 'firebase/firestore';
 import { addDays } from 'date-fns';
 
 const SESSION_KEY = 'roc_workforce_session_v1';
 
-/**
- * Retrieves or generates a unique identifier for the current browser/device instance.
- */
 export function getLocalSessionId(): string {
   if (typeof window === 'undefined') return '';
   let id = localStorage.getItem(SESSION_KEY);
@@ -17,9 +14,6 @@ export function getLocalSessionId(): string {
   return id;
 }
 
-/**
- * Creates or refreshes a 365-day session record in Firestore.
- */
 export async function createOrUpdateSession(
   db: Firestore, 
   uid: string, 
@@ -32,7 +26,6 @@ export async function createOrUpdateSession(
   const now = new Date();
   const deadline = addDays(now, 365);
 
-  // Derive initial label if not provided
   const derivedLabel = label || (typeof navigator !== 'undefined' ? 
     `${navigator.platform} (${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'})` : 
     'Unknown Device');

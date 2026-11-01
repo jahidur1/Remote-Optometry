@@ -4,7 +4,7 @@
 import { useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Loader2, ShieldAlert, Clock } from 'lucide-react';
+import { Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '@/firebase';
@@ -24,7 +24,7 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     if (loading) return;
 
     if (!user) {
-      router.push('/login');
+      if (pathname !== '/login') router.push('/login');
       return;
     }
 
@@ -48,7 +48,6 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
-  // Handle Session Expiry or Revocation (Institutional Requirement C)
   if (user && !sessionValid && pathname !== '/login') {
     return (
       <div className="flex h-screen items-center justify-center bg-primary p-4">
