@@ -2,9 +2,9 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, Calendar, Activity, CheckCircle2 } from "lucide-react"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Users, Calendar, Activity, CheckCircle2, AlertCircle } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
+import { Badge } from "@/components/ui/badge"
 
 const weeklyData = [
   { day: "Mon", scheduled: 12, required: 12 },
@@ -20,12 +20,17 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Workforce Overview</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Workforce Overview</h1>
+          <Badge variant="outline" className="bg-muted/50 text-xs font-normal">
+            <AlertCircle className="mr-1 h-3 w-3" /> Fictional Demo Data
+          </Badge>
+        </div>
         <p className="text-muted-foreground">Monitor staffing levels, solver performance, and upcoming rosters.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-secondary">
+        <Card className="border-l-4 border-l-secondary shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Staff</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -35,7 +40,7 @@ export default function AdminDashboard() {
             <p className="text-xs text-muted-foreground">+2 from last month</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-accent">
+        <Card className="border-l-4 border-l-accent shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Weekly Coverage</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
@@ -45,7 +50,7 @@ export default function AdminDashboard() {
             <p className="text-xs text-muted-foreground">3 shifts understaffed</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-primary">
+        <Card className="border-l-4 border-l-primary shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Roster</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -55,7 +60,7 @@ export default function AdminDashboard() {
             <p className="text-xs text-muted-foreground">Published 2 days ago</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-destructive">
+        <Card className="border-l-4 border-l-destructive shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Open Conflicts</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
@@ -68,10 +73,10 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
+        <Card className="lg:col-span-4 shadow-sm">
           <CardHeader>
             <CardTitle>Staffing Quota Matrix</CardTitle>
-            <CardDescription>Actual scheduled vs. Required staff count for the current week.</CardDescription>
+            <CardDescription>Actual scheduled vs. Required staff count (Demo Data).</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <div className="h-[300px]">
@@ -104,10 +109,10 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3 shadow-sm">
           <CardHeader>
             <CardTitle>Recent Solver Activity</CardTitle>
-            <CardDescription>Status of the last mathematical optimization runs.</CardDescription>
+            <CardDescription>Mock performance of OR-Tools engine.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-8">

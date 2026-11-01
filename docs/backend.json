@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -43,6 +44,19 @@
       },
       "required": ["id", "name", "startTime", "endTime"]
     },
+    "DailyShiftQuota": {
+      "title": "Daily Shift Quota",
+      "description": "Exact required employee count per shift per day.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "quotas": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        }
+      }
+    },
     "WeekoffSchedule": {
       "title": "Weekoff Schedule Configuration",
       "description": "Admin configuration for a specific week's booking window.",
@@ -80,6 +94,18 @@
       },
       "required": ["employeeId", "weekId", "dayOfWeek", "bookedAt", "status"]
     },
+    "EmployeeLeave": {
+      "title": "Employee Leave",
+      "description": "Approved absence records.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "type": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] }
+      }
+    },
     "RosterDraft": {
       "title": "Roster Draft",
       "description": "A draft version of a weekly roster.",
@@ -91,6 +117,16 @@
         "status": { "type": "string", "enum": ["Draft", "Validated", "Published"] }
       }
     },
+    "PublishedRoster": {
+      "title": "Published Roster",
+      "description": "The final approved roster version for a week.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "assignments": { "type": "array" }
+      }
+    },
     "AuditLog": {
       "title": "Audit Log",
       "description": "Immutable log of sensitive actions.",
@@ -100,6 +136,18 @@
         "actorId": { "type": "string" },
         "targetId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "object" }
+      }
+    },
+    "NotificationLog": {
+      "title": "Notification Log",
+      "description": "Logs for WhatsApp or system alerts.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" },
         "details": { "type": "object" }
       }
     }
@@ -120,6 +168,10 @@
       "schema": "Shift",
       "description": "The 6 master shift definitions."
     },
+    "/daily_shift_quotas/{quotaId}": {
+      "schema": "DailyShiftQuota",
+      "description": "Daily staffing requirements."
+    },
     "/weekoff_schedules/{weekId}": {
       "schema": "WeekoffSchedule",
       "description": "Weekly-off booking window configs."
@@ -128,13 +180,25 @@
       "schema": "WeekoffBooking",
       "description": "Individual bookings."
     },
+    "/employee_leaves/{leaveId}": {
+      "schema": "EmployeeLeave",
+      "description": "Approved leaves."
+    },
     "/roster_drafts/{draftId}": {
       "schema": "RosterDraft",
       "description": "Draft rosters before publication."
     },
+    "/published_rosters/{rosterId}": {
+      "schema": "PublishedRoster",
+      "description": "Finalized weekly rosters."
+    },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "System-wide audit trail."
+    },
+    "/notification_logs/{logId}": {
+      "schema": "NotificationLog",
+      "description": "WhatsApp and system alert history."
     }
   }
 }

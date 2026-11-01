@@ -4,6 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useUser } from "@/firebase"
 import {
   LayoutDashboard,
   Users,
@@ -30,32 +31,39 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { signOut } from "firebase/auth"
+import { useAuth } from "@/firebase"
 
 const adminItems = [
   {
     title: "Dashboard",
     url: "/admin",
     icon: LayoutDashboard,
+    roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     title: "Shift Master",
     url: "/admin/shifts",
     icon: Clock,
+    roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     title: "Employees",
     url: "/admin/employees",
     icon: Users,
+    roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     title: "Roster Solver",
     url: "/admin/roster",
     icon: Calendar,
+    roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     title: "Audit Logs",
     url: "/admin/audit",
     icon: ShieldCheck,
+    roles: ["SUPER_ADMIN"],
   },
 ]
 
@@ -74,6 +82,16 @@ const aiTools = [
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const { profile } = useUser()
+  const auth = useAuth()
+
+  const handleLogout = async () => {
+    await signOut(auth)
+  }
+
+  const filteredItems = adminItems.filter(item => 
+    !item.roles || (profile && item.roles.includes(profile.role))
+  )
 
   return (
     <Sidebar collapsible="icon">
@@ -97,7 +115,7 @@ export function AdminSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {adminItems.map((item) => (
+              {filteredItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
                     <Link href={item.url}>
@@ -138,7 +156,7 @@ export function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Logout">
+            <SidebarMenuButton tooltip="Logout" onClick={handleLogout}>
               <LogOut className="size-4" />
               <span>Logout</span>
             </SidebarMenuButton>
