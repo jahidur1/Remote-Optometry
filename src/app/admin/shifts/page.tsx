@@ -1,15 +1,15 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, setDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { doc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, RefreshCcw, Info } from "lucide-react";
+import { Clock, RefreshCcw, Info, ShieldCheck } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const DEFAULT_SHIFTS = [
   { id: "SO", name: "Super Opening", startTime: "09:30", endTime: "18:30", displayOrder: 1 },
@@ -26,32 +26,26 @@ export default function ShiftMaster() {
   const db = useFirestore();
   const { toast } = useToast();
 
-  const fetchShifts = async () => {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'shift_master'), orderBy('displayOrder'));
-      const querySnapshot = await getDocs(q);
-      const shiftData = querySnapshot.docs.map(doc => doc.data());
-      setShifts(shiftData);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchShifts();
-  }, []);
+    const q = query(collection(db, 'shift_master'), orderBy('displayOrder'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const shiftData = snapshot.docs.map(doc => doc.data());
+      setShifts(shiftData);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [db]);
 
   const handleInitialize = async () => {
     setLoading(true);
     try {
       for (const shift of DEFAULT_SHIFTS) {
-        await setDoc(doc(db, 'shift_master', shift.id), shift);
+        setDoc(doc(db, 'shift_master', shift.id), shift);
       }
-      toast({ title: "Shift Master Initialized", description: "The 6 core shifts have been provisioned." });
-      fetchShifts();
+      toast({ 
+        title: "Shift Master Synchronized", 
+        description: "The six core shifts have been provisioned to standard enterprise timings." 
+      });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -61,41 +55,48 @@ export default function ShiftMaster() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Shift Master</h1>
-          <p className="text-muted-foreground">Permanent definitions of the six core ROC shifts.</p>
+          <p className="text-muted-foreground">Permanent definitions of the six core ROC operational shifts.</p>
         </div>
-        <Button variant="outline" onClick={handleInitialize} disabled={loading}>
-          <RefreshCcw className="mr-2 h-4 w-4" /> Reset to Defaults
+        <Button variant="outline" onClick={handleInitialize} disabled={loading} className="border-secondary text-secondary hover:bg-secondary/5">
+          <RefreshCcw className="mr-2 h-4 w-4" /> Reset to Standards
         </Button>
       </div>
 
       <div className="grid gap-6">
-        <Card>
+        <Card className="shadow-md border-t-4 border-t-secondary">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-secondary" />
-              <CardTitle>Core Shift Records</CardTitle>
+              <CardTitle>Operational Shift Records</CardTitle>
             </div>
             <CardDescription>
-              Closing and Closing 2 are maintained as separate entities for quota and reporting accuracy.
+              Closing (C1) and Closing 2 (C2) are distinct entities for quota management despite identical hours.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {shifts.length === 0 && !loading ? (
-              <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                <p className="text-muted-foreground mb-4">No shift records found.</p>
-                <Button onClick={handleInitialize}>Provision Shift Master</Button>
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : shifts.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/5">
+                <p className="text-muted-foreground mb-4">No authorized shift records detected in the master repository.</p>
+                <Button onClick={handleInitialize} className="bg-secondary">Provision Shift Master</Button>
               </div>
             ) : (
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead>Shift ID</TableHead>
-                    <TableHead>Shift Name</TableHead>
-                    <TableHead>Timings (Start - End)</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead className="w-24">ID</TableHead>
+                    <TableHead>Shift Identity</TableHead>
+                    <TableHead>Timings (24-Hour)</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead className="text-right">Access Level</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -104,12 +105,13 @@ export default function ShiftMaster() {
                       <TableCell className="font-mono text-xs font-bold text-secondary">{shift.id}</TableCell>
                       <TableCell className="font-medium">{shift.name}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono">
-                          {shift.startTime} - {shift.endTime}
+                        <Badge variant="outline" className="font-mono bg-background">
+                          {shift.startTime} — {shift.endTime}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Permanent</Badge>
+                      <TableCell className="text-xs text-muted-foreground">9.0 Hours (incl. breaks)</TableCell>
+                      <TableCell className="text-right">
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">System Permanent</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -119,20 +121,37 @@ export default function ShiftMaster() {
           </CardContent>
         </Card>
 
-        <Card className="bg-muted/30 border-accent/20">
-          <CardContent className="pt-6">
-            <div className="flex gap-3">
-              <Info className="size-5 text-accent mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm font-bold">Shift Identity Rule</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Every shift must match exactly one of the six authorized records. Modifications to timings or IDs 
-                  require Super Admin intervention to prevent data corruption in the Roster Solver.
-                </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card className="bg-muted/30 border-accent/20">
+            <CardContent className="pt-6">
+              <div className="flex gap-3">
+                <Info className="size-5 text-accent mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-accent-foreground">Identity & Quota Policy</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Every assigned shift must strictly map to one of these six records. IDs are used for mathematical 
+                    solving and reporting. Do not modify IDs to ensure roster engine compatibility.
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-secondary/5 border-secondary/20">
+            <CardContent className="pt-6">
+              <div className="flex gap-3">
+                <ShieldCheck className="size-5 text-secondary mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-secondary">Solver Integrity</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    The OR-Tools engine relies on these specific shift IDs (SO, OP, MD, C1, C2, SC) to calculate exact 
+                    daily quotas and gender-balance targets across the workforce.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
