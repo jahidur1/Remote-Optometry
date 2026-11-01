@@ -66,9 +66,7 @@
             "Tuesday": { "type": "number" },
             "Wednesday": { "type": "number" },
             "Thursday": { "type": "number" },
-            "Friday": { "type": "number" },
-            "Saturday": { "type": "number" },
-            "Sunday": { "type": "number" }
+            "Friday": { "type": "number" }
           }
         },
         "booked": {
@@ -78,9 +76,7 @@
             "Tuesday": { "type": "number" },
             "Wednesday": { "type": "number" },
             "Thursday": { "type": "number" },
-            "Friday": { "type": "number" },
-            "Saturday": { "type": "number" },
-            "Sunday": { "type": "number" }
+            "Friday": { "type": "number" }
           }
         }
       }
@@ -97,6 +93,35 @@
         "timestamp": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["confirmed", "cancelled", "overridden"] },
         "actorId": { "type": "string" }
+      }
+    },
+    "EmployeePreference": {
+      "title": "Employee Preference",
+      "description": "Soft preferences for shifts/days off.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "weekId": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "shiftId": { "type": "string" },
+        "type": { "type": "string", "enum": ["preferShift", "preferDayOff"] }
+      }
+    },
+    "LeaveRequest": {
+      "title": "Leave Request",
+      "description": "Administrative leave or unavailability.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "type": { "type": "string", "enum": ["leave", "training", "other"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "reason": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
     "AuditLog": {
@@ -135,6 +160,14 @@
     "/weekoff_bookings/{bookingId}": {
       "schema": "WeekOffBooking",
       "description": "Confirmed employee weekly-off bookings."
+    },
+    "/employee_preferences/{prefId}": {
+      "schema": "EmployeePreference",
+      "description": "Employee shift preferences."
+    },
+    "/employee_leaves/{leaveId}": {
+      "schema": "LeaveRequest",
+      "description": "Employee leave and unavailability records."
     },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",

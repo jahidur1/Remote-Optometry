@@ -16,7 +16,9 @@ import {
   Settings,
   LogOut,
   Stethoscope,
-  CalendarRange
+  CalendarRange,
+  PlaneTakeoff,
+  UserCheck
 } from "lucide-react"
 
 import {
@@ -58,6 +60,18 @@ const adminItems = [
     title: "Employees",
     url: "/admin/employees",
     icon: Users,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Leave Management",
+    url: "/admin/leaves",
+    icon: PlaneTakeoff,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Daily Availability",
+    url: "/admin/availability",
+    icon: UserCheck,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
