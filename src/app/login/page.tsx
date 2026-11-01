@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -38,13 +37,23 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
+  const initializeRecaptcha = () => {
     if (!auth) return;
     if (!(window as any).recaptchaVerifier) {
       (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
       });
     }
+  };
+
+  useEffect(() => {
+    initializeRecaptcha();
+    return () => {
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.clear();
+        (window as any).recaptchaVerifier = null;
+      }
+    };
   }, [auth]);
 
   useEffect(() => {
@@ -88,6 +97,7 @@ export default function LoginPage() {
         throw new Error(`Access restricted: Status is ${employee.status.toLowerCase()}.`);
       }
 
+      initializeRecaptcha();
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
@@ -104,10 +114,11 @@ export default function LoginPage() {
         title: "Login Failed",
         description: error.message || "Failed to send verification code.",
       });
+      
+      // Clear and re-initialize reCAPTCHA on error to allow retries
       if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
-           (window as any).recaptchaVerifier.reset(widgetId);
-        });
+        (window as any).recaptchaVerifier.clear();
+        (window as any).recaptchaVerifier = null;
       }
     } finally {
       setLoading(false);
