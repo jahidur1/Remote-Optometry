@@ -19,7 +19,8 @@ import {
   CalendarRange,
   PlaneTakeoff,
   UserCheck,
-  Target
+  Target,
+  BarChart3
 } from "lucide-react"
 
 import {
@@ -43,6 +44,12 @@ const adminItems = [
     title: "Dashboard",
     url: "/admin",
     icon: LayoutDashboard,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Reports & Exports",
+    url: "/admin/reports",
+    icon: BarChart3,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
@@ -97,7 +104,7 @@ const adminItems = [
 
 const aiTools = [
   {
-    title: "Constraint Analysis",
+    title: "Analysis",
     url: "/admin/analysis",
     icon: Activity,
   },
