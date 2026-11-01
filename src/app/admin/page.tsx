@@ -2,9 +2,9 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, Calendar, Activity, CheckCircle2, AlertCircle } from "lucide-react"
+import { Users, Calendar, Activity, CheckCircle2 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
-import { Badge } from "@/components/ui/badge"
+import { DemoBadge } from "@/components/ui/demo-badge"
 
 const weeklyData = [
   { day: "Mon", scheduled: 12, required: 12 },
@@ -22,9 +22,7 @@ export default function AdminDashboard() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Workforce Overview</h1>
-          <Badge variant="outline" className="bg-muted/50 text-xs font-normal">
-            <AlertCircle className="mr-1 h-3 w-3" /> Fictional Demo Data
-          </Badge>
+          <DemoBadge />
         </div>
         <p className="text-muted-foreground">Monitor staffing levels, solver performance, and upcoming rosters.</p>
       </div>
@@ -76,7 +74,7 @@ export default function AdminDashboard() {
         <Card className="lg:col-span-4 shadow-sm">
           <CardHeader>
             <CardTitle>Staffing Quota Matrix</CardTitle>
-            <CardDescription>Actual scheduled vs. Required staff count (Demo Data).</CardDescription>
+            <CardDescription>Actual scheduled vs. Required staff count.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <div className="h-[300px]">
@@ -91,10 +89,10 @@ export default function AdminDashboard() {
                         return (
                           <div className="rounded-lg border bg-background p-2 shadow-sm">
                             <div className="grid grid-cols-2 gap-2">
-                              <span className="font-bold">Scheduled:</span>
-                              <span>{payload[0].value}</span>
-                              <span className="font-bold">Required:</span>
-                              <span>{payload[1].value}</span>
+                              <span className="font-bold text-xs">Scheduled:</span>
+                              <span className="text-xs">{payload[0].value}</span>
+                              <span className="font-bold text-xs">Required:</span>
+                              <span className="text-xs">{payload[1].value}</span>
                             </div>
                           </div>
                         )
@@ -112,7 +110,7 @@ export default function AdminDashboard() {
         <Card className="lg:col-span-3 shadow-sm">
           <CardHeader>
             <CardTitle>Recent Solver Activity</CardTitle>
-            <CardDescription>Mock performance of OR-Tools engine.</CardDescription>
+            <CardDescription>Engine performance metrics.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-8">
