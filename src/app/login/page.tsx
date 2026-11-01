@@ -16,11 +16,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw } from 'lucide-react';
+import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -182,32 +183,43 @@ export default function LoginPage() {
         
         <CardContent>
           {step === 'phone' ? (
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Registered Mobile Number</Label>
-                <div className="flex gap-2">
-                  <div className="flex h-11 items-center justify-center rounded-md border bg-muted/50 px-3 font-bold text-muted-foreground">
-                    +91
-                  </div>
-                  <div className="relative flex-1">
-                    <Phone className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="99999 00000"
-                      className="pl-10 h-11 text-lg font-bold tracking-[0.1em]"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      required
-                    />
+            <div className="space-y-6">
+              <form onSubmit={handleSendOtp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Registered Mobile Number</Label>
+                  <div className="flex gap-2">
+                    <div className="flex h-11 items-center justify-center rounded-md border bg-muted/50 px-3 font-bold text-muted-foreground">
+                      +91
+                    </div>
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="99999 00000"
+                        className="pl-10 h-11 text-lg font-bold tracking-[0.1em]"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
+                <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg shadow-secondary/10 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
+                  Get Verification Code
+                </Button>
+              </form>
+              
+              <div className="pt-4 border-t text-center space-y-4">
+                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">New clinical staff?</p>
+                <Link href="/register">
+                  <Button variant="outline" className="w-full border-dashed border-2 font-bold h-11 transition-all hover:bg-muted">
+                    <UserPlus className="mr-2 size-4" /> Provision Trial Record
+                  </Button>
+                </Link>
               </div>
-              <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg shadow-secondary/10 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
-                Get Verification Code
-              </Button>
-            </form>
+            </div>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="space-y-2">
