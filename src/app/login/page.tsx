@@ -21,6 +21,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -122,7 +124,6 @@ export default function LoginPage() {
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
-      // Query database for role information
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
@@ -130,7 +131,7 @@ export default function LoginPage() {
         const employee = snap.docs[0].data();
         const userRef = doc(db, 'users', user.uid);
         
-        await setDoc(userRef, {
+        const userData = {
           uid: user.uid,
           email: employee.email || null,
           role: employee.role,
@@ -139,7 +140,16 @@ export default function LoginPage() {
           phoneNumber: user.phoneNumber,
           status: 'Active',
           lastLogin: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        setDoc(userRef, userData, { merge: true }).catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: userRef.path,
+            operation: 'update',
+            requestResourceData: userData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
 
         await createOrUpdateSession(db, user.uid, employee.id);
         
@@ -150,7 +160,6 @@ export default function LoginPage() {
           description: `Welcome back, ${employee.fullName.split(' ')[0]}.`,
         });
 
-        // Unified Redirect based on Dynamic Role from Database
         if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
           router.push('/admin');
         } else {

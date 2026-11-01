@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -12,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Stethoscope, Loader2, UserPlus, ArrowLeft, ShieldCheck, Mail, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -73,7 +76,14 @@ export default function RegisterPage() {
         eligibility: ["OP", "MD", "C1"]
       };
 
-      await setDoc(empRef, payload);
+      setDoc(empRef, payload).catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: empRef.path,
+          operation: 'create',
+          requestResourceData: payload,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
       
       logAudit(db, 'system_register', 'USER_SELF_REGISTER', empId, { role: formData.role });
 
@@ -84,11 +94,10 @@ export default function RegisterPage() {
       
       router.push('/login');
     } catch (error: any) {
-      console.error("Registration Error:", error);
       toast({
         variant: "destructive",
         title: "Provisioning Failed",
-        description: error.message || "Permission denied. Ensure your Firestore Security Rules are published.",
+        description: error.message || "An unexpected error occurred.",
       });
     } finally {
       setLoading(false);
