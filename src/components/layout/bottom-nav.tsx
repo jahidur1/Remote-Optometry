@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, User, Clock, MessageSquare, Star, Laptop } from "lucide-react"
+import { Calendar, User, Clock, MessageSquare, Laptop } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function BottomNav() {

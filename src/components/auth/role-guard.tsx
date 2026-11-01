@@ -28,22 +28,14 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
       return;
     }
 
-    // Check account status
     if (profile?.status === 'Suspended') {
       router.push('/account-disabled');
       return;
     }
 
-    // Check role access
     if (profile && !allowedRoles.includes(profile.role)) {
       router.push('/unauthorized');
       return;
-    }
-
-    // Check 365-day session validity (Crucial Requirement C)
-    if (!sessionValid && pathname !== '/login' && pathname !== '/account-disabled' && pathname !== '/unauthorized') {
-      // Session expired or revoked
-      console.warn("Session invalid, redirecting to re-verification.");
     }
   }, [user, profile, sessionValid, loading, allowedRoles, router, pathname]);
 
@@ -51,12 +43,12 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Verifying Precision Session</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Verifying Session Status</p>
       </div>
     );
   }
 
-  // Re-verification screen for expired sessions
+  // Handle Session Expiry or Revocation (Institutional Requirement C)
   if (user && !sessionValid && pathname !== '/login') {
     return (
       <div className="flex h-screen items-center justify-center bg-primary p-4">
@@ -66,11 +58,11 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
            </div>
            <h2 className="text-2xl font-black text-primary uppercase tracking-tight">Re-Verification Required</h2>
            <p className="text-sm text-muted-foreground leading-relaxed">
-              Your device session has reached the 365-day security deadline or was revoked by an administrator. 
-              Please re-verify with OTP to continue.
+              Your device session has reached the 365-day security deadline or was revoked by administration. 
+              Please re-verify with your mobile OTP to continue.
            </p>
            <Button className="w-full h-12 font-black uppercase tracking-widest bg-secondary" onClick={() => signOut(auth).then(() => router.push('/login'))}>
-              Verify with Mobile OTP
+              Authorize Device with OTP
            </Button>
         </div>
       </div>

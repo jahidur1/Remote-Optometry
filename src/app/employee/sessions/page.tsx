@@ -2,7 +2,7 @@
 'use client';
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ export default function SessionManagement() {
   const { data: sessions, loading } = useCollection(sessionsQuery);
 
   const handleRevoke = async (sessionId: string, fullId: string) => {
-    if (!confirm("Terminate this device session? You will be logged out on that device.")) return;
+    if (!confirm("Log out this device? You will need fresh OTP verification to use it again.")) return;
     try {
       await updateDoc(doc(db, 'sessions', fullId), { status: 'revoked' });
       toast({ title: "Session Terminated" });
@@ -42,11 +42,11 @@ export default function SessionManagement() {
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-xl border hover:bg-muted">
             <ArrowLeft className="size-5" />
         </Button>
-        <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">Authorized Devices</h1>
+        <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">My Authorized Devices</h1>
       </div>
 
       <div className="grid gap-4">
-        {sessions?.map((s: any) => {
+        {sessions?.filter(s => s.status === 'active').map((s: any) => {
           const isCurrent = s.id === currentSessionId;
           const deadline = new Date(s.deadlineAt);
           
@@ -59,21 +59,19 @@ export default function SessionManagement() {
                    </div>
                    <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-bold text-lg">{isCurrent ? 'This Device' : 'Authorized Browser'}</p>
-                        {isCurrent && <Badge className="bg-emerald-500 text-[9px] font-black tracking-widest">CURRENT</Badge>}
-                        {s.status === 'revoked' && <Badge variant="destructive" className="text-[9px] font-black tracking-widest uppercase">Revoked</Badge>}
+                        <p className="font-bold text-lg">{isCurrent ? 'Current Browser' : 'Authorized Device'}</p>
+                        {isCurrent && <Badge className="bg-emerald-500 text-[9px] font-black tracking-widest">ACTIVE NOW</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate max-w-xs">{s.label}</p>
                       <div className="flex items-center gap-4 mt-2 text-[10px] uppercase font-black tracking-widest text-muted-foreground">
                          <span className="flex items-center gap-1"><Clock className="size-3" /> Deadline: {deadline.toLocaleDateString()}</span>
-                         <span className="flex items-center gap-1"><RefreshCw className="size-3" /> Last Active: {new Date(s.lastActive?.toDate?.() || s.lastActive).toLocaleDateString()}</span>
+                         <span className="flex items-center gap-1"><RefreshCw className="size-3" /> Latest Sync: {new Date(s.verifiedAt).toLocaleDateString()}</span>
                       </div>
                    </div>
                 </div>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  disabled={s.status === 'revoked'}
                   className="text-destructive border-destructive/20 hover:bg-destructive/5 font-black uppercase text-[10px] tracking-widest"
                   onClick={() => handleRevoke(s.id, `${s.uid}_${s.id}`)}
                 >

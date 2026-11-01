@@ -4,6 +4,9 @@ import { addDays } from 'date-fns';
 
 const SESSION_KEY = 'roc_workforce_session_v1';
 
+/**
+ * Retrieves or generates a unique identifier for the current browser/device instance.
+ */
 export function getLocalSessionId(): string {
   if (typeof window === 'undefined') return '';
   let id = localStorage.getItem(SESSION_KEY);
@@ -14,6 +17,9 @@ export function getLocalSessionId(): string {
   return id;
 }
 
+/**
+ * Creates or refreshes a 365-day session record in Firestore.
+ */
 export async function createOrUpdateSession(
   db: Firestore, 
   uid: string, 
@@ -40,27 +46,4 @@ export async function createOrUpdateSession(
 
   await setDoc(sessionRef, sessionData, { merge: true });
   return sessionData;
-}
-
-export async function validateSession(db: Firestore, uid: string) {
-  const sessionId = getLocalSessionId();
-  if (!sessionId || !uid) return { valid: false };
-
-  const sessionRef = doc(db, 'sessions', `${uid}_${sessionId}`);
-  const snap = await getDoc(sessionRef);
-
-  if (!snap.exists()) return { valid: false };
-
-  const data = snap.data();
-  const now = new Date();
-  const deadline = new Date(data.deadlineAt);
-
-  if (data.status !== 'active' || now > deadline) {
-    return { valid: false, data };
-  }
-
-  // Background update last active
-  updateDoc(sessionRef, { lastActive: serverTimestamp() });
-
-  return { valid: true, data };
 }

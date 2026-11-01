@@ -10,7 +10,7 @@ import {
   setPersistence,
   browserLocalPersistence
 } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createOrUpdateSession } from '@/lib/session-utils';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -35,7 +36,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!auth) return;
-    // Invisible recaptcha for seamless UX
     if (!(window as any).recaptchaVerifier) {
       (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
@@ -72,35 +72,31 @@ export default function LoginPage() {
     try {
       const formattedPhone = `+91${phoneNumber}`;
       
-      // 1. Institutional Authorization Check
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
       const snap = await getDocs(q);
 
       if (snap.empty) {
-        throw new Error("This mobile number is not authorized for portal access. Please contact clinical administration.");
+        throw new Error("This mobile number is not authorized for portal access.");
       }
 
       const employee = snap.docs[0].data();
       if (employee.status === 'Suspended' || employee.status === 'Inactive') {
-        throw new Error(`Your access is currently ${employee.status.toLowerCase()}. Please contact HR.`);
+        throw new Error(`Access restricted: Status is ${employee.status.toLowerCase()}.`);
       }
 
-      // 2. Trigger Firebase Phone Auth
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
       setConfirmationResult(result);
       setStep('otp');
       setResendCooldown(60);
-      toast({ title: "OTP Dispatched", description: "Verification code sent to your registered mobile." });
+      toast({ title: "OTP Sent", description: "Verification code sent to your registered mobile." });
     } catch (error: any) {
-      console.error(error);
       toast({
         variant: "destructive",
-        title: "Login Blocked",
-        description: error.message || "Failed to initiate verification.",
+        title: "Login Failed",
+        description: error.message || "Failed to send verification code.",
       });
-      // Reset reCAPTCHA on failure to allow retry
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.render().then((widgetId: any) => {
            (window as any).recaptchaVerifier.reset(widgetId);
@@ -117,13 +113,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Set local persistence for 365-day policy foundation
+      // Set local persistence for the 365-day foundation
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
-      // 3. Identity Linking Logic
-      // Find the employee record one more time to link UID correctly
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
@@ -131,7 +125,6 @@ export default function LoginPage() {
         const employee = snap.docs[0].data();
         const userRef = doc(db, 'users', user.uid);
         
-        // Update user profile with role and mapping
         await setDoc(userRef, {
           uid: user.uid,
           email: employee.email || null,
@@ -143,13 +136,16 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         }, { merge: true });
 
+        // IMPORTANT: Create the 365-day session record
+        await createOrUpdateSession(db, user.uid, employee.id);
+
         toast({
           title: "Verified",
-          description: `Welcome back, ${employee.fullName}.`,
+          description: `Welcome, ${employee.fullName}.`,
         });
         router.push('/employee/portal');
       } else {
-        throw new Error("Authorization link failed. Please retry.");
+        throw new Error("Authorization failed. Please retry.");
       }
     } catch (error: any) {
       toast({
@@ -164,7 +160,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-primary p-4 relative overflow-hidden">
-      {/* Decorative background elements */}
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[120px]"></div>
@@ -200,13 +195,9 @@ export default function LoginPage() {
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       required
-                      autoFocus
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest px-1">
-                   Institutional Login • Single Device Only
-                </p>
               </div>
               <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg shadow-secondary/10 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
@@ -228,20 +219,15 @@ export default function LoginPage() {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     required
-                    autoFocus
                   />
                 </div>
                 <div className="flex justify-between items-center px-1">
-                   <p className="text-[10px] text-muted-foreground uppercase font-black">Code sent to +91 {phoneNumber}</p>
+                   <p className="text-[10px] text-muted-foreground uppercase font-black">Sent to +91 {phoneNumber}</p>
                    {resendCooldown > 0 ? (
                      <p className="text-[10px] text-accent font-black">Resend in {resendCooldown}s</p>
                    ) : (
-                     <button 
-                       type="button" 
-                       onClick={handleSendOtp} 
-                       className="text-[10px] text-secondary font-black hover:underline flex items-center gap-1"
-                     >
-                       <RefreshCcw className="size-2.5" /> RESEND CODE
+                     <button type="button" onClick={handleSendOtp} className="text-[10px] text-secondary font-black hover:underline flex items-center gap-1">
+                       <RefreshCcw className="size-2.5" /> RESEND
                      </button>
                    )}
                 </div>
@@ -250,7 +236,7 @@ export default function LoginPage() {
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Verify & Access Portal"}
               </Button>
               <Button variant="ghost" className="w-full text-xs font-bold text-muted-foreground h-8" onClick={() => setStep('phone')} type="button">
-                Change Phone Number
+                Change Number
               </Button>
             </form>
           )}
@@ -259,20 +245,14 @@ export default function LoginPage() {
         <CardFooter>
           <Alert variant="default" className="bg-muted/30 border-none">
             <AlertCircle className="h-4 w-4 text-secondary" />
-            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Security Protocol</AlertTitle>
+            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Security Policy</AlertTitle>
             <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed font-medium">
-              Self-registration is disabled. Mobile numbers must be pre-provisioned by clinical administration.
+              365-day verification cycle active per device. Unauthorized numbers cannot self-register.
             </AlertDescription>
           </Alert>
         </CardFooter>
       </Card>
-      
-      {/* Container for Firebase reCAPTCHA */}
       <div id="recaptcha-container"></div>
-      
-      <div className="absolute bottom-6 text-white/40 text-[10px] font-black tracking-widest uppercase">
-        &copy; 2024 ROC WORKFORCE • INSTITUTIONAL NODE 01
-      </div>
     </div>
   );
 }

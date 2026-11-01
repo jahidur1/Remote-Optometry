@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShieldAlert, ShieldX, Search, Filter, Loader2, Clock } from "lucide-react";
+import { ShieldAlert, ShieldX, Search, Loader2, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -18,11 +18,11 @@ export default function AdminSessionManager() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data: sessions, loading } = useCollection(query(collection(db, 'sessions'), orderBy('lastActive', 'desc'), limit(100)));
+  const { data: sessions, loading } = useCollection(query(collection(db, 'sessions'), orderBy('deadlineAt', 'asc'), limit(100)));
   const { data: employees } = useCollection(collection(db, 'employees'));
 
   const handleRevokeAll = async (uid: string, employeeId: string) => {
-    if (!confirm(`Revoke ALL sessions for employee ${employeeId}? This will force a logout on all their devices.`)) return;
+    if (!confirm(`Emergency Revocation: Terminate ALL active sessions for employee ${employeeId}?`)) return;
     
     try {
       const userSessions = sessions?.filter(s => s.uid === uid && s.status === 'active');
@@ -30,7 +30,7 @@ export default function AdminSessionManager() {
         await updateDoc(doc(db, 'sessions', `${s.uid}_${s.id}`), { status: 'revoked' });
       }
       logAudit(db, 'admin', 'REVOKE_ALL_SESSIONS', employeeId, { uid });
-      toast({ title: "All Sessions Revoked" });
+      toast({ title: "Global Revocation Complete" });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
@@ -45,8 +45,8 @@ export default function AdminSessionManager() {
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">Institutional Session Audit</h1>
-          <p className="text-muted-foreground">Monitoring active 365-day precision sessions across the workforce.</p>
+          <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">Session Governance</h1>
+          <p className="text-muted-foreground">Auditing 365-day precision sessions across the workforce.</p>
         </div>
       </div>
 
@@ -54,7 +54,7 @@ export default function AdminSessionManager() {
         <CardHeader className="bg-muted/5 border-b flex flex-row items-center justify-between py-4">
           <div className="flex items-center gap-2">
             <ShieldAlert className="size-5 text-secondary" />
-            <CardTitle className="text-lg uppercase font-black">Active Grid</CardTitle>
+            <CardTitle className="text-lg uppercase font-black">Active Device Grid</CardTitle>
           </div>
           <div className="flex gap-2 w-full max-w-sm">
              <div className="relative w-full">
@@ -73,10 +73,10 @@ export default function AdminSessionManager() {
             <TableHeader className="bg-muted/30">
               <TableRow className="uppercase text-[10px] font-black tracking-widest">
                 <TableHead>Professional</TableHead>
-                <TableHead>Device Detail</TableHead>
-                <TableHead>Session Deadline</TableHead>
-                <TableHead>Pulse</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead>Device Intelligence</TableHead>
+                <TableHead>365-Day Deadline</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Governance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -93,7 +93,7 @@ export default function AdminSessionManager() {
                   <TableRow key={`${s.uid}_${s.id}`} className={s.status === 'revoked' ? 'opacity-40 grayscale bg-muted/5' : ''}>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-black text-sm">{emp?.fullName || 'Unknown'}</span>
+                        <span className="font-black text-sm">{emp?.fullName || 'Unmapped'}</span>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase">{s.employeeId}</span>
                       </div>
                     </TableCell>
@@ -119,7 +119,7 @@ export default function AdminSessionManager() {
                          className="text-destructive hover:bg-destructive/5 font-black text-[10px] uppercase tracking-widest"
                          onClick={() => handleRevokeAll(s.uid, s.employeeId)}
                        >
-                          <ShieldX className="size-4 mr-2" /> Revoke Global
+                          <ShieldX className="size-4 mr-2" /> Global Revoke
                        </Button>
                     </TableCell>
                   </TableRow>
