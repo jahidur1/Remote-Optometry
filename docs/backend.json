@@ -11,10 +11,11 @@
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "displayName": { "type": "string" },
         "employeeId": { "type": "string", "description": "Link to the Employee record" },
+        "phoneNumber": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
       },
-      "required": ["uid", "email", "role"]
+      "required": ["uid", "role"]
     },
     "Employee": {
       "title": "Employee",
@@ -27,7 +28,7 @@
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
-        "whatsappNumber": { "type": "string" },
+        "whatsappNumber": { "type": "string", "description": "Primary login number" },
         "joinedAt": { "type": "string", "format": "date" },
         "department": { "type": "string" },
         "designation": { "type": "string" },
@@ -36,7 +37,23 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "fullName", "email", "role", "status"]
+      "required": ["id", "fullName", "whatsappNumber", "role", "status"]
+    },
+    "Session": {
+      "title": "Device Session",
+      "description": "Tracks 365-day verification status per browser/device.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "label": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "verifiedAt": { "type": "string", "format": "date-time" },
+        "deadlineAt": { "type": "string", "format": "date-time" },
+        "lastActive": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "revoked"] }
+      }
     },
     "Shift": {
       "title": "Shift Master",
@@ -149,7 +166,7 @@
     }
   },
   "auth": {
-    "providers": ["password"]
+    "providers": ["phone"]
   },
   "firestore": {
     "/users/{userId}": {
@@ -159,6 +176,10 @@
     "/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Master employee records."
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Device-specific persistent sessions."
     },
     "/shift_master/{shiftId}": {
       "schema": "Shift",

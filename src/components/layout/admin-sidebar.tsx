@@ -20,7 +20,8 @@ import {
   PlaneTakeoff,
   UserCheck,
   Target,
-  BarChart3
+  BarChart3,
+  ShieldAlert
 } from "lucide-react"
 
 import {
@@ -93,6 +94,12 @@ const adminItems = [
     url: "/admin/roster",
     icon: Calendar,
     roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Session Audit",
+    url: "/admin/sessions",
+    icon: ShieldAlert,
+    roles: ["SUPER_ADMIN"],
   },
   {
     title: "Audit Logs",

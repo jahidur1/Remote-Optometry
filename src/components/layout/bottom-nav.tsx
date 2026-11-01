@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, User, Clock, MessageSquare, Star } from "lucide-react"
+import { Calendar, User, Clock, MessageSquare, Star, Laptop } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function BottomNav() {
@@ -12,8 +12,8 @@ export function BottomNav() {
   const navItems = [
     { title: "My Shifts", icon: Clock, href: "/employee/portal" },
     { title: "Book Off", icon: Calendar, href: "/employee/book-off" },
-    { title: "Preferences", icon: Star, href: "/employee/preferences" },
     { title: "Swaps", icon: MessageSquare, href: "/employee/swaps" },
+    { title: "Devices", icon: Laptop, href: "/employee/sessions" },
     { title: "Profile", icon: User, href: "/employee/profile" },
   ]
 
