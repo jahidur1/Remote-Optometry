@@ -31,8 +31,10 @@
         "joinedAt": { "type": "string", "format": "date" },
         "department": { "type": "string" },
         "designation": { "type": "string" },
-        "eligibility": { "type": "array", "items": { "type": "string" } },
-        "authUid": { "type": "string" }
+        "eligibility": { "type": "array", "items": { "type": "string" }, "description": "Specialized skills or shift eligibilities" },
+        "authUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "fullName", "email", "role", "status"]
     },
