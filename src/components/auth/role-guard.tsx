@@ -4,7 +4,7 @@
 import { useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -24,14 +24,14 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
       return;
     }
 
-    // Check email verification
+    // Check email verification - strictly enforced for production
     if (!emailVerified && pathname !== '/verify-email') {
       router.push('/verify-email');
       return;
     }
 
     // Check account status
-    if (profile?.status === 'Inactive') {
+    if (profile?.status === 'Suspended') {
       router.push('/account-disabled');
       return;
     }
@@ -45,16 +45,19 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-secondary" />
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Verifying Credentials</p>
       </div>
     );
   }
 
-  // Final check to prevent content flash before redirect
-  if (!user || (profile && !allowedRoles.includes(profile.role)) || (profile?.status === 'Inactive') || (!emailVerified && pathname !== '/verify-email')) {
+  // Double-gate check to prevent unauthorized flash
+  const isAuthorized = user && profile && allowedRoles.includes(profile.role) && profile.status !== 'Suspended' && emailVerified;
+
+  if (!isAuthorized && pathname !== '/verify-email' && pathname !== '/login' && pathname !== '/account-disabled' && pathname !== '/unauthorized') {
     return null;
   }
 
-  return <>{children}</>;
+  return <div className="animate-in">{children}</div>;
 }

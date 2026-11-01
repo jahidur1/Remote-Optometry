@@ -3,6 +3,11 @@ import { collection, addDoc, serverTimestamp, Firestore } from 'firebase/firesto
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+/**
+ * Logs a sensitive administrative or employee action to the immutable audit trail.
+ * 
+ * SECURITY: All logs are stored with a server-side timestamp to ensure temporal integrity.
+ */
 export function logAudit(
   db: Firestore,
   actorId: string,
@@ -12,13 +17,19 @@ export function logAudit(
 ) {
   const auditRef = collection(db, 'audit_logs');
   
-  addDoc(auditRef, {
+  const payload = {
     actorId,
     action,
     targetId,
-    details,
+    details: {
+      ...details,
+      platform: 'web_v1',
+      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
+    },
     timestamp: serverTimestamp(),
-  }).catch(async (error) => {
+  };
+
+  addDoc(auditRef, payload).catch(async (error) => {
     const permissionError = new FirestorePermissionError({
       path: 'audit_logs',
       operation: 'create',
