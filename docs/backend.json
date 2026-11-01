@@ -1,15 +1,15 @@
-
 {
   "entities": {
     "User": {
       "title": "User",
-      "description": "Application user account linked to Firebase Auth.",
+      "description": "Firebase Auth user profile with role.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "displayName": { "type": "string" },
+        "employeeId": { "type": "string", "description": "Link to the Employee record" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role"]
@@ -19,30 +19,52 @@
       "description": "Permanent employee record.",
       "type": "object",
       "properties": {
-        "employeeId": { "type": "string", "description": "Permanent internal ID" },
-        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "id": { "type": "string", "description": "Unique Internal ID (e.g., EMP001)" },
         "fullName": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "whatsappNumber": { "type": "string" },
         "joinedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["employeeId", "fullName", "email", "role", "status"]
+      "required": ["id", "fullName", "email", "role", "status"]
     },
     "Shift": {
       "title": "Shift",
-      "description": "Definition of a recurring work shift.",
+      "description": "One of the six master shift definitions.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "startTime": { "type": "string", "description": "e.g., 09:30" },
-        "endTime": { "type": "string", "description": "e.g., 18:30" },
-        "color": { "type": "string" }
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "description": { "type": "string" }
       },
       "required": ["id", "name", "startTime", "endTime"]
+    },
+    "WeekoffSchedule": {
+      "title": "Weekoff Schedule Configuration",
+      "description": "Admin configuration for a specific week's booking window.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string", "description": "YYYY-WW" },
+        "windowOpen": { "type": "string", "format": "date-time" },
+        "windowClose": { "type": "string", "format": "date-time" },
+        "quotas": {
+          "type": "object",
+          "properties": {
+            "Monday": { "type": "integer" },
+            "Tuesday": { "type": "integer" },
+            "Wednesday": { "type": "integer" },
+            "Thursday": { "type": "integer" },
+            "Friday": { "type": "integer" },
+            "Saturday": { "type": "integer" },
+            "Sunday": { "type": "integer" }
+          }
+        }
+      },
+      "required": ["weekId", "windowOpen", "windowClose", "quotas"]
     },
     "WeekoffBooking": {
       "title": "Weekoff Booking",
@@ -50,23 +72,36 @@
       "type": "object",
       "properties": {
         "employeeId": { "type": "string" },
-        "weekId": { "type": "string", "description": "YYYY-WW format" },
-        "dayOfWeek": { "type": "string", "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] },
+        "weekId": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
         "bookedAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["Confirmed", "Cancelled", "Overridden"] }
+        "status": { "type": "string", "enum": ["Confirmed", "Cancelled", "Overridden"] },
+        "auditReason": { "type": "string" }
       },
       "required": ["employeeId", "weekId", "dayOfWeek", "bookedAt", "status"]
     },
-    "DailyQuota": {
-      "title": "Daily Quota",
-      "description": "Staffing requirements for a specific day and shift.",
+    "RosterDraft": {
+      "title": "Roster Draft",
+      "description": "A draft version of a weekly roster.",
       "type": "object",
       "properties": {
-        "date": { "type": "string", "format": "date" },
-        "shiftId": { "type": "string" },
-        "requiredCount": { "type": "integer" }
-      },
-      "required": ["date", "shiftId", "requiredCount"]
+        "weekId": { "type": "string" },
+        "version": { "type": "integer" },
+        "assignments": { "type": "array" },
+        "status": { "type": "string", "enum": ["Draft", "Validated", "Published"] }
+      }
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "Immutable log of sensitive actions.",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "actorId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "object" }
+      }
     }
   },
   "auth": {
@@ -75,23 +110,31 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "User profile and role information."
+      "description": "User profile with role access."
     },
     "/employees/{employeeId}": {
       "schema": "Employee",
-      "description": "Detailed employee master records."
+      "description": "Master employee records."
     },
     "/shift_master/{shiftId}": {
       "schema": "Shift",
-      "description": "The six master shift definitions."
+      "description": "The 6 master shift definitions."
+    },
+    "/weekoff_schedules/{weekId}": {
+      "schema": "WeekoffSchedule",
+      "description": "Weekly-off booking window configs."
     },
     "/weekoff_bookings/{bookingId}": {
       "schema": "WeekoffBooking",
-      "description": "Individual weekly-off reservations."
+      "description": "Individual bookings."
     },
-    "/daily_quotas/{quotaId}": {
-      "schema": "DailyQuota",
-      "description": "Daily exact staffing requirements matrix."
+    "/roster_drafts/{draftId}": {
+      "schema": "RosterDraft",
+      "description": "Draft rosters before publication."
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System-wide audit trail."
     }
   }
 }
