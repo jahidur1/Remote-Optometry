@@ -122,6 +122,7 @@ export default function LoginPage() {
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
+      // Query database for role information
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
@@ -146,9 +147,15 @@ export default function LoginPage() {
 
         toast({
           title: "Verified",
-          description: `Welcome, ${employee.fullName}.`,
+          description: `Welcome back, ${employee.fullName.split(' ')[0]}.`,
         });
-        router.push('/employee/portal');
+
+        // Unified Redirect based on Dynamic Role from Database
+        if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
+          router.push('/admin');
+        } else {
+          router.push('/employee/portal');
+        }
       } else {
         throw new Error("Authorization failed. Please retry.");
       }
