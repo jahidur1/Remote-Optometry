@@ -1,0 +1,97 @@
+
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user account linked to Firebase Auth.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Permanent employee record.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "description": "Permanent internal ID" },
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeId", "fullName", "email", "role", "status"]
+    },
+    "Shift": {
+      "title": "Shift",
+      "description": "Definition of a recurring work shift.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "startTime": { "type": "string", "description": "e.g., 09:30" },
+        "endTime": { "type": "string", "description": "e.g., 18:30" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "name", "startTime", "endTime"]
+    },
+    "WeekoffBooking": {
+      "title": "Weekoff Booking",
+      "description": "A confirmed FCFS weekly-off booking.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "weekId": { "type": "string", "description": "YYYY-WW format" },
+        "dayOfWeek": { "type": "string", "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] },
+        "bookedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Confirmed", "Cancelled", "Overridden"] }
+      },
+      "required": ["employeeId", "weekId", "dayOfWeek", "bookedAt", "status"]
+    },
+    "DailyQuota": {
+      "title": "Daily Quota",
+      "description": "Staffing requirements for a specific day and shift.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "shiftId": { "type": "string" },
+        "requiredCount": { "type": "integer" }
+      },
+      "required": ["date", "shiftId", "requiredCount"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and role information."
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Detailed employee master records."
+    },
+    "/shift_master/{shiftId}": {
+      "schema": "Shift",
+      "description": "The six master shift definitions."
+    },
+    "/weekoff_bookings/{bookingId}": {
+      "schema": "WeekoffBooking",
+      "description": "Individual weekly-off reservations."
+    },
+    "/daily_quotas/{quotaId}": {
+      "schema": "DailyQuota",
+      "description": "Daily exact staffing requirements matrix."
+    }
+  }
+}
