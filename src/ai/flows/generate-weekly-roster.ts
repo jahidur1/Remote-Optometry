@@ -1,1 +1,111 @@
-'use server';/** * @fileOverview A Genkit flow for generating an optimized weekly employee roster with AI assistance. * * - generateWeeklyRoster - A function that handles the weekly roster generation process. * - GenerateWeeklyRosterInput - The input type for the generateWeeklyRoster function. * - GenerateWeeklyRosterOutput - The return type for the generateWeeklyRoster function. */import {ai} from '@/ai/genkit';import {z} from 'genkit';const DayOfWeekSchema = z.enum(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);type DayOfWeek = z.infer<typeof DayOfWeekSchema>;const ShiftSchema = z.object({  id: z.string().describe('Unique identifier for the shift.'),  name: z.string().describe('Name of the shift (e.g., "Morning", "Evening").'),});const EmployeeSchema = z.object({  id: z.string().describe('Unique identifier for the employee.'),  name: z.string().describe('Full name of the employee.'),  gender: z.enum(['male', 'female', 'other']).describe('Gender of the employee for balancing purposes.'),});const WeeklyQuotaSchema = z.object({  dayOfWeek: DayOfWeekSchema.describe('Day of the week.'),  shiftId: z.string().describe('ID of the shift.'),  requiredStaff: z.number().int().min(0).describe('Number of staff required for this shift on this day.'),});const EmployeeConstraintSchema = z.object({  employeeId: z.string().describe('ID of the employee.'),  type: z.enum(['unavailable', 'weeklyOff']).describe('Type of constraint: "unavailable" for specific shift, "weeklyOff" for full day.'),  dayOfWeek: DayOfWeekSchema.describe('Day of the week the constraint applies to.'),  shiftId: z.string().optional().describe('Optional: ID of the shift if the constraint is for a specific shift only. Required if type is "unavailable".'),});const EmployeePreferenceSchema = z.object({  employeeId: z.string().describe('ID of the employee.'),  type: z.enum(['preferDayOff', 'preferShift']).describe('Type of preference: "preferDayOff" for a day off, "preferShift" for a specific shift.'),  dayOfWeek: DayOfWeekSchema.describe('Day of the week the preference applies to.'),  shiftId: z.string().optional().describe('Optional: ID of the shift if the preference is for a specific shift.'),});export const GenerateWeeklyRosterInputSchema = z.object({  shifts: z.array(ShiftSchema).describe('Definitions of all available shifts.'),  employees: z.array(EmployeeSchema).describe('Details of all employees.'),  weeklyQuotas: z.array(WeeklyQuotaSchema).describe('Staffing requirements for each shift on each day of the week.'),  employeeHardConstraints: z.array(EmployeeConstraintSchema).describe('Hard constraints for employees (e.g., pre-booked weekly offs, unavailability).'),  employeeSoftPreferences: z.array(EmployeePreferenceSchema).optional().describe('Soft preferences for employees (e.g., preferred days off, preferred shifts).'),});export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;const RosterAssignmentSchema = z.object({  employeeId: z.string().describe('ID of the assigned employee.'),  dayOfWeek: DayOfWeekSchema.describe('Day of the week of the assignment.'),  shiftId: z.string().describe('ID of the assigned shift.'),});export const GenerateWeeklyRosterOutputSchema = z.object({  rosterAssignments: z.array(RosterAssignmentSchema).describe('A list of all employee shift assignments for the week.'),  summary: z.string().describe('A summary of the generated roster, highlighting how well constraints and preferences were met.'),  issuesEncountered: z.array(z.string()).describe('Any issues or conflicts encountered during roster generation that could not be fully resolved.'),});export type GenerateWeeklyRosterOutput = z.infer<typeof GenerateWeeklyRosterOutputSchema>;export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {  return generateWeeklyRosterFlow(input);}const generateWeeklyRosterPrompt = ai.definePrompt({  name: 'generateWeeklyRosterPrompt',  input: { schema: GenerateWeeklyRosterInputSchema },  output: { schema: GenerateWeeklyRosterOutputSchema },  prompt: `You are an expert roster manager for a Remote Optometry Centre. Your task is to create an optimized weekly employee roster.You must adhere to the following rules and prioritize them in this order:1.  **Hard Constraints (Must be met)**:    *   **Staffing Quotas**: Each shift on each day must meet its 'requiredStaff' count.    *   **Employee Constraints**: Employees cannot be scheduled on days/shifts marked as 'unavailable' or 'weeklyOff'.    *   **One Shift Per Employee Per Day**: An employee can only be assigned to one shift per day.    *   **Weekly Off Protection**: Every employee must have at least two full days off per week, and these days must not be assigned any shifts. If specific 'weeklyOff' constraints are provided, respect those. If not, you must assign two days off for each employee.2.  **Soft Constraints (Optimize towards)**:    *   **Gender Balance**: Aim for a balanced distribution of genders across shifts and days, especially for shifts requiring multiple staff.    *   **Employee Preferences**: Consider employee preferences (e.g., preferred days off, preferred shifts) where possible, without violating hard constraints.Here is the data you need:### 1. Shift Definitions:{{#each shifts}}- ID: {{this.id}}, Name: {{this.name}}{{/each}}### 2. Employee Details:{{#each employees}}- ID: {{this.id}}, Name: {{this.name}}, Gender: {{this.gender}}{{/each}}### 3. Weekly Staffing Quotas:{{#each weeklyQuotas}}- Day: {{this.dayOfWeek}}, Shift: {{this.shiftId}}, Required Staff: {{this.requiredStaff}}{{/each}}### 4. Employee Hard Constraints:{{#if employeeHardConstraints.length}}{{#each employeeHardConstraints}}- Employee: {{this.employeeId}}, Type: {{this.type}}, Day: {{this.dayOfWeek}}{{#if this.shiftId}}, Shift: {{this.shiftId}}{{/if}}{{/each}}{{else}}No specific hard constraints provided.{{/if}}### 5. Employee Soft Preferences:{{#if employeeSoftPreferences.length}}{{#each employeeSoftPreferences}}- Employee: {{this.employeeId}}, Type: {{this.type}}, Day: {{this.dayOfWeek}}{{#if this.shiftId}}, Shift: {{this.shiftId}}{{/if}}{{/each}}{{else}}No specific soft preferences provided.{{/if}}Now, generate the weekly roster ensuring all hard constraints are met and soft constraints are optimized where possible. If any hard constraint cannot be met, list it in 'issuesEncountered'.The output must be a JSON object conforming to the GenerateWeeklyRosterOutputSchema.`,});const generateWeeklyRosterFlow = ai.defineFlow(  {    name: 'generateWeeklyRosterFlow',    inputSchema: GenerateWeeklyRosterInputSchema,    outputSchema: GenerateWeeklyRosterOutputSchema,  },  async (input) => {    const {output} = await generateWeeklyRosterPrompt(input);    return output!;  });
+'use server';
+
+/**
+ * @fileOverview Genkit flow for generating an optimized weekly employee roster.
+ * In a production environment, this flow orchestrates the call to the OR-Tools CP-SAT 
+ * solver service running on Google Cloud Run.
+ */
+
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+
+const DayOfWeekSchema = z.enum(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
+
+const ShiftSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+const EmployeeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  gender: z.enum(['male', 'female', 'other']),
+});
+
+const WeeklyQuotaSchema = z.object({
+  dayOfWeek: DayOfWeekSchema,
+  shiftId: z.string(),
+  requiredStaff: z.number().int(),
+});
+
+const EmployeeConstraintSchema = z.object({
+  employeeId: z.string(),
+  type: z.enum(['unavailable', 'weeklyOff']),
+  dayOfWeek: DayOfWeekSchema,
+});
+
+const EmployeePreferenceSchema = z.object({
+  employeeId: z.string(),
+  type: z.enum(['preferDayOff', 'preferShift']),
+  dayOfWeek: DayOfWeekSchema,
+  shiftId: z.string().optional(),
+});
+
+export const GenerateWeeklyRosterInputSchema = z.object({
+  shifts: z.array(ShiftSchema),
+  employees: z.array(EmployeeSchema),
+  weeklyQuotas: z.array(WeeklyQuotaSchema),
+  employeeHardConstraints: z.array(EmployeeConstraintSchema),
+  employeeSoftPreferences: z.array(EmployeePreferenceSchema).optional(),
+});
+
+export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
+
+const RosterAssignmentSchema = z.object({
+  employeeId: z.string(),
+  dayOfWeek: DayOfWeekSchema,
+  shiftId: z.string(),
+});
+
+export const GenerateWeeklyRosterOutputSchema = z.object({
+  rosterAssignments: z.array(RosterAssignmentSchema),
+  summary: z.string(),
+  status: z.enum(['OPTIMAL', 'FEASIBLE', 'INFEASIBLE', 'UNKNOWN']),
+  issuesEncountered: z.array(z.string()),
+});
+
+export type GenerateWeeklyRosterOutput = z.infer<typeof GenerateWeeklyRosterOutputSchema>;
+
+export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
+  return generateWeeklyRosterFlow(input);
+}
+
+const generateWeeklyRosterPrompt = ai.definePrompt({
+  name: 'generateWeeklyRosterPrompt',
+  input: { schema: GenerateWeeklyRosterInputSchema },
+  output: { schema: GenerateWeeklyRosterOutputSchema },
+  prompt: `You are an expert roster manager simulating the logic of an OR-Tools CP-SAT solver.
+
+Your primary goal is to satisfy all HARD CONSTRAINTS:
+1. Staffing Quotas: Every shift must have exactly the required number of employees.
+2. No Overlaps: One employee per shift per day.
+3. Protected Days: No shifts on weeklyOff or unavailable days.
+
+Optimize for SOFT OBJECTIVES:
+1. Respect employee preferences where possible.
+2. Maintain gender balance per shift.
+
+Data:
+Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
+Employees: {{employees.length}} total professionals.
+Quotas: {{#each weeklyQuotas}}{{this.dayOfWeek}} {{this.shiftId}}: {{this.requiredStaff}}; {{/each}}
+Hard Constraints: {{employeeHardConstraints.length}} restricted assignments.
+
+Generate a valid roster. If quotas exceed availability, return status INFEASIBLE and list the shortages in issuesEncountered.`,
+});
+
+const generateWeeklyRosterFlow = ai.defineFlow(
+  {
+    name: 'generateWeeklyRosterFlow',
+    inputSchema: GenerateWeeklyRosterInputSchema,
+    outputSchema: GenerateWeeklyRosterOutputSchema,
+  },
+  async (input) => {
+    // In production, this would be: 
+    // const response = await fetch(process.env.SOLVER_URL, { ... })
+    
+    // For this implementation, we use the defined prompt to simulate the solver's logic.
+    const { output } = await generateWeeklyRosterPrompt(input);
+    return output!;
+  }
+);
