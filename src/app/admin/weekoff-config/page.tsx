@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 export default function WeekOffConfiguration() {
   const [weekId, setWeekId] = useState('');
@@ -104,6 +105,9 @@ export default function WeekOffConfiguration() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Weekly-Off Control Panel</h1>
         <p className="text-muted-foreground">Establish the FCFS booking window and set daily staff-off limits (Asia/Kolkata).</p>
+        <Badge variant="outline" className="w-fit text-accent border-accent/20 bg-accent/5 uppercase text-[10px] tracking-widest font-bold">
+          Policy: Mon-Fri Only • Sat-Sun Restricted
+        </Badge>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -169,10 +173,10 @@ export default function WeekOffConfiguration() {
               <CalendarDays className="h-5 w-5 text-accent" />
               <CardTitle>Daily Slot Quotas</CardTitle>
             </div>
-            <CardDescription>Maximum employees allowed to be OFF on each weekday.</CardDescription>
+            <CardDescription>Maximum employees allowed to be OFF on eligible weekdays (Mon-Fri).</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {DAYS.map((day) => (
                 <div key={day} className="space-y-2 p-3 rounded-lg border bg-muted/20 text-center">
                   <Label className="text-[10px] uppercase tracking-wider font-bold opacity-70 block mb-1">{day.substring(0, 3)}</Label>
@@ -223,7 +227,7 @@ export default function WeekOffConfiguration() {
                           </TableCell>
                           <TableCell>{getStatusBadge(c.status)}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {Math.round(Object.values(c.quotas as Record<string, number>).reduce((a, b) => a + b, 0) / 7)} / day
+                            {Math.round(Object.values(c.quotas as Record<string, number>).reduce((a, b) => a + b, 0) / 5)} / day
                           </TableCell>
                         </TableRow>
                       ))

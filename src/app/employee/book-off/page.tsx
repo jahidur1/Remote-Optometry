@@ -12,8 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { CalendarDays, Clock, CheckCircle2, AlertTriangle, Loader2, Info, Lock } from "lucide-react";
 import { bookWeeklyOff } from '@/lib/booking';
 import { DemoBadge } from '@/components/ui/demo-badge';
+import { cn } from '@/lib/utils';
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 export default function BookOffPage() {
   const db = useFirestore();
@@ -130,6 +131,9 @@ export default function BookOffPage() {
             Week Cycle: <span className="text-foreground font-bold">{activeConfig.weekId}</span> • 
             Status: {isWindowOpen ? <span className="text-emerald-500 font-bold ml-1 animate-pulse">LIVE</span> : <span className="text-muted-foreground font-bold ml-1">LOCKED</span>}
           </p>
+          <Badge variant="outline" className="text-accent border-accent/20 text-[9px] font-black uppercase tracking-tighter">
+            Policy: Mon-Fri FCFS • Sat-Sun No Week-Off
+          </Badge>
         </div>
       </div>
 
