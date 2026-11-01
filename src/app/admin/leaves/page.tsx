@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { collection, query, orderBy, setDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, setDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlaneTakeoff, Plus, CheckCircle2, XCircle, Search, Trash2 } from "lucide-react";
+import { PlaneTakeoff, Plus, CheckCircle2, XCircle, Search, Trash2, ShieldCheck, ShieldAlert } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,10 +67,26 @@ export default function LeaveManagement() {
     }
   };
 
+  const handleUpdateStatus = async (id: string, status: 'approved' | 'rejected') => {
+    try {
+      const leaveRef = doc(db, 'employee_leaves', id);
+      await updateDoc(leaveRef, {
+        status,
+        approvedBy: profile?.uid,
+        updatedAt: new Date().toISOString()
+      });
+      logAudit(db, profile?.uid || 'system', `LEAVE_${status.toUpperCase()}`, id, { status });
+      toast({ title: `Leave ${status}` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this unavailability record? This will restore shift eligibility.')) return;
     try {
       await deleteDoc(doc(db, 'employee_leaves', id));
+      logAudit(db, profile?.uid || 'system', 'DELETE_LEAVE', id);
       toast({ title: "Record Removed" });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -208,14 +224,34 @@ export default function LeaveManagement() {
                           <Badge variant="outline" className="text-[10px] uppercase font-bold">{l.type}</Badge>
                         </TableCell>
                         <TableCell>
-                           <div className="flex items-center gap-1 text-emerald-600 font-bold text-[10px] uppercase">
-                              <CheckCircle2 className="size-3" /> Approved
-                           </div>
+                           {l.status === 'approved' ? (
+                             <div className="flex items-center gap-1 text-emerald-600 font-bold text-[10px] uppercase">
+                                <CheckCircle2 className="size-3" /> Approved
+                             </div>
+                           ) : l.status === 'rejected' ? (
+                             <div className="flex items-center gap-1 text-destructive font-bold text-[10px] uppercase">
+                                <XCircle className="size-3" /> Rejected
+                             </div>
+                           ) : (
+                             <Badge className="bg-yellow-500 text-[10px] uppercase">Pending</Badge>
+                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(l.id)}>
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            {l.status === 'pending' && (
+                              <>
+                                <Button variant="ghost" size="icon" onClick={() => handleUpdateStatus(l.id, 'approved')}>
+                                  <ShieldCheck className="size-4 text-emerald-600" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleUpdateStatus(l.id, 'rejected')}>
+                                  <ShieldAlert className="size-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(l.id)}>
+                              <Trash2 className="size-4 text-muted-foreground" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

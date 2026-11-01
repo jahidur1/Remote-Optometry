@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, orderBy, where } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { UserCheck, Users, Calendar, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DemoBadge } from '@/components/ui/demo-badge';
+import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
+import { format } from 'date-fns';
+
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function AvailabilitySummary() {
   const db = useFirestore();
@@ -18,31 +22,35 @@ export default function AvailabilitySummary() {
   // Fetch all core data
   const { data: employees, loading: empLoading } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active')));
   const { data: bookings, loading: bookLoading } = useCollection(query(collection(db, 'weekoff_bookings'), where('weekId', '==', selectedWeek)));
-  const { data: leaves, loading: leaveLoading } = useCollection(collection(db, 'employee_leaves'));
-
-  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const { data: leaves, loading: leaveLoading } = useCollection(query(collection(db, 'employee_leaves'), where('status', '==', 'approved')));
 
   const stats = useMemo(() => {
-    if (!employees) return null;
+    if (!employees || !selectedWeek) return null;
 
-    return DAYS.map(day => {
+    const weekDates = getDatesForWeek(selectedWeek);
+    if (weekDates.length === 0) return null;
+
+    return DAYS.map((day, index) => {
+      const date = weekDates[index];
+      const dateStr = format(date, 'yyyy-MM-dd');
+
       // Confirmed Weekly Offs for this day
       const offCount = bookings?.filter(b => b.dayOfWeek === day).length || 0;
       
-      // Approved leaves overlapping with this day (simplified for week view)
-      // In a real app, this would use exact dates based on the weekId
-      const leaveCount = 0; // Placeholder for date-range logic
+      // Approved leaves overlapping with this specific date
+      const leaveCount = leaves?.filter(l => isDateInRange(date, l.startDate, l.endDate)).length || 0;
 
       const totalActive = employees.length;
       const available = totalActive - offCount - leaveCount;
 
       return {
         day,
+        date: dateStr,
         totalActive,
         offCount,
         leaveCount,
         available,
-        percent: Math.round((available / totalActive) * 100)
+        percent: totalActive > 0 ? Math.round((available / totalActive) * 100) : 0
       };
     });
   }, [employees, bookings, leaves, selectedWeek]);
@@ -112,7 +120,12 @@ export default function AvailabilitySummary() {
                 ))
               ) : stats?.map(s => (
                 <TableRow key={s.day} className="hover:bg-muted/10 transition-colors">
-                  <TableCell className="font-black uppercase tracking-tighter text-lg">{s.day}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-black uppercase tracking-tighter text-lg">{s.day}</span>
+                      <span className="text-[10px] font-medium text-muted-foreground">{s.date}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-center font-bold text-muted-foreground">{s.totalActive}</TableCell>
                   <TableCell className="text-center font-bold text-secondary">{s.offCount}</TableCell>
                   <TableCell className="text-center font-bold text-accent">{s.leaveCount}</TableCell>
