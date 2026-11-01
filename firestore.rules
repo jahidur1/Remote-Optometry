@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && getUserData().role in ['ADMIN', 'SUPER_ADMIN'];
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Employees Collection
+    match /employees/{employeeId} {
+      allow read: if isSignedIn();
+      // Temporary: Allow creation for enrollment. 
+      // In production, this should be restricted to Admins.
+      allow create: if true; 
+      allow update, delete: if isAdmin();
+    }
+
+    // Users Collection (Auth Mapping)
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Sessions Collection
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Audit Logs
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true; 
+    }
+    
+    // Workforce Collections
+    match /shift_master/{shiftId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /weekoff_configs/{weekId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /weekoff_bookings/{bookingId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); 
+    }
+    
+    match /employee_leaves/{leaveId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (isSignedIn() && request.resource.data.employeeId == getUserData().employeeId);
+    }
+    
+    match /roster_quotas/{weekId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /roster_drafts/{draftId} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /published_rosters/{versionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /whatsapp_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
+    
+    match /employee_preferences/{prefId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.resource.data.employeeId == getUserData().employeeId;
+    }
+
+    match /shift_swaps/{swapId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+    }
+  }
+}

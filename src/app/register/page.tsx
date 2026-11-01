@@ -1,16 +1,15 @@
-
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Stethoscope, Loader2, UserPlus, ArrowLeft, ShieldCheck, Mail, Phone, Briefcase } from 'lucide-react';
+import { Stethoscope, Loader2, UserPlus, ArrowLeft, ShieldCheck, Mail, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
@@ -49,30 +48,22 @@ export default function RegisterPage() {
     try {
       const formattedPhone = `+91${formData.phone}`;
       
-      // Check if phone or email already exists
+      // Pre-check for existing authorized record
       const phoneQuery = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
-      const emailQuery = query(collection(db, 'employees'), where('email', '==', formData.email));
-      
-      const [phoneSnap, emailSnap] = await Promise.all([
-        getDocs(phoneQuery),
-        getDocs(emailQuery)
-      ]);
+      const phoneSnap = await getDocs(phoneQuery);
 
       if (!phoneSnap.empty) {
-        throw new Error("This phone number is already registered.");
-      }
-      if (!emailSnap.empty) {
-        throw new Error("This email is already registered.");
+        throw new Error("This phone number is already registered in the clinical directory.");
       }
 
-      // Create unique Employee ID
-      const empId = `EMP-${Date.now()}`;
+      // Generate a permanent Employee ID
+      const empId = `EMP-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString().slice(-4)}`;
       const empRef = doc(db, 'employees', empId);
 
       const payload = {
         id: empId,
         fullName: formData.fullName,
-        email: formData.email,
+        email: formData.email.toLowerCase(),
         whatsappNumber: formattedPhone,
         role: formData.role,
         gender: formData.gender,
@@ -82,7 +73,7 @@ export default function RegisterPage() {
         joinedAt: new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        eligibility: ["OP", "MD", "C1"] // Default eligibility
+        eligibility: ["OP", "MD", "C1"] // Default shift eligibility
       };
 
       await setDoc(empRef, payload);
@@ -90,16 +81,17 @@ export default function RegisterPage() {
       logAudit(db, 'system_register', 'USER_SELF_REGISTER', empId, { role: formData.role });
 
       toast({
-        title: "Account Provisioned",
-        description: "Your record is now authorized. Proceed to verify your phone number.",
+        title: "Record Provisioned",
+        description: "Clinical authorization successful. Please proceed to Phone OTP verification.",
       });
       
       router.push('/login');
     } catch (error: any) {
+      console.error("Registration Error:", error);
       toast({
         variant: "destructive",
-        title: "Registration Failed",
-        description: error.message || "Failed to create authorized record.",
+        title: "Provisioning Failed",
+        description: error.message || "Permission denied. Ensure your Firestore Security Rules are published.",
       });
     } finally {
       setLoading(false);
@@ -118,9 +110,9 @@ export default function RegisterPage() {
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-lg shadow-accent/20">
             <UserPlus className="size-8" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight font-headline">Clinical <span className="text-secondary">Enrollment</span></CardTitle>
+          <CardTitle className="text-3xl font-bold font-headline">Clinical <span className="text-secondary">Enrollment</span></CardTitle>
           <CardDescription className="text-muted-foreground/80 font-medium">
-            Register your institutional record for Phone OTP access
+            Authorize your professional record for Phone OTP access
           </CardDescription>
         </CardHeader>
         
@@ -129,19 +121,17 @@ export default function RegisterPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Full Name</Label>
-                <div className="relative">
-                   <Input 
-                    id="name" 
-                    placeholder="Enter full name" 
-                    className="h-11 font-bold"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                    required 
-                   />
-                </div>
+                <Input 
+                  id="name" 
+                  placeholder="e.g. Dr. Sarah Smith" 
+                  className="h-11 font-bold"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                  required 
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Institutional Email</Label>
+                <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Work Email</Label>
                 <div className="relative">
                    <Mail className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
                    <Input 
@@ -159,7 +149,7 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">WhatsApp Number (+91)</Label>
+                <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Mobile Number (+91)</Label>
                 <div className="flex gap-2">
                   <div className="flex h-11 items-center justify-center rounded-md border bg-muted/50 px-3 font-bold text-muted-foreground">
                     +91
@@ -185,9 +175,9 @@ export default function RegisterPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="EMPLOYEE">Employee Professional</SelectItem>
-                    <SelectItem value="ADMIN">Clinical Administrator</SelectItem>
-                    <SelectItem value="SUPER_ADMIN">Executive Board (Super Admin)</SelectItem>
+                    <SelectItem value="EMPLOYEE">Clinical Professional</SelectItem>
+                    <SelectItem value="ADMIN">System Administrator</SelectItem>
+                    <SelectItem value="SUPER_ADMIN">Executive Board</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -220,14 +210,14 @@ export default function RegisterPage() {
 
             <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-12 text-base font-bold shadow-lg shadow-accent/10 group transition-all" type="submit" disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-              Authorize & Enroll Record
+              Provision Professional Record
             </Button>
           </form>
         </CardContent>
         
         <CardFooter className="flex flex-col gap-4">
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            Already registered? 
+            Already authorized? 
             <Link href="/login" className="text-secondary font-black hover:underline flex items-center gap-1">
                Go to Secure Login <ArrowLeft className="size-3 rotate-180" />
             </Link>
@@ -235,8 +225,8 @@ export default function RegisterPage() {
           <div className="p-3 rounded-lg bg-muted/30 border-none flex gap-3 items-start">
              <ShieldCheck className="size-5 text-emerald-600 mt-0.5 shrink-0" />
              <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase tracking-tight">
-                This is an institutional enrollment portal. Records created here will be permanently stored in the ROC Workforce Clinical Directory. 
-                Self-registration will be disabled for public access in the next production build.
+                Institutional Policy: Public self-registration is strictly for sandbox testing. In production, 
+                all clinical records must be provisioned by the HR department.
              </p>
           </div>
         </CardFooter>
