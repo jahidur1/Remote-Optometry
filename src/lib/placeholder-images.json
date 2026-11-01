@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-dashboard",
+      "description": "Enterprise workforce dashboard overview",
+      "imageUrl": "https://picsum.photos/seed/roc1/1200/600",
+      "imageHint": "enterprise dashboard"
+    },
+    {
+      "id": "employee-avatar-1",
+      "description": "Professional employee headshot",
+      "imageUrl": "https://picsum.photos/seed/emp1/200/200",
+      "imageHint": "professional portrait"
+    },
+    {
+      "id": "optometry-center",
+      "description": "Modern remote optometry center interior",
+      "imageUrl": "https://picsum.photos/seed/roc2/800/400",
+      "imageHint": "modern office"
+    }
+  ]
 }
