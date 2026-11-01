@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useAuth, useFirestore } from '../provider';
-import { validateSession } from '@/lib/session-utils';
 
 export type UserProfile = {
   uid: string;
@@ -22,25 +21,19 @@ export function useUser() {
   const firestore = useFirestore();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [sessionValid, setSessionValid] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       if (!firebaseUser) {
         setProfile(null);
-        setSessionValid(false);
         setLoading(false);
-      } else {
-        // Initial session check
-        const { valid } = await validateSession(firestore, firebaseUser.uid);
-        setSessionValid(valid);
       }
     });
 
     return () => unsubscribeAuth();
-  }, [auth, firestore]);
+  }, [auth]);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -50,6 +43,8 @@ export function useUser() {
       if (docSnap.exists()) {
         setProfile(docSnap.data() as UserProfile);
       } else {
+        // If user exists in Auth but no profile exists, they might be mid-migration
+        // or unauthorized. RoleGuard will handle the redirect.
         setProfile(null);
       }
       setLoading(false);
@@ -64,8 +59,7 @@ export function useUser() {
   return { 
     user, 
     profile, 
-    sessionValid,
     loading, 
-    emailVerified: true // Phone auth implies verification
+    emailVerified: true // Phone auth inherently verifies ownership
   };
 }

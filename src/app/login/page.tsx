@@ -10,22 +10,22 @@ import {
   setPersistence,
   browserLocalPersistence
 } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight } from 'lucide-react';
+import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { createOrUpdateSession } from '@/lib/session-utils';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   
   const auth = useAuth();
@@ -35,42 +35,77 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!auth) return;
-    (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-    });
+    // Invisible recaptcha for seamless UX
+    if (!(window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+      });
+    }
   }, [auth]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const validatePhone = (num: string) => {
+    const regex = /^[6-9]\d{9}$/;
+    return regex.test(num);
+  };
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!validatePhone(phoneNumber)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Number",
+        description: "Please enter a valid 10-digit Indian mobile number.",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // 1. Authorization Check: Must exist in employee directory
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+      const formattedPhone = `+91${phoneNumber}`;
+      
+      // 1. Institutional Authorization Check
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
       const snap = await getDocs(q);
 
       if (snap.empty) {
-        throw new Error("This mobile number is not authorized for portal access. Please contact your administrator.");
+        throw new Error("This mobile number is not authorized for portal access. Please contact clinical administration.");
       }
 
       const employee = snap.docs[0].data();
-      if (employee.status !== 'Active') {
-        throw new Error("Your employee account is currently suspended.");
+      if (employee.status === 'Suspended' || employee.status === 'Inactive') {
+        throw new Error(`Your access is currently ${employee.status.toLowerCase()}. Please contact HR.`);
       }
 
-      // 2. Firebase Phone Auth
+      // 2. Trigger Firebase Phone Auth
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
+      
       setConfirmationResult(result);
       setStep('otp');
-      toast({ title: "OTP Dispatched", description: "Please check your mobile for the verification code." });
+      setResendCooldown(60);
+      toast({ title: "OTP Dispatched", description: "Verification code sent to your registered mobile." });
     } catch (error: any) {
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Login Blocked",
-        description: error.message || "Failed to send OTP.",
+        description: error.message || "Failed to initiate verification.",
       });
+      // Reset reCAPTCHA on failure to allow retry
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+           (window as any).recaptchaVerifier.reset(widgetId);
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -78,30 +113,49 @@ export default function LoginPage() {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!confirmationResult) return;
+    if (!confirmationResult || otp.length < 6) return;
     setLoading(true);
 
     try {
+      // Set local persistence for 365-day policy foundation
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
-      
-      // 3. Session Creation (365-day rolling)
-      const q = query(collection(db, 'employees'), where('whatsappNumber', '==', userCredential.user.phoneNumber));
+      const user = userCredential.user;
+
+      // 3. Identity Linking Logic
+      // Find the employee record one more time to link UID correctly
+      const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
-      const employee = snap.docs[0].data();
+      
+      if (!snap.empty) {
+        const employee = snap.docs[0].data();
+        const userRef = doc(db, 'users', user.uid);
+        
+        // Update user profile with role and mapping
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: employee.email || null,
+          role: employee.role,
+          displayName: employee.fullName,
+          employeeId: employee.id,
+          phoneNumber: user.phoneNumber,
+          status: 'Active',
+          lastLogin: new Date().toISOString()
+        }, { merge: true });
 
-      await createOrUpdateSession(db, userCredential.user.uid, employee.id);
-
-      toast({
-        title: "Verified",
-        description: "Welcome back to ROC Workforce.",
-      });
-      router.push('/');
+        toast({
+          title: "Verified",
+          description: `Welcome back, ${employee.fullName}.`,
+        });
+        router.push('/employee/portal');
+      } else {
+        throw new Error("Authorization link failed. Please retry.");
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Verification Failed",
-        description: "Invalid OTP. Please try again.",
+        description: "Invalid or expired OTP. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -110,6 +164,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-primary p-4 relative overflow-hidden">
+      {/* Decorative background elements */}
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[120px]"></div>
@@ -121,8 +176,8 @@ export default function LoginPage() {
             <Stethoscope className="size-8" />
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight font-headline">ROC <span className="text-accent">Workforce</span></CardTitle>
-          <CardDescription className="text-muted-foreground/80">
-            Enterprise OTP Authentication System
+          <CardDescription className="text-muted-foreground/80 font-medium">
+            Clinical Portal Authentication
           </CardDescription>
         </CardHeader>
         
@@ -130,34 +185,40 @@ export default function LoginPage() {
           {step === 'phone' ? (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Authorized Mobile Number</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="99999 00000"
-                    className="pl-10 h-11 text-lg font-bold tracking-widest"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    required
-                  />
+                <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Registered Mobile Number</Label>
+                <div className="flex gap-2">
+                  <div className="flex h-11 items-center justify-center rounded-md border bg-muted/50 px-3 font-bold text-muted-foreground">
+                    +91
+                  </div>
+                  <div className="relative flex-1">
+                    <Phone className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="99999 00000"
+                      className="pl-10 h-11 text-lg font-bold tracking-[0.1em]"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      required
+                      autoFocus
+                    />
+                  </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest px-1">
-                   Institutional Login • Only +91 Supported
+                   Institutional Login • Single Device Only
                 </p>
               </div>
-              <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg" type="submit" disabled={loading}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
+              <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg shadow-secondary/10 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
                 Get Verification Code
               </Button>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="otp">6-Digit Verification Code</Label>
+                <Label htmlFor="otp" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">6-Digit Verification Code</Label>
                 <div className="relative">
-                  <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Key className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
                   <Input
                     id="otp"
                     type="text"
@@ -165,16 +226,30 @@ export default function LoginPage() {
                     placeholder="000000"
                     className="pl-10 h-11 text-2xl text-center font-black tracking-[0.5em]"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     required
                     autoFocus
                   />
                 </div>
+                <div className="flex justify-between items-center px-1">
+                   <p className="text-[10px] text-muted-foreground uppercase font-black">Code sent to +91 {phoneNumber}</p>
+                   {resendCooldown > 0 ? (
+                     <p className="text-[10px] text-accent font-black">Resend in {resendCooldown}s</p>
+                   ) : (
+                     <button 
+                       type="button" 
+                       onClick={handleSendOtp} 
+                       className="text-[10px] text-secondary font-black hover:underline flex items-center gap-1"
+                     >
+                       <RefreshCcw className="size-2.5" /> RESEND CODE
+                     </button>
+                   )}
+                </div>
               </div>
-              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-12 text-base font-bold shadow-lg" type="submit" disabled={loading}>
+              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-12 text-base font-bold shadow-lg shadow-accent/10" type="submit" disabled={loading || otp.length < 6}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Verify & Access Portal"}
               </Button>
-              <Button variant="link" className="w-full text-xs text-muted-foreground" onClick={() => setStep('phone')} type="button">
+              <Button variant="ghost" className="w-full text-xs font-bold text-muted-foreground h-8" onClick={() => setStep('phone')} type="button">
                 Change Phone Number
               </Button>
             </form>
@@ -182,19 +257,21 @@ export default function LoginPage() {
         </CardContent>
         
         <CardFooter>
-          <Alert variant="default" className="bg-muted/50 border-none">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Security Policy</AlertTitle>
-            <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed">
+          <Alert variant="default" className="bg-muted/30 border-none">
+            <AlertCircle className="h-4 w-4 text-secondary" />
+            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Security Protocol</AlertTitle>
+            <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed font-medium">
               Self-registration is disabled. Mobile numbers must be pre-provisioned by clinical administration.
             </AlertDescription>
           </Alert>
         </CardFooter>
       </Card>
       
+      {/* Container for Firebase reCAPTCHA */}
       <div id="recaptcha-container"></div>
+      
       <div className="absolute bottom-6 text-white/40 text-[10px] font-black tracking-widest uppercase">
-        &copy; 2024 ROC WORKFORCE • Secure Device Sessions Enabled
+        &copy; 2024 ROC WORKFORCE • INSTITUTIONAL NODE 01
       </div>
     </div>
   );
