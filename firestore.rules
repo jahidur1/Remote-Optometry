@@ -14,6 +14,7 @@ service cloud.firestore {
     
     function isUserActive() {
       // Global Kill Switch: Ensures the account is not suspended/inactive
+      // This is the primary server-side enforcement for account deactivation
       return isSignedIn() && getUserData().status == 'Active';
     }
     
@@ -35,11 +36,12 @@ service cloud.firestore {
         request.resource.data.status == 'active' &&
         // verifiedAt must match the server's time
         request.resource.data.verifiedAt == request.time &&
-        // deadlineAt must be exactly 365 days from verifiedAt
-        request.resource.data.deadlineAt == request.resource.data.verifiedAt + duration.value(31536000, 's');
+        // deadlineAt must be exactly 365 days from verifiedAt (request.time)
+        // 31536000 seconds = 365 days
+        request.resource.data.deadlineAt == request.time + duration.value(31536000, 's');
 
       allow update: if isSignedIn() && (
-        // 1. Admin Revocation Path
+        // 1. Admin/System Revocation Path
         (isAdmin() && 
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revokedBy', 'revokedAt']) && 
          request.resource.data.status == 'revoked') ||
@@ -49,26 +51,31 @@ service cloud.firestore {
          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt', 'uid', 'employeeId']))
       );
       
-      allow delete: if false; // Sessions are never deleted, only revoked
+      allow delete: if false; // Sessions are never deleted, only revoked for audit purposes
     }
 
     // --- EMPLOYEES COLLECTION ---
     match /employees/{employeeId} {
+      // Access requires an ACTIVE account
       allow get: if isUserActive() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
       allow list: if isAdmin() && isUserActive();
+      
+      // Only Admins can provision or delete profiles
       allow create: if isAdmin() && isUserActive();
+      allow delete: if isAdmin() && isUserActive();
       
       allow update: if (isAdmin() && isUserActive()) || (
         isUserActive() && 
         resource.data.whatsappNumber == request.auth.token.phone_number &&
+        // Block self-modification of clinical identity
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt'])
       );
-      allow delete: if isAdmin() && isUserActive();
     }
 
-    // --- USERS COLLECTION ---
+    // --- USERS COLLECTION (Profiles) ---
     match /users/{userId} {
       allow read: if isSignedIn();
+      // Only Admin or the User can write, but status/role changes are locked for users elsewhere
       allow write: if (isOwner(userId) || isAdmin()) && isSignedIn();
     }
 
@@ -76,9 +83,12 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isAdmin() && isUserActive();
       allow create: if isSignedIn(); 
+      allow update, delete: if false; // Audit logs are immutable
     }
     
-    // --- WORKFORCE DATA (PROTECTED BY SESSION STATUS) ---
+    // --- WORKFORCE DATA (PROTECTED BY GLOBAL ACTIVE STATUS) ---
+    // All clinical and operational data is gated by isUserActive()
+    
     match /shift_master/{shiftId} {
       allow read: if isUserActive();
       allow write: if isAdmin() && isUserActive();
@@ -99,34 +109,19 @@ service cloud.firestore {
       allow write: if (isAdmin() && isUserActive()) || (isUserActive() && request.resource.data.employeeId == getUserData().employeeId);
     }
     
-    match /roster_quotas/{weekId} {
-      allow read: if isUserActive();
-      allow write: if isAdmin() && isUserActive();
-    }
-    
-    match /roster_drafts/{draftId} {
-      allow read, write: if isAdmin() && isUserActive();
-    }
-    
     match /published_rosters/{versionId} {
       allow read: if isUserActive();
       allow write: if isAdmin() && isUserActive();
     }
-    
-    match /whatsapp_logs/{logId} {
-      allow read: if isAdmin() && isUserActive();
-      allow create: if true;
-    }
-    
-    match /employee_preferences/{prefId} {
-      allow read: if isUserActive();
-      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
-    }
 
     match /shift_swaps/{swapId} {
       allow read: if isUserActive();
-      allow create: if isUserActive();
-      allow update: if isUserActive();
+      allow create, update: if isUserActive();
+    }
+
+    match /employee_preferences/{prefId} {
+      allow read: if isUserActive();
+      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
     }
   }
 }
