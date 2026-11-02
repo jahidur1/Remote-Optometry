@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, Save, ArrowLeft, Loader2, AlertTriangle, ShieldCheck, Lock, Info, Send, Target, History, User } from "lucide-react";
+import { CheckCircle2, Save, ArrowLeft, Loader2, AlertTriangle, ShieldCheck, Lock, Info, Send, Target, History, User, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
 import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
@@ -67,7 +67,7 @@ export default function RosterReviewWorkspace() {
   const getConstraintStatus = (employeeId: string, day: string, dateIndex: number) => {
     const isOff = bookings?.some(b => b.employeeId === employeeId && b.dayOfWeek === day);
     const date = weekDates[dateIndex];
-    const leave = leaves?.find(l => l.employeeId === employeeId && isDateInRange(date, l.startDate, l.endDate));
+    const leaf = leaves?.find(l => l.employeeId === employeeId && isDateInRange(date, l.startDate, l.endDate));
     
     if (isOff) return { type: 'WEEKLY_OFF', label: 'WEEK OFF', color: 'text-secondary' };
     if (leave) return { type: 'LEAVE', label: leave.type.toUpperCase(), color: 'text-accent' };
@@ -75,11 +75,10 @@ export default function RosterReviewWorkspace() {
   };
 
   const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
-    // Logic for restricted working-day changes
     const constraint = getConstraintStatus(employeeId, day, DAYS.indexOf(day));
     
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role !== 'SUPER_ADMIN') {
-      toast({ title: "Action Blocked", description: "Only Super Admins can override FCFS Weekly-Offs.", variant: "destructive" });
+      toast({ title: "Operation Blocked", description: "Only Super Admins can override FCFS Weekly-Offs.", variant: "destructive" });
       return;
     }
 
@@ -112,7 +111,7 @@ export default function RosterReviewWorkspace() {
     
     setOverrideDialogOpen(false);
     setOverrideReason('');
-    toast({ title: "Override Applied", description: "Institutional FCFS record bypassed with audit trail." });
+    toast({ title: "Institutional Override Applied", description: "FCFS reservation bypassed with mandatory audit trace." });
   };
 
   const quotaValidation = useMemo(() => {
@@ -139,7 +138,7 @@ export default function RosterReviewWorkspace() {
         updatedAt: new Date().toISOString()
       });
       logAudit(db, profile?.uid || 'system', 'UPDATE_ROSTER_DRAFT', draftId);
-      toast({ title: "Draft Saved", description: "Manual adjustments preserved in cluster storage." });
+      toast({ title: "Draft Synchronized", description: "Manual adjustments secured in cluster storage." });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -150,10 +149,10 @@ export default function RosterReviewWorkspace() {
   const handlePublish = async () => {
     if (!profile) return;
     
-    // Check for validation errors
+    // Exact Quota Enforcement
     const hasConflicts = Object.values(quotaValidation).some((v: any) => !v.ok);
     if (hasConflicts) {
-      toast({ variant: "destructive", title: "Rollout Blocked", description: "Staffing quotas must be exactly matched for all days before publication." });
+      toast({ variant: "destructive", title: "Institutional Block", description: "Rollout requires 100% headcount compliance for all daily quotas." });
       return;
     }
 
@@ -172,7 +171,7 @@ export default function RosterReviewWorkspace() {
       await updateDoc(doc(db, 'roster_drafts', draftId), { status: 'published' });
       
       logAudit(db, profile.uid, 'PUBLISH_ROSTER', versionId, { weekId });
-      toast({ title: "Roster Published", description: "Clinical schedule is now LIVE for all professionals." });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast to all professionals via Unified Portal." });
       router.push('/admin/roster');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -182,60 +181,63 @@ export default function RosterReviewWorkspace() {
   };
 
   if (draftLoading) return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
-      <Loader2 className="size-12 animate-spin text-secondary" />
-      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Initializing Workspace</p>
+    <div className="flex h-screen flex-col items-center justify-center gap-6 bg-background">
+      <Loader2 className="size-16 animate-spin text-secondary opacity-30" />
+      <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Initializing Roster Workspace</p>
     </div>
   );
 
   return (
-    <div className="space-y-8 pb-48 max-w-[1600px] mx-auto animate-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 px-4">
-        <div className="flex items-center gap-6">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-2xl border-2 hover:bg-muted size-12 transition-all">
-            <ArrowLeft className="size-6 text-primary" />
+    <div className="space-y-8 pb-56 max-w-[1600px] mx-auto animate-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 px-6">
+        <div className="flex items-center gap-8">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-2xl border-2 hover:bg-muted size-14 transition-all shadow-sm">
+            <ArrowLeft className="size-7 text-primary" />
           </Button>
           <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tight text-primary font-headline uppercase leading-none">Roster Review Cluster</h1>
-            <div className="flex items-center gap-4 mt-2">
-              <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5">Cycle {weekId}</Badge>
-              <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
-                 Status: {draft?.status?.toUpperCase() || 'DRAFT'} <History className="size-3 text-secondary" />
+            <h1 className="text-4xl font-black tracking-tighter text-primary font-headline uppercase leading-none">Review Workspace</h1>
+            <div className="flex items-center gap-5 mt-3">
+              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-4 py-1">Cycle {weekId}</Badge>
+              <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.3em] flex items-center gap-2">
+                 Status: <span className="text-primary">{draft?.status?.toUpperCase() || 'DRAFT'}</span> <Activity className="size-3 text-secondary animate-pulse" />
               </p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
-           <div className="relative w-64">
-              <User className="absolute left-3 top-3 size-4 text-muted-foreground" />
+           <div className="relative w-72">
+              <User className="absolute left-4 top-3.5 size-4 text-muted-foreground/40" />
               <Input 
-                placeholder="Search staff..." 
-                className="pl-10 h-11 font-bold bg-white"
+                placeholder="Search Professional..." 
+                className="pl-12 h-12 font-bold bg-white border-2 rounded-xl focus:border-secondary transition-all"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
            </div>
-           <Button variant="outline" onClick={handleSave} disabled={saving} className="h-11 px-8 font-black uppercase tracking-widest border-2 hover:bg-muted transition-all">
-             <Save className="mr-3 h-5 w-5" /> {saving ? 'Syncing...' : 'Save Progress'}
+           <Button variant="outline" onClick={handleSave} disabled={saving} className="h-12 px-8 font-black uppercase tracking-[0.2em] border-2 border-primary/10 rounded-xl hover:bg-muted transition-all">
+             <Save className="mr-3 h-5 w-5" /> {saving ? 'Syncing...' : 'Save Draft'}
            </Button>
-           <Button className="bg-secondary text-white shadow-2xl shadow-secondary/20 h-11 px-8 font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95" onClick={handlePublish} disabled={publishing}>
-             <Send className="mr-3 h-5 w-5" /> {publishing ? 'Rollout...' : 'Approve & Publish'}
+           <Button className="bg-secondary text-white shadow-2xl shadow-secondary/20 h-12 px-10 font-black uppercase tracking-[0.2em] transition-all hover:scale-105 active:scale-95 rounded-xl" onClick={handlePublish} disabled={publishing}>
+             <Send className="mr-3 h-5 w-5" /> {publishing ? 'Deploying...' : 'Approve & Rollout'}
            </Button>
         </div>
       </div>
 
-      <Card className="shadow-2xl border-none overflow-hidden rounded-[2rem] glass-card mx-4">
-        <CardHeader className="bg-primary p-8 text-primary-foreground border-none">
-          <div className="flex flex-row items-center justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-xl flex items-center gap-4 font-black uppercase tracking-tight">
-                <ShieldCheck className="size-7 text-secondary" /> Clinical Deployment Grid
+      <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card mx-6">
+        <CardHeader className="bg-primary p-10 text-primary-foreground border-none relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-10 transform translate-x-10 -translate-y-10 opacity-5 group-hover:scale-110 transition-transform duration-[2000ms]">
+            <ShieldCheck size={280} />
+          </div>
+          <div className="flex flex-row items-center justify-between relative z-10">
+            <div className="space-y-2">
+              <CardTitle className="text-2xl flex items-center gap-5 font-black uppercase tracking-tight leading-none">
+                <ShieldCheck className="size-10 text-secondary" /> Clinical Assignment Grid
               </CardTitle>
-              <CardDescription className="text-[11px] font-black uppercase text-white/40 tracking-[0.15em]">Assignments are strictly validated against Daily Quotas and FCFS locks.</CardDescription>
+              <CardDescription className="text-[11px] font-black uppercase text-white/40 tracking-[0.2em] mt-2">Server-enforced validation: All assignments are matched against Daily Quotas and FCFS locks.</CardDescription>
             </div>
-            <div className="flex gap-2">
-                <Badge className="bg-white/10 text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-4">Node: {draftId.slice(-8)}</Badge>
-                <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-4">Admin Verified</Badge>
+            <div className="flex gap-3">
+                <Badge className="bg-white/10 text-white border-none font-black text-[9px] uppercase tracking-widest py-1.5 px-5 rounded-full">Node: {draftId.slice(-8)}</Badge>
+                <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1.5 px-5 rounded-full shadow-2xl">Verified Schema</Badge>
             </div>
           </div>
         </CardHeader>
@@ -243,11 +245,11 @@ export default function RosterReviewWorkspace() {
           <Table className="border-collapse">
             <TableHeader className="bg-muted/50 border-b">
               <TableRow>
-                <TableHead className="w-[280px] border-r py-6 pl-8 bg-white/50 backdrop-blur-sm sticky left-0 z-20 shadow-[4px_0_10px_rgba(0,0,0,0.05)]">
-                    <span className="text-[11px] font-black uppercase tracking-[0.2em]">Clinical Professional</span>
+                <TableHead className="w-[320px] border-r py-8 pl-10 bg-white/50 backdrop-blur-md sticky left-0 z-20 shadow-[6px_0_15px_rgba(0,0,0,0.05)]">
+                    <span className="text-[11px] font-black uppercase tracking-[0.3em] text-primary/60">Professional Identity</span>
                 </TableHead>
                 {DAYS.map(day => (
-                  <TableHead key={day} className="text-center w-[200px] min-w-[200px] border-r last:border-0 uppercase text-[11px] font-black tracking-[0.15em] py-6">
+                  <TableHead key={day} className="text-center w-[220px] min-w-[220px] border-r last:border-0 uppercase text-[11px] font-black tracking-[0.2em] py-8 text-primary/40">
                     {day}
                   </TableHead>
                 ))}
@@ -256,10 +258,10 @@ export default function RosterReviewWorkspace() {
             <TableBody>
               {filteredEmployees.map(emp => (
                 <TableRow key={emp.id} className="hover:bg-muted/10 group transition-colors border-b last:border-0">
-                  <TableCell className="border-r py-6 pl-8 bg-white/30 backdrop-blur-sm sticky left-0 z-10 group-hover:bg-muted/20 transition-colors shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-black text-[13px] text-primary tracking-tight leading-none truncate">{emp.fullName}</span>
-                      <span className="text-[10px] font-black text-secondary uppercase tracking-[0.1em] opacity-80">{emp.id}</span>
+                  <TableCell className="border-r py-8 pl-10 bg-white/30 backdrop-blur-sm sticky left-0 z-10 group-hover:bg-muted/20 transition-colors shadow-[6px_0_15px_rgba(0,0,0,0.02)]">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="font-black text-[15px] text-primary tracking-tight leading-none truncate group-hover:translate-x-1 transition-transform">{emp.fullName}</span>
+                      <span className="text-[10px] font-black text-secondary uppercase tracking-[0.15em] opacity-80">{emp.id}</span>
                     </div>
                   </TableCell>
                   {DAYS.map((day, idx) => {
@@ -267,12 +269,12 @@ export default function RosterReviewWorkspace() {
                     const assignment = assignments.find(a => a.employeeId === emp.id && a.dayOfWeek === day);
                     
                     return (
-                      <TableCell key={day} className={`border-r last:border-0 p-3 transition-colors ${status ? 'bg-muted/10' : 'group-hover:bg-muted/5'}`}>
-                        <div className="space-y-2">
+                      <TableCell key={day} className={`border-r last:border-0 p-4 transition-colors ${status ? 'bg-muted/10' : 'group-hover:bg-muted/5'}`}>
+                        <div className="space-y-3">
                             {status && (
-                                <div className="flex items-center justify-center gap-1.5 opacity-60 px-2">
-                                    <Lock className="size-2.5 text-muted-foreground" />
-                                    <span className={`text-[8px] font-black uppercase tracking-tighter ${status.color}`}>
+                                <div className="flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-white/50 border shadow-sm">
+                                    <Lock className="size-3 text-muted-foreground" />
+                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${status.color}`}>
                                         {status.label}
                                     </span>
                                 </div>
@@ -281,14 +283,15 @@ export default function RosterReviewWorkspace() {
                                 value={assignment?.shiftId || 'none'}
                                 onValueChange={(val) => handleAssignmentChange(emp.id, day, val)}
                             >
-                                <SelectTrigger className={`h-10 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${assignment ? 'border-secondary/40 bg-secondary/5 text-secondary shadow-sm' : 'border-dashed border-2 opacity-30 hover:opacity-100 hover:border-primary/20'}`}>
+                                <SelectTrigger className={`h-11 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${assignment ? 'border-secondary/40 bg-secondary/5 text-secondary shadow-lg' : 'border-dashed border-2 opacity-30 hover:opacity-100 hover:border-primary/20'}`}>
                                     <SelectValue placeholder="UNSET" />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-xl shadow-2xl border-none bg-white/95 backdrop-blur-xl">
-                                    <SelectItem value="none" className="text-[9px] font-black uppercase tracking-widest">Unassigned</SelectItem>
+                                <SelectContent className="rounded-xl shadow-2xl border-none bg-white/95 backdrop-blur-xl p-2">
+                                    <SelectItem value="none" className="text-[10px] font-black uppercase tracking-widest rounded-lg">Unassigned</SelectItem>
+                                    <div className="h-px bg-muted my-2" />
                                     {shifts?.map(s => (
-                                        <SelectItem key={s.id} value={s.id} className="text-[10px] font-black uppercase tracking-widest">
-                                            {s.id} <span className="opacity-40 ml-2">[{s.startTime}]</span>
+                                        <SelectItem key={s.id} value={s.id} className="text-[11px] font-black uppercase tracking-widest rounded-lg py-3">
+                                            {s.id} <span className="opacity-40 ml-3 text-[10px] tracking-tight">[{s.startTime} — {s.endTime}]</span>
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -301,8 +304,8 @@ export default function RosterReviewWorkspace() {
               ))}
               {filteredEmployees.length === 0 && (
                 <TableRow>
-                   <TableCell colSpan={8} className="py-24 text-center opacity-30 italic font-black uppercase text-xs tracking-widest">
-                      No professionals matching your search criteria.
+                   <TableCell colSpan={8} className="py-32 text-center opacity-20 italic font-black uppercase text-xs tracking-[0.4em]">
+                      No clinical records matching search criteria.
                    </TableCell>
                 </TableRow>
               )}
@@ -312,30 +315,30 @@ export default function RosterReviewWorkspace() {
       </Card>
 
       {/* Validation HUD Footer */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-4rem)] max-w-6xl bg-primary/95 backdrop-blur-2xl border border-white/10 z-50 p-6 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.4)] rounded-[2.5rem] border-t-4 border-t-secondary">
-        <div className="flex items-center justify-between gap-12">
-           <div className="flex items-center gap-5 shrink-0">
-              <div className="size-14 rounded-2xl bg-secondary/20 flex items-center justify-center shadow-xl border border-secondary/20">
-                 <Target className="size-8 text-secondary" />
+      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[calc(100%-6rem)] max-w-7xl bg-primary/98 backdrop-blur-3xl border border-white/10 z-50 p-8 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] rounded-[3rem] border-t-4 border-t-secondary animate-in slide-in-from-bottom-10 duration-700">
+        <div className="flex items-center justify-between gap-16">
+           <div className="flex items-center gap-6 shrink-0">
+              <div className="size-16 rounded-[1.5rem] bg-secondary/20 flex items-center justify-center shadow-2xl border border-secondary/20">
+                 <Target className="size-10 text-secondary" />
               </div>
               <div className="space-y-1">
-                 <p className="text-[11px] font-black uppercase text-white/40 tracking-[0.3em]">Integrity Guard</p>
-                 <p className="text-lg font-black uppercase tracking-tight text-white leading-none">Quota Fulfillment</p>
+                 <p className="text-[11px] font-black uppercase text-white/40 tracking-[0.4em]">Integrity Guard</p>
+                 <p className="text-xl font-black uppercase tracking-tight text-white leading-none">Quota Fulfillment Status</p>
               </div>
            </div>
            
            <div className="flex-1 overflow-x-auto no-scrollbar">
-              <div className="flex gap-4 pb-1 pr-4">
+              <div className="flex gap-5 pb-1 pr-6">
                  {DAYS.map(day => {
                     const dayShifts = shifts?.map(s => quotaValidation[`${day}_${s.id}`]).filter(Boolean);
                     const allOk = dayShifts?.every(v => v.ok);
                     return (
-                      <div key={day} className={`px-5 py-3 rounded-2xl border-2 flex flex-col items-center min-w-[130px] transition-all ${allOk ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-destructive/10 border-destructive/30 animate-pulse'}`}>
-                         <span className="text-[9px] font-black uppercase mb-1.5 tracking-widest text-white/60">{day.substring(0,3)}</span>
-                         <div className="flex items-center gap-2">
+                      <div key={day} className={`px-8 py-4 rounded-[1.5rem] border-2 flex flex-col items-center min-w-[150px] transition-all duration-500 ${allOk ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.1)]'}`}>
+                         <span className="text-[10px] font-black uppercase mb-2 tracking-widest text-white/50">{day.substring(0,3)}</span>
+                         <div className="flex items-center gap-3">
                             {allOk ? <CheckCircle2 className="size-4 text-emerald-400" /> : <AlertTriangle className="size-4 text-destructive" />}
-                            <span className={`text-[12px] font-black tracking-tighter ${allOk ? 'text-emerald-400' : 'text-destructive'}`}>
-                               {allOk ? 'FULFILLED' : 'CONFLICT'}
+                            <span className={`text-[13px] font-black tracking-widest ${allOk ? 'text-emerald-400' : 'text-destructive'}`}>
+                               {allOk ? 'MATCHED' : 'CONFLICT'}
                             </span>
                          </div>
                       </div>
@@ -344,12 +347,12 @@ export default function RosterReviewWorkspace() {
               </div>
            </div>
            
-           <div className="hidden lg:flex flex-col justify-center bg-white/5 p-4 rounded-2xl border border-white/10 text-right shrink-0">
-              <div className="flex items-center justify-end gap-2 text-[10px] font-black text-secondary uppercase tracking-widest">
-                 <Info className="size-3" /> Live Logic Engine
+           <div className="hidden lg:flex flex-col justify-center bg-white/5 p-6 rounded-2xl border border-white/10 text-right shrink-0">
+              <div className="flex items-center justify-end gap-3 text-[11px] font-black text-secondary uppercase tracking-[0.2em]">
+                 <Activity className="size-4" /> Real-time Node Logic
               </div>
-              <p className="text-[10px] text-white/60 font-bold leading-relaxed mt-2 uppercase tracking-tighter max-w-[200px]">
-                 Rollout is restricted until daily headcount imbalances are zeroed.
+              <p className="text-[10px] text-white/50 font-bold leading-relaxed mt-3 uppercase tracking-tighter max-w-[240px]">
+                 Rollout is restricted until daily headcount imbalances across all nodes are neutralized.
               </p>
            </div>
         </div>
@@ -357,32 +360,32 @@ export default function RosterReviewWorkspace() {
 
       {/* Super Admin Override Dialog */}
       <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
-        <DialogContent className="rounded-3xl border-none shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight text-primary">Protected FCFS Bypass</DialogTitle>
-            <DialogDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">You are about to override a clinical weekly-off record secured by a professional.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-             <div className="p-4 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex items-center gap-4">
-                <ShieldCheck className="size-8 text-secondary" />
-                <div className="space-y-0.5">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">Target Transaction</p>
-                    <p className="text-sm font-bold text-primary">Manual Assignment on Reserved Off-Day</p>
+        <DialogContent className="rounded-[2.5rem] border-none shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] p-0 overflow-hidden sm:max-w-[540px]">
+          <div className="bg-primary p-10 text-white space-y-2">
+             <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none">FCFS Override Pulse</DialogTitle>
+             <DialogDescription className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40">You are initiating a manual bypass of a clinical weekly-off record.</DialogDescription>
+          </div>
+          <div className="p-10 space-y-8">
+             <div className="p-6 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex items-center gap-6">
+                <ShieldCheck className="size-10 text-secondary" />
+                <div className="space-y-1">
+                    <p className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Privileged Transaction</p>
+                    <p className="text-sm font-bold text-primary">Manual Assignment on Protected Slot</p>
                 </div>
              </div>
-             <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-muted-foreground px-2">Mandatory Authorization Reason</label>
+             <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] px-2 block">Mandatory Governance Justification</Label>
                 <Textarea 
-                  placeholder="Explain why this override is necessary for clinical operations..." 
-                  className="min-h-[120px] rounded-2xl font-medium border-2"
+                  placeholder="Explain why this override is necessary for clinical pod-balance..." 
+                  className="min-h-[160px] rounded-2xl font-medium border-2 focus:border-secondary transition-all text-sm leading-relaxed p-6"
                   value={overrideReason}
                   onChange={e => setOverrideReason(e.target.value)}
                 />
              </div>
           </div>
-          <DialogFooter className="gap-3 sm:justify-center">
-            <Button variant="ghost" onClick={() => setOverrideDialogOpen(false)} className="h-12 px-8 font-black uppercase text-[10px] tracking-widest">Abort Action</Button>
-            <Button className="h-12 px-8 font-black uppercase text-[10px] tracking-widest bg-secondary" onClick={handleProcessOverride} disabled={!overrideReason.trim()}>Confirm Bypass</Button>
+          <DialogFooter className="p-10 bg-muted/30 border-t flex flex-row gap-4 sm:justify-center">
+            <Button variant="ghost" onClick={() => setOverrideDialogOpen(false)} className="h-14 flex-1 font-black uppercase text-[11px] tracking-[0.2em] rounded-xl hover:bg-white transition-all">Abort Action</Button>
+            <Button className="h-14 flex-1 font-black uppercase text-[11px] tracking-[0.2em] bg-primary text-white rounded-xl shadow-2xl hover:bg-secondary transition-all" onClick={handleProcessOverride} disabled={!overrideReason.trim()}>Confirm Bypass</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
