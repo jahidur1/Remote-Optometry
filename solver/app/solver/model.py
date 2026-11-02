@@ -11,7 +11,7 @@ class RosterSolver:
         self.employees = request.employees
         self.shifts = request.shifts
         
-        # Variables: x[e, d, s]
+        # Decision Variables: x[employee, day, shift] is true if employee works shift on day
         self.x = {}
         for e in self.employees:
             for d in self.days:
@@ -22,12 +22,14 @@ class RosterSolver:
         start_time = time.time()
         
         # 1. Hard Constraint: Exact Quotas
+        # Every shift on every day must have exactly the required staff
         for d in self.days:
             for s in self.shifts:
                 quota = next((q.requiredStaff for q in self.request.weeklyQuotas if q.dayOfWeek == d and q.shiftId == s.id), 0)
                 self.model.Add(sum(self.x[e.id, d, s.id] for e in self.employees) == quota)
 
         # 2. Hard Constraint: Single assignment per day
+        # An employee can work at most one shift per day
         for e in self.employees:
             for d in self.days:
                 self.model.Add(sum(self.x[e.id, d, s.id] for s in self.shifts) <= 1)
@@ -39,28 +41,30 @@ class RosterSolver:
                     self.model.Add(self.x[c.employeeId, c.dayOfWeek, s.id] == 0)
 
         # 4. Hard Constraint: Adjacency (Restricted Shifts)
+        # If a day has restrictions (pre/post off), enforce the allowed set
         for c in self.request.employeeHardConstraints:
             if c.type == 'restrictedShift' and c.restrictedToShifts is not None:
-                # Employee can ONLY work these shifts on this day
                 allowed = set(c.restrictedToShifts)
                 for s in self.shifts:
                     if s.id not in allowed:
                         self.model.Add(self.x[c.employeeId, c.dayOfWeek, s.id] == 0)
 
-        # 5. Soft Objectives: Opening Fairness (Simplified for MVP)
-        # Penalize assigning SO/OP shifts to those with high historical counts
+        # 5. Soft Objective: Opening Fairness
+        # Penalize assigning SO/OP shifts to those who have high historical counts
         penalties = []
         for e in self.employees:
             for d in self.days:
-                if "SO" in self.x.get((e.id, d, "SO"), {}):
+                # Super Opening penalty
+                if (e.id, d, "SO") in self.x:
                     penalties.append(self.x[e.id, d, "SO"] * (e.historicalSO + 1))
-                if "OP" in self.x.get((e.id, d, "OP"), {}):
+                # Opening penalty
+                if (e.id, d, "OP") in self.x:
                     penalties.append(self.x[e.id, d, "OP"] * (e.historicalOP + 1))
         
         if penalties:
             self.model.Minimize(sum(penalties))
 
-        # Solve
+        # Solve settings
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.request.timeLimitSeconds
         status = solver.Solve(self.model)

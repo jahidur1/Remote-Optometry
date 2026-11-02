@@ -23,6 +23,3 @@ Deterministic roster optimization engine powered by Google OR-Tools CP-SAT and F
    ```bash
    curl http://localhost:8000/health
    ```
-
-## Production Deployment
-The service is containerized via Docker and ready for Google Cloud Run.

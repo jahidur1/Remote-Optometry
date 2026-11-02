@@ -10,6 +10,7 @@ app = FastAPI(title="ROC Workforce Solver", version="1.0.0")
 
 @app.get("/health")
 async def health_check():
+    """Reports service health and OR-Tools status."""
     return {
         "status": "healthy",
         "ortools_version": "9.11",
@@ -18,7 +19,7 @@ async def health_check():
 
 @app.get("/solver/info")
 async def solver_info():
-    # Verify CP-SAT engine availability
+    """Verifies CP-SAT engine availability."""
     try:
         model = cp_model.CpModel()
         return {
@@ -31,6 +32,7 @@ async def solver_info():
 
 @app.post("/v1/rosters/solve", response_model=SolveRosterResponse)
 async def solve_roster(request: SolveRosterRequest):
+    """Executes the mathematical optimization for the requested roster week."""
     request_id = str(uuid.uuid4())
     print(f"[{request_id}] Incoming solve request for week {request.weekId}")
     

@@ -12,7 +12,7 @@ class Employee(BaseModel):
     historicalOP: int = 0
 
 class DailyQuota(BaseModel):
-    dayOfWeek: str
+    dayOfWeek: str # Monday, Tuesday, etc.
     shiftId: str
     requiredStaff: int
 
