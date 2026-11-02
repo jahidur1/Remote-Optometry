@@ -2,14 +2,12 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
-.venv
-venv
-env
 .git
 .gitignore
+.env
 .pytest_cache
-tests/
+app/tests
+tests
 Dockerfile
-.dockerignore
 README.md
 DEPLOYMENT.md
