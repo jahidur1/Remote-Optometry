@@ -1,4 +1,3 @@
-
 import pytest
 from app.models.requests import SolveRosterRequest, Shift, Employee, DailyQuota, EmployeeConstraint, EmployeePreference, GenderTarget
 from app.solver.model import RosterSolver

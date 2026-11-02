@@ -1,4 +1,3 @@
-
 from ortools.sat.python import cp_model
 from app.models.requests import SolveRosterRequest
 from app.models.responses import Assignment, SolverMetadata, SolveRosterResponse, FairnessMetrics
