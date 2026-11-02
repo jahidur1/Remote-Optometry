@@ -19,7 +19,6 @@ export default function AdminDashboard() {
   const { data: rosters, loading: rosterLoading } = useCollection(query(collection(db, 'published_rosters'), orderBy('publishedAt', 'desc'), limit(1)));
   const { data: logs, loading: logLoading } = useCollection(query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(100)));
   const { data: leaves } = useCollection(query(collection(db, 'employee_leaves'), where('status', '==', 'approved')));
-  const { data: solverLogs } = useCollection(query(collection(db, 'roster_drafts'), orderBy('createdAt', 'desc'), limit(5)));
   const { data: currentBookings } = useCollection(query(collection(db, 'weekoff_bookings'), limit(200)));
 
   const latestRoster = rosters?.[0];
@@ -224,22 +223,16 @@ export default function AdminDashboard() {
                   Optimization Events <Activity className="size-4 text-primary opacity-40" />
                </h5>
                <div className="space-y-4">
-                  {solverLogs?.map((log, i) => (
-                    <div key={i} className="flex items-center gap-5 p-4 rounded-2xl hover:bg-white transition-all border border-transparent hover:border-muted-foreground/10 hover:shadow-lg group">
-                      <div className={`size-3 rounded-full shrink-0 ${log.solverStatus === 'OPTIMAL' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-secondary shadow-[0_0_10px_rgba(59,130,246,0.3)]'} transition-all group-hover:scale-125`} />
+                  {rosterLoading ? <Skeleton className="h-20 w-full" /> : (
+                    <div className="flex items-center gap-5 p-4 rounded-2xl bg-white shadow-lg border border-muted group cursor-pointer hover:border-secondary transition-all">
+                      <div className="size-3 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)] group-hover:scale-125 transition-transform" />
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-center mb-1.5">
-                          <span className="text-[12px] font-black uppercase text-primary tracking-tight truncate">Cycle {log.weekId}</span>
-                          <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-[12px] font-black uppercase text-primary tracking-tight truncate">Cycle {activeWeek}</span>
+                          <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Live Node</span>
                         </div>
-                        <Badge variant="outline" className="text-[8px] h-5 px-2.5 font-black tracking-widest bg-muted/40 uppercase text-primary/60 border-primary/10">{log.solverStatus}</Badge>
+                        <Badge variant="outline" className="text-[8px] h-5 px-2.5 font-black tracking-widest bg-muted/40 uppercase text-primary/60 border-primary/10">Institutional Standard</Badge>
                       </div>
-                    </div>
-                  ))}
-                  {solverLogs?.length === 0 && (
-                    <div className="text-center py-12 opacity-20 border-2 border-dashed rounded-3xl">
-                       <Activity className="size-12 mx-auto mb-3 opacity-10" />
-                       <p className="text-[10px] font-black uppercase tracking-[0.2em]">No Cluster Activity Detected</p>
                     </div>
                   )}
                </div>

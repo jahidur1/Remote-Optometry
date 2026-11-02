@@ -158,7 +158,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
       toast({
         title: employee ? 'Registry Updated' : 'Professional Provisioned',
-        description: `${formData.fullName} (ID: ${formData.id}) record secured for ${formData.office}.`,
+        description: `${formData.fullName} (ID: ${formData.id}) record secured for ${formData.office?.replace('_', ' ')}.`,
       });
       onOpenChange(false);
     } catch (error: any) {

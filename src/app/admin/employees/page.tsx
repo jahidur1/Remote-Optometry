@@ -39,8 +39,7 @@ export default function EmployeeManagement() {
     emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.office?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.department?.toLowerCase().includes(searchTerm.toLowerCase())
+    emp.office?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (employee: any) => {
@@ -132,7 +131,7 @@ export default function EmployeeManagement() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Building2 className="size-3 text-secondary" />
-                          <span className="text-[11px] font-black uppercase text-foreground/80 tracking-tight">{employee.office || 'UNASSIGNED'}</span>
+                          <span className="text-[11px] font-black uppercase text-foreground/80 tracking-tight">{employee.office?.replace('_', ' ') || 'UNASSIGNED'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
