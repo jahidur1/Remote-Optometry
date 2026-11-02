@@ -1,9 +1,8 @@
-
 "use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, User, Clock, Laptop, LayoutDashboard, ArrowRightLeft } from "lucide-react"
+import { Calendar, User, LayoutDashboard, ArrowRightLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function BottomNav() {
@@ -17,7 +16,7 @@ export function BottomNav() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-24 items-center justify-around border-t border-white/10 bg-primary/98 backdrop-blur-3xl px-4 md:hidden rounded-t-[3rem] shadow-[0_-20px_50px_-15px_rgba(0,0,0,0.5)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-20 items-center justify-around border-t border-white/5 bg-primary/95 backdrop-blur-3xl px-4 md:hidden rounded-t-[2.5rem] shadow-[0_-15px_40px_-10px_rgba(0,0,0,0.4)]">
       {navItems.map((item) => {
         const isActive = pathname === item.href
         return (
@@ -25,24 +24,24 @@ export function BottomNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-col items-center justify-center gap-2 transition-all duration-500 flex-1 h-full relative group",
-              isActive ? "text-secondary" : "text-white/40 hover:text-white/60"
+              "flex flex-col items-center justify-center gap-1.5 transition-all duration-300 flex-1 h-full relative group",
+              isActive ? "text-secondary" : "text-white/30 hover:text-white/50"
             )}
           >
             <div className={cn(
-              "p-3 rounded-2xl transition-all duration-500 transform",
-              isActive ? "bg-secondary/15 scale-110 shadow-[0_0_20px_rgba(59,130,246,0.2)]" : "group-hover:scale-105"
+              "p-2.5 rounded-xl transition-all duration-300 transform",
+              isActive ? "bg-secondary/15 scale-110 shadow-pulse-secondary" : "group-hover:scale-105"
             )}>
-              <item.icon className={cn("size-6", isActive ? "stroke-[2.5px]" : "stroke-[2px]")} />
+              <item.icon className={cn("size-5", isActive ? "stroke-[2.5px]" : "stroke-[2px]")} />
             </div>
             <span className={cn(
-                "text-[8px] font-black uppercase tracking-[0.2em] leading-none transition-all duration-500",
-                isActive ? "opacity-100 translate-y-0" : "opacity-40 translate-y-1"
+                "text-[7px] font-black uppercase tracking-[0.2em] leading-none transition-all duration-300",
+                isActive ? "opacity-100 translate-y-0" : "opacity-40 translate-y-0.5"
             )}>
                 {item.title}
             </span>
             {isActive && (
-                <div className="absolute -bottom-1 size-1.5 rounded-full bg-secondary shadow-[0_0_10px_blue] animate-pulse" />
+                <div className="absolute bottom-2 size-1 rounded-full bg-secondary shadow-[0_0_8px_hsl(var(--secondary))] animate-pulse" />
             )}
           </Link>
         )
