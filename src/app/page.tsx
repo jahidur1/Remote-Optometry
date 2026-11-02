@@ -1,5 +1,4 @@
-
-'use client';
+"use client"
 
 import { useEffect, useState } from 'react';
 import Link from "next/link";
@@ -7,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Stethoscope, ShieldCheck, ArrowRight, Loader2, Sparkles, Building2, Terminal } from "lucide-react";
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
   const { user, profile, loading } = useUser();

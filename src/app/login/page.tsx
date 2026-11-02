@@ -1,5 +1,4 @@
-
-'use client';
+"use client"
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -85,9 +84,6 @@ export default function LoginPage() {
     try {
       const formattedPhone = `+91${phoneNumber}`;
       
-      // SECURITY REMEDIATION: We no longer check the database before sending OTP.
-      // This prevents phone-number enumeration and protects unauthenticated employee PII.
-      
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.clear();
         (window as any).recaptchaVerifier = null;
@@ -131,8 +127,6 @@ export default function LoginPage() {
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
-      // SECURITY REMEDIATION: Post-authentication eligibility check.
-      // Now that we are signed in, we can query the employees collection safely.
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
@@ -178,7 +172,6 @@ export default function LoginPage() {
           router.push('/employee/portal');
         }
       } else {
-        // Number not in authorized directory
         await signOut(auth);
         throw new Error("This mobile number is not authorized for portal access. Please contact administration.");
       }
