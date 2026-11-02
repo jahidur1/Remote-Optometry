@@ -4,6 +4,11 @@
 /**
  * @fileOverview Genkit flow for generating an optimized weekly employee roster.
  * This flow serves as the orchestration layer for the mathematical solver.
+ * 
+ * INTEGRATED REQUIREMENTS:
+ * 1. SO/OP Shift Fairness (Historical counts).
+ * 2. Adjacency Restrictions (Pre/Post Off Allowed Shifts) as Hard Constraints.
+ * 3. Exact Quota Satisfaction.
  */
 
 import { ai } from '@/ai/genkit';
@@ -20,6 +25,8 @@ const EmployeeSchema = z.object({
   id: z.string(),
   name: z.string(),
   gender: z.enum(['male', 'female', 'other']),
+  historicalSO: z.number().default(0).describe('Total Super Opening assignments to date'),
+  historicalOP: z.number().default(0).describe('Total Opening assignments to date'),
 });
 
 const WeeklyQuotaSchema = z.object({
@@ -59,7 +66,7 @@ export const GenerateWeeklyRosterInputSchema = z.object({
   softWeights: z.object({
     preferences: z.number().default(0.5),
     genderBalance: z.number().default(0.7),
-    fairness: z.number().default(0.3),
+    fairness: z.number().default(0.5),
   }).optional(),
 });
 
@@ -93,7 +100,7 @@ const generateWeeklyRosterPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterPrompt',
   input: { schema: GenerateWeeklyRosterInputSchema },
   output: { schema: GenerateWeeklyRosterOutputSchema },
-  prompt: `You are a mathematical roster optimization engine simulating OR-Tools CP-SAT logic. 
+  prompt: `You are a mathematical roster optimization engine simulating OR-Tools CP-SAT logic.
 
 Your objective is to find a perfect assignment of employees to shifts that satisfies all HARD CONSTRAINTS and maximizes SOFT OBJECTIVES.
 
@@ -101,21 +108,20 @@ Your objective is to find a perfect assignment of employees to shifts that satis
 1. EXACT STAFFING: Every shift on every day MUST have precisely the number of employees specified in 'weeklyQuotas'.
 2. SINGLE ASSIGNMENT: An employee can work at most ONE shift per day.
 3. PROTECTED OFF-TIME: No shifts can be assigned to an employee on a day where they have a 'weeklyOff' or 'unavailable' constraint.
-4. ADJACENCY ELIGIBILITY: If an employee has a 'restrictedShift' constraint, they can ONLY be assigned to the shifts listed in 'restrictedToShifts'.
+4. ADJACENCY ELIGIBILITY: If an employee has a 'restrictedShift' constraint, they can ONLY be assigned to the shifts listed in 'restrictedToShifts'. This is a NON-NEGOTIABLE hard constraint (Pre/Post Off protection).
 
 ## SOFT OBJECTIVES (PRIORITIZED BY WEIGHTS)
-1. Preferences: Honor 'employeeSoftPreferences' where possible.
-2. Gender Balance: Aim for 'genderTargets' per shift instance.
-3. Fairness: Distribute Opening and Closing shifts evenly across the active pool.
+1. Opening Fairness: Use 'historicalSO' and 'historicalOP' counts to avoid repeatedly assigning Super Opening (SO) and Opening (OP) shifts to the same people. Penalize assignments for those with high counts.
+2. Preferences: Honor 'employeeSoftPreferences' where possible.
+3. Gender Balance: Aim for 'genderTargets' per shift instance.
+4. Fairness: Distribute Opening and Closing shifts evenly across the active pool.
 
 ## INPUT DATA
 Week: {{{weekId}}}
 Available Staff: {{employees.length}}
 Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
 
-Analyze the availability vs required quotas. If the total required headcount exceeds available staff for any day, you MUST return status INFEASIBLE and list the shortfall in issuesEncountered. 
-
-If feasible, generate the assignment grid in 'rosterAssignments'.`,
+If feasible, generate the assignment grid in 'rosterAssignments'. If no solution exists because of conflicting hard constraints (like Adjacency vs Quota), return status INFEASIBLE.`,
 });
 
 const generateWeeklyRosterFlow = ai.defineFlow(

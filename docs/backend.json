@@ -12,6 +12,7 @@
         "displayName": { "type": "string" },
         "employeeId": { "type": "string" },
         "phoneNumber": { "type": "string" },
+        "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
       },
       "required": ["uid", "role"]
@@ -26,7 +27,7 @@
         "email": { "type": "string", "format": "email" },
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
         "age": { "type": "number" },
-        "office": { "type": "string", "enum": ["Kolkata ROC", "Gurgaon ROC", "Lucknow ROC"] },
+        "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
         "whatsappNumber": { "type": "string" },
@@ -34,15 +35,16 @@
         "department": { "type": "string" },
         "designation": { "type": "string" }
       },
-      "required": ["id", "fullName", "whatsappNumber", "office", "role", "status"]
+      "required": ["id", "fullName", "whatsappNumber", "office", "role", "status", "gender"]
     },
     "WeekOffConfig": {
       "title": "Week-Off Configuration",
-      "description": "Scheduled FCFS window for a specific office.",
+      "description": "Office-specific FCFS window.",
       "type": "object",
       "properties": {
+        "id": { "type": "string" },
         "weekId": { "type": "string" },
-        "office": { "type": "string" },
+        "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
         "bookingOpen": { "type": "string", "format": "date-time" },
         "bookingClose": { "type": "string", "format": "date-time" },
         "quotas": { "type": "object" },

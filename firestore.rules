@@ -25,22 +25,21 @@ service cloud.firestore {
     }
 
     // --- WEEKOFF CONFIGURATIONS ---
-    match /weekoff_configs/{weekId} {
-      allow read: if isUserActive();
-      // Quotas and windows can only be managed by admins
+    match /weekoff_configs/{configId} {
+      // Employees can only see configurations for their specific office
+      allow read: if isUserActive() && (isAdmin() || resource.data.office == getUserData().office);
       allow write: if isAdmin() && isUserActive();
     }
 
-    // --- WEEKOFF BOOKINGS (The Atomic Layer) ---
+    // --- WEEKOFF BOOKINGS ---
     match /weekoff_bookings/{bookingId} {
       allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
       
-      // Strict creation logic: user can only book for themselves
+      // Creation logic: user can only book for themselves
       allow create: if isUserActive() && 
         request.resource.data.employeeId == getUserData().employeeId &&
         request.resource.data.status == 'confirmed';
       
-      // Bookings are immutable once secured (locked)
       allow update, delete: if isAdmin() && isUserActive();
     }
 
@@ -65,10 +64,12 @@ service cloud.firestore {
       allow get: if isUserActive() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
       allow list: if isAdmin() && isUserActive();
       allow create: if isAdmin() && isUserActive();
+      
+      // Field level locking: Employees cannot change Name, ID, Office, Gender, Mobile, Role, Status
       allow update: if (isAdmin() && isUserActive()) || (
         isUserActive() && 
         resource.data.whatsappNumber == request.auth.token.phone_number &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt'])
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt', 'fullName', 'office', 'gender'])
       );
     }
 
@@ -89,5 +90,10 @@ service cloud.firestore {
     match /{path=**}/shift_master/{shiftId} { allow read: if isUserActive(); }
     match /{path=**}/employee_leaves/{leaveId} { allow read: if isUserActive(); }
     match /{path=**}/published_rosters/{versionId} { allow read: if isUserActive(); }
+    match /{path=**}/shift_adjacency_rules/{ruleId} { allow read: if isUserActive(); allow write: if isAdmin(); }
+    match /{path=**}/employee_preferences/{prefId} { allow read: if isUserActive(); allow write: if isUserActive(); }
+    match /{path=**}/roster_quotas/{quotaId} { allow read: if isUserActive(); allow write: if isAdmin(); }
+    match /{path=**}/roster_drafts/{draftId} { allow read: if isAdmin(); allow write: if isAdmin(); }
+    match /{path=**}/shift_swaps/{swapId} { allow read: if isUserActive(); allow write: if isUserActive(); }
   }
 }

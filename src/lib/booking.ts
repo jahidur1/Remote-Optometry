@@ -15,98 +15,90 @@ export type BookingResult = {
 /**
  * Performs an atomic weekly-off booking using Firestore Transactions.
  * 
- * DESIGN PRINCIPLES:
- * 1. FCFS Priority: Determined strictly by Firestore transaction commit order.
- * 2. Atomics: Quota check and booking creation happen in one atomic unit.
- * 3. Validation: Checks window status, existing bookings, and quota within the transaction.
+ * REQUIREMENTS INTEGRATED:
+ * 1. Office-specific schedule validation.
+ * 2. Simultaneous final-slot competition handling.
+ * 3. Server-side office verification.
  */
 export async function bookWeeklyOff(
   db: Firestore,
-  weekId: string,
+  configId: string, 
   employeeId: string,
   dayOfWeek: string,
   actorId: string
 ): Promise<BookingResult> {
-  // Use a composite ID to prevent duplicate bookings for the same week/employee
-  const bookingId = `${weekId}_${employeeId}`;
-  const bookingRef = doc(db, 'weekoff_bookings', bookingId);
-  const configRef = doc(db, 'weekoff_configs', weekId);
   const employeeRef = doc(db, 'employees', employeeId);
+  const configRef = doc(db, 'weekoff_configs', configId);
 
   try {
     return await runTransaction(db, async (transaction) => {
-      // 1. Fetch all necessary state within the transaction scope
       const configDoc = await transaction.get(configRef);
-      const bookingDoc = await transaction.get(bookingRef);
       const employeeDoc = await transaction.get(employeeRef);
 
-      // 2. Fundamental existence checks
-      if (!configDoc.exists()) {
-        return { success: false, message: "System Error: Booking configuration not found for this week." };
-      }
-      if (!employeeDoc.exists()) {
-        return { success: false, message: "System Error: Your employee record could not be verified." };
+      if (!configDoc.exists() || !employeeDoc.exists()) {
+        return { success: false, message: "System Error: Missing configuration or profile." };
       }
 
       const config = configDoc.data();
       const employee = employeeDoc.data();
 
-      // 3. Security Check: Is the account active? (Global Kill Switch)
+      // 1. Office Verification (Server-Side)
+      if (config.office !== employee.office) {
+        return { success: false, message: "Unauthorized: You can only book slots for your assigned ROC cluster." };
+      }
+
+      // 2. Status & Window Checks
       if (employee.status !== 'Active') {
-        return { success: false, message: "Access Denied: Your account is currently suspended or inactive." };
+        return { success: false, message: "Access Denied: Inactive account." };
       }
 
-      // 4. Window Check: Is the booking window currently open?
       const now = new Date();
-      const openTime = new Date(config.bookingOpen);
-      const closeTime = new Date(config.bookingClose);
-
-      if (now < openTime) {
-        return { success: false, message: `The booking window is not yet open. It opens at ${openTime.toLocaleString('en-IN')}.` };
+      if (now < new Date(config.bookingOpen)) {
+        return { success: false, message: "Booking window is not yet open." };
       }
-      if (now > closeTime) {
-        return { success: false, message: "The booking window has already closed." };
+      if (now > new Date(config.bookingClose)) {
+        return { success: false, message: "Booking window has closed." };
       }
 
-      // 5. Uniqueness Check: Does this employee already have a booking?
+      // 3. Duplicate Booking Check for this week
+      const bookingId = `${config.weekId}_${employeeId}`;
+      const bookingRef = doc(db, 'weekoff_bookings', bookingId);
+      const bookingDoc = await transaction.get(bookingRef);
+
       if (bookingDoc.exists()) {
-        const existing = bookingDoc.data();
-        return { success: false, message: `You have already confirmed your weekly off for ${existing.dayOfWeek}. Edits are not permitted.` };
+        return { success: false, message: "You have already secured a weekly-off for this cycle." };
       }
 
-      // 6. Quota Check: Is there a slot available for this specific day?
-      const quotas = config.quotas || {};
-      const booked = config.booked || {};
-      const totalQuota = quotas[dayOfWeek] || 0;
-      const currentBooked = booked[dayOfWeek] || 0;
+      // 4. Quota Competition Check
+      const totalQuota = config.quotas?.[dayOfWeek] || 0;
+      const currentBooked = config.booked?.[dayOfWeek] || 0;
 
       if (currentBooked >= totalQuota) {
-        return { success: false, message: `Sorry, slots for ${dayOfWeek} were just filled. Please choose another available day.` };
+        return { success: false, message: `SLOT FULL: ${dayOfWeek} was claimed by another professional. Please select another day.` };
       }
 
-      // 7. Atomic Write Operations
-      // Create the individual booking record
+      // 5. Atomic Commit
       transaction.set(bookingRef, {
         id: bookingId,
-        weekId,
+        weekId: config.weekId,
+        office: config.office,
         employeeId,
         dayOfWeek,
         timestamp: serverTimestamp(),
         status: 'confirmed',
         actorId,
-        source: 'employee_portal_v1'
+        source: 'employee_portal_v2'
       });
 
-      // Update the global counters on the config document
       transaction.update(configRef, {
         [`booked.${dayOfWeek}`]: increment(1),
         updatedAt: serverTimestamp()
       });
 
-      return { success: true, message: `Weekly-off for ${dayOfWeek} has been successfully secured and locked.` };
+      return { success: true, message: `Success! Your weekly-off for ${dayOfWeek} is secured.` };
     });
   } catch (error: any) {
-    console.error("Critical: Booking transaction failed", error);
-    return { success: false, message: "A technical conflict occurred during reservation. Please try again." };
+    console.error("Booking transaction failed:", error);
+    return { success: false, message: "A network conflict occurred. Please retry your selection." };
   }
 }
