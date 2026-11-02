@@ -1,43 +1,29 @@
-# ROC Workforce Solver: Cloud Run Roadmap
+# ROC Workforce Solver: Manual Deployment Protocol
 
-This document provides the institutional roadmap for deploying the deterministic roster optimization engine.
+This node is architected for **Google Cloud Run**. Follow these steps to provision the deterministic optimization engine.
 
-## 1. Cloud Infrastructure Requirements
+## 1. Prerequisites
+- [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install) installed.
+- Active GCP Project with Billing enabled.
 
-Before deployment, ensure the following Google Cloud APIs are enabled in your project:
-- `run.googleapis.com` (Cloud Run)
-- `artifactregistry.googleapis.com` (Container Registry)
-- `cloudbuild.googleapis.com` (Build Pipeline)
-
-## 2. Identity & Access Management (IAM)
-
-To maintain a Zero-Trust environment, the following service accounts are recommended:
-
-### A. Runtime Service Account (`roc-solver-runner`)
-- **Purpose**: The identity used by the Python service while running.
-- **Roles**: `roles/logging.logWriter` (Standard logging).
-
-### B. Invoking Service Account (`roc-app-invoker`)
-- **Purpose**: Used by the Next.js backend to call the private solver.
-- **Roles**: `roles/run.invoker` on the specific solver service.
-
-## 3. Deployment Commands
-
-Execute the following from the `solver/` directory:
+## 2. Infrastructure Setup
+Execute from your local machine:
 
 ```bash
-# 1. Create Artifact Registry (One-time)
-gcloud artifacts repositories create roc-workforce \
-  --repository-format=docker \
-  --location=asia-south1 \
-  --description="ROC Optimization Node"
+# 1. Login and select project
+gcloud auth login
+gcloud config set project [YOUR_PROJECT_ID]
 
-# 2. Build and push to Artifact Registry
-gcloud builds submit --tag asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/roc-workforce/solver
+# 2. Enable Required APIs
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+```
 
-# 3. Deploy to Cloud Run (Private Node)
+## 3. Deployment Command (Standard)
+Run this command from within the `solver/` directory:
+
+```bash
 gcloud run deploy roc-workforce-solver \
-  --image asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/roc-workforce/solver \
+  --source . \
   --platform managed \
   --region asia-south1 \
   --memory 2Gi \
@@ -45,20 +31,14 @@ gcloud run deploy roc-workforce-solver \
   --min-instances 0 \
   --max-instances 2 \
   --no-allow-unauthenticated \
-  --timeout 300 \
-  --service-account roc-solver-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com
+  --timeout 300
 ```
 
-## 4. Cost Considerations (Institutional Estimates)
+## 4. Post-Deployment (Secure Link)
+1. After deployment, `gcloud` will return a **Service URL** (e.g., `https://roc-solver-xyz-as.a.run.app`).
+2. Add this URL to your Next.js project as an environment variable: `SOLVER_URL`.
+3. In the Cloud Console, ensure the Service Account running your Next.js backend has the **Cloud Run Invoker** role for this specific solver service.
 
-| Component | Setting | Cost Impact |
-| :--- | :--- | :--- |
-| **CPU/RAM** | 1 vCPU / 2GiB | Only billed during active requests. |
-| **Scaling** | min: 0 | Service costs $0.00 when not in use. |
-| **Free Tier** | 180k vCPU-seconds | ~50 rosters per month will likely fit in the **Free Tier**. |
-| **Artifacts** | 0.5 GB Storage | Minimal (~$0.10 / month). |
-
-## 5. Architectural Limitations
-
-- **Job State**: Job status is currently in-memory. If Cloud Run scales to multiple instances, polling may fail if the request hits a different instance.
-- **Production Recommendation**: For clusters with >1000 staff, modify `jobs` state to use Cloud Firestore.
+## 5. Security Note
+This service is deployed with `--no-allow-unauthenticated`. 
+It strictly requires **Google IAM OIDC Identity Tokens** for invocation. This ensures that only your authorized Next.js backend can trigger the mathematical solver.
