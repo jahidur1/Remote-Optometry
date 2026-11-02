@@ -1,29 +1,27 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, doc, setDoc, onSnapshot, where } from 'firebase/firestore';
-import { useFirestore, useUser, useCollection, useDoc } from '@/firebase';
+import { useFirestore, useUser, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Target, Save, Copy, AlertTriangle, CheckCircle2, Info, Users, ArrowRightLeft } from "lucide-react";
+import { Target, Save, Copy, AlertTriangle, Info, Users, ArrowRightLeft, CheckCircle2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
-import { format } from 'date-fns';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const GENDER_BANDS = ["0-1", "1", "1-2", "2", "2-3", "3"];
 
 export default function QuotaConfiguration() {
-  const [weekId, setWeekId] = useState('2024-52'); // Default for demo
+  const [weekId, setWeekId] = useState('2024-52');
   const [quotas, setQuotas] = useState<Record<string, number>>({});
   const [genderTargets, setGenderTargets] = useState<Record<string, { male: string; female: string }>>({});
   const [saving, setSaving] = useState(false);
@@ -32,13 +30,11 @@ export default function QuotaConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  // Fetch core data
   const { data: shifts, loading: shiftsLoading } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
   const { data: employees } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active')));
   const { data: bookings } = useCollection(query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId)));
   const { data: leaves } = useCollection(query(collection(db, 'employee_leaves'), where('status', '==', 'approved')));
 
-  // Subscription for existing week quota
   useEffect(() => {
     if (!db || !weekId) return;
     const unsub = onSnapshot(doc(db, 'roster_quotas', weekId), (docSnap) => {
@@ -54,7 +50,6 @@ export default function QuotaConfiguration() {
     return () => unsub();
   }, [db, weekId]);
 
-  // Calculate daily availability (Active - Offs - Leaves)
   const dailyAvailability = useMemo(() => {
     if (!employees || !weekId) return {};
     const weekDates = getDatesForWeek(weekId);
@@ -70,7 +65,6 @@ export default function QuotaConfiguration() {
     return avail;
   }, [employees, weekId, bookings, leaves]);
 
-  // Calculate daily quota totals
   const dailyQuotaTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     DAYS.forEach(day => {
@@ -133,7 +127,7 @@ export default function QuotaConfiguration() {
   };
 
   const isInfeasible = useMemo(() => {
-    return DAYS.some(day => (dailyQuotaTotals[day] || 0) > (dailyAvailability[day] || 0));
+    return DAYS.some(day => (dailyQuotaTotals[day] || 0) !== (dailyAvailability[day] || 0));
   }, [dailyQuotaTotals, dailyAvailability]);
 
   return (
@@ -141,10 +135,10 @@ export default function QuotaConfiguration() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase">Staffing Quota Matrix</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase">Shift Quota Matrix</h1>
             <DemoBadge />
           </div>
-          <p className="text-muted-foreground font-medium">Define exact required employee counts per shift and soft gender targets.</p>
+          <p className="text-muted-foreground font-medium">Define EXACT required employee counts per shift. Solver requires exact matches.</p>
         </div>
         <div className="flex items-center gap-2">
            <Label className="text-xs font-bold text-muted-foreground uppercase">Target Week</Label>
@@ -157,18 +151,17 @@ export default function QuotaConfiguration() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Exact Quota Matrix */}
         <Card className="lg:col-span-3 shadow-md border-t-4 border-t-primary overflow-hidden">
           <CardHeader className="bg-muted/5 border-b flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="size-5 text-primary" /> Daily Exact Quotas
+                <Users className="size-5 text-primary" /> Daily Exact Headcounts
               </CardTitle>
-              <CardDescription>Numbers represent the EXACT headcount required by the ROC solver.</CardDescription>
+              <CardDescription>All assignments must be accounted for. Totals must match available staff.</CardDescription>
             </div>
             {isInfeasible && (
               <Badge variant="destructive" className="animate-pulse uppercase font-black text-[10px]">
-                <AlertTriangle className="size-3 mr-1" /> Critical Over-Capacity
+                <AlertTriangle className="size-3 mr-1" /> Imbalance Detected
               </Badge>
             )}
           </CardHeader>
@@ -176,15 +169,15 @@ export default function QuotaConfiguration() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[150px]">Operation Shift</TableHead>
+                  <TableHead className="w-[180px]">Operational Shift</TableHead>
                   {DAYS.map(day => (
                     <TableHead key={day} className="text-center">
-                      <div className="flex flex-col items-center">
+                      <div className="flex flex-col items-center group">
                         <span className="text-[10px] uppercase font-black tracking-widest">{day.substring(0,3)}</span>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="size-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="size-6 opacity-40 hover:opacity-100 transition-opacity"
                           onClick={() => handleCopyDay(day)}
                           title={`Clone ${day} to all days`}
                         >
@@ -220,9 +213,9 @@ export default function QuotaConfiguration() {
                     ))}
                   </TableRow>
                 ))}
-                {/* Availability/Feasibility Summary Row */}
-                <TableRow className="bg-muted/30 font-black">
-                  <TableCell className="text-xs uppercase tracking-widest">Calculated Availability</TableCell>
+                
+                <TableRow className="bg-muted/30 font-black border-t-2">
+                  <TableCell className="text-xs uppercase tracking-widest">Available Professionals</TableCell>
                   {DAYS.map(day => (
                     <TableCell key={day} className="text-center">
                       <div className="flex flex-col items-center">
@@ -232,18 +225,18 @@ export default function QuotaConfiguration() {
                     </TableCell>
                   ))}
                 </TableRow>
-                <TableRow className="bg-primary/5 font-black border-t-2 border-primary/20">
-                  <TableCell className="text-xs uppercase tracking-widest">Roster Quota Totals</TableCell>
+                <TableRow className="bg-primary/5 font-black">
+                  <TableCell className="text-xs uppercase tracking-widest">Total Planned Assignments</TableCell>
                   {DAYS.map(day => {
                     const diff = (dailyAvailability[day] || 0) - (dailyQuotaTotals[day] || 0);
                     return (
                       <TableCell key={day} className="text-center">
                         <div className="flex flex-col items-center">
-                          <span className={`text-lg ${diff < 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                          <span className={`text-lg ${diff !== 0 ? 'text-destructive' : 'text-emerald-600'}`}>
                             {dailyQuotaTotals[day] || 0}
                           </span>
-                          <span className={`text-[9px] uppercase ${diff < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                            {diff < 0 ? `SHORT: ${Math.abs(diff)}` : `SURPLUS: ${diff}`}
+                          <span className={`text-[9px] uppercase ${diff !== 0 ? 'text-destructive' : 'text-emerald-600/60'}`}>
+                            {diff === 0 ? 'MATCHED' : diff > 0 ? `SURPLUS: ${diff}` : `SHORT: ${Math.abs(diff)}`}
                           </span>
                         </div>
                       </TableCell>
@@ -256,39 +249,24 @@ export default function QuotaConfiguration() {
           <CardFooter className="bg-muted/5 p-4 border-t flex justify-between items-center">
              <div className="flex gap-4 items-center">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-                   <Info className="size-3" /> Asia/Kolkata Standards Applied
+                   <Info className="size-3" /> Exact headcount matching required for OR-Tools execution.
                 </div>
-                {isInfeasible && (
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-destructive uppercase">
-                    <AlertTriangle className="size-3" /> Solver will block: Total quota exceeds availability.
-                  </div>
-                )}
              </div>
              <Button className="bg-primary shadow-lg shadow-primary/10" onClick={handleSave} disabled={saving}>
-               <Save className="mr-2 h-4 w-4" /> {saving ? 'Publishing Matrix...' : 'Commit Configuration'}
+               <Save className="mr-2 h-4 w-4" /> {saving ? 'Saving...' : 'Commit Quota Matrix'}
              </Button>
           </CardFooter>
         </Card>
 
-        {/* Gender Targets Control */}
         <Card className="lg:col-span-1 shadow-md border-t-4 border-t-secondary">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Target className="size-5 text-secondary" />
-              <CardTitle className="text-lg">Gender Targets</CardTitle>
+              <CardTitle className="text-lg">Diversity Targets</CardTitle>
             </div>
-            <CardDescription>Soft optimization objectives for balance (per shift).</CardDescription>
+            <CardDescription>Soft objectives for gender balance (per shift).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="p-3 rounded-lg bg-secondary/5 border border-secondary/10 space-y-2">
-               <p className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
-                  <ArrowRightLeft className="size-3" /> Illustrative Preset
-               </p>
-               <p className="text-[11px] text-muted-foreground italic leading-relaxed">
-                  Example: MEN 1-2 • WOMEN 2-3 targets per shift instance.
-               </p>
-            </div>
-            
             <div className="space-y-4">
               {shifts?.map(shift => (
                 <div key={shift.id} className="space-y-3 pb-4 border-b last:border-0">
@@ -331,7 +309,7 @@ export default function QuotaConfiguration() {
              <div className="flex gap-2 items-start opacity-70">
                 <Info className="size-4 shrink-0 mt-0.5 text-secondary" />
                 <p className="text-[9px] font-medium leading-normal uppercase">
-                   These are soft targets. The OR-Tools engine prioritizes hard staffing quotas over these objectives.
+                   Optimization engine prioritizes hard staffing quotas over these balance objectives.
                 </p>
              </div>
           </CardFooter>

@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
  * @fileOverview Genkit flow for generating an optimized weekly employee roster.
- * This flow orchestrates the call to the OR-Tools CP-SAT mathematical solver.
+ * This flow serves as the orchestration layer for the mathematical solver.
  */
 
 import { ai } from '@/ai/genkit';
@@ -93,26 +92,29 @@ const generateWeeklyRosterPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterPrompt',
   input: { schema: GenerateWeeklyRosterInputSchema },
   output: { schema: GenerateWeeklyRosterOutputSchema },
-  prompt: `You are a mathematical roster optimization engine simulating OR-Tools CP-SAT logic.
+  prompt: `You are a mathematical roster optimization engine simulating OR-Tools CP-SAT logic. 
 
-Your primary goal is to satisfy all HARD CONSTRAINTS:
-1. Exact Staffing Quotas: Every shift MUST have exactly the required number of employees.
-2. No Overlaps: One employee per shift per day maximum.
-3. Protected Time: No shifts on weeklyOff or unavailable days.
-4. Shift Adjacency Eligibility: If an employee has a "restrictedShift" constraint for a specific day, they MUST ONLY be assigned to one of the shifts listed in "restrictedToShifts".
+Your objective is to find a perfect assignment of employees to shifts that satisfies all HARD CONSTRAINTS and maximizes SOFT OBJECTIVES.
 
-Optimize for SOFT OBJECTIVES (using weights if provided):
-1. Employee shift preferences.
-2. Gender balance targets per shift instance.
-3. Historical fairness (opening/closing distribution).
+## HARD CONSTRAINTS (MANDATORY)
+1. EXACT STAFFING: Every shift on every day MUST have precisely the number of employees specified in 'weeklyQuotas'.
+2. SINGLE ASSIGNMENT: An employee can work at most ONE shift per day.
+3. PROTECTED OFF-TIME: No shifts can be assigned to an employee on a day where they have a 'weeklyOff' or 'unavailable' constraint.
+4. ADJACENCY ELIGIBILITY: If an employee has a 'restrictedShift' constraint, they can ONLY be assigned to the shifts listed in 'restrictedToShifts'.
 
-Data for Week {{{weekId}}}:
-- Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
-- Employees: {{employees.length}} total.
-- Hard Constraints: {{employeeHardConstraints.length}} restricted assignments.
-- Quotas: {{#each weeklyQuotas}}{{{this.dayOfWeek}}} {{{this.shiftId}}}: {{{this.requiredStaff}}}; {{/each}}
+## SOFT OBJECTIVES (PRIORITIZED BY WEIGHTS)
+1. Preferences: Honor 'employeeSoftPreferences' where possible.
+2. Gender Balance: Aim for 'genderTargets' per shift instance.
+3. Fairness: Distribute Opening and Closing shifts evenly across the active pool.
 
-If hard constraints (specifically staffing totals vs availability) cannot be satisfied, return status INFEASIBLE and list the shortages in issuesEncountered. Otherwise, provide the best FEASIBLE or OPTIMAL assignments.`,
+## INPUT DATA
+Week: {{{weekId}}}
+Available Staff: {{employees.length}}
+Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
+
+Analyze the availability vs required quotas. If the total required headcount exceeds available staff for any day, you MUST return status INFEASIBLE and list the shortfall in issuesEncountered. 
+
+If feasible, generate the assignment grid in 'rosterAssignments'.`,
 });
 
 const generateWeeklyRosterFlow = ai.defineFlow(
@@ -123,6 +125,36 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   },
   async (input) => {
     const start = Date.now();
+    
+    // Independent Validation: Check if daily totals match availability
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const issues: string[] = [];
+
+    days.forEach(day => {
+      const quotaForDay = input.weeklyQuotas
+        .filter(q => q.dayOfWeek === day)
+        .reduce((sum, q) => sum + q.requiredStaff, 0);
+      
+      const offCount = input.employeeHardConstraints
+        .filter(c => c.dayOfWeek === day && (c.type === 'weeklyOff' || c.type === 'unavailable')).length;
+      
+      const available = input.employees.length - offCount;
+
+      if (quotaForDay !== available) {
+        issues.push(`${day}: Planned assignments (${quotaForDay}) do not match available staff (${available}). Surplus/Shortage of ${available - quotaForDay} must be corrected before solve.`);
+      }
+    });
+
+    if (issues.length > 0) {
+      return {
+        rosterAssignments: [],
+        summary: "Pre-feasibility validation failed. Headcount imbalance detected.",
+        status: 'INFEASIBLE',
+        issuesEncountered: issues,
+        solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: issues.length }
+      };
+    }
+
     const { output } = await generateWeeklyRosterPrompt(input);
     
     return {
