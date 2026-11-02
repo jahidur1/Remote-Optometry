@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -169,9 +168,12 @@ export default function RosterSolver() {
             <h1 className="text-4xl font-black tracking-tighter text-primary font-headline uppercase leading-none">Roster Solver</h1>
             <DemoBadge />
           </div>
-          <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
-             Mathematical Optimization Hub • CP-SAT Execution <BrainCircuit className="size-3 text-secondary" />
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
+               Mathematical Optimization Hub • CP-SAT Execution <BrainCircuit className="size-3 text-secondary" />
+            </p>
+            <Badge variant="destructive" className="text-[8px] font-black uppercase px-2 py-0">MOCK ENGINE</Badge>
+          </div>
         </div>
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border-2 shadow-sm">
            <div className="space-y-1">
@@ -227,7 +229,7 @@ export default function RosterSolver() {
                 <>
                   <div className="space-y-6">
                     <div className="flex justify-between items-end">
-                      <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em]">CP-SAT Search Coverage</span>
+                      <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em]">AI Simulation Coverage</span>
                       <span className="text-4xl font-black text-primary italic tracking-tighter">{progress}%</span>
                     </div>
                     <div className="h-4 bg-muted/30 rounded-full overflow-hidden shadow-inner border">
@@ -243,7 +245,7 @@ export default function RosterSolver() {
                         </div>
                         <div className="space-y-2">
                            <div className="flex items-center gap-3">
-                              <p className="text-[11px] font-black uppercase tracking-[0.25em] opacity-40">Node Result</p>
+                              <p className="text-[11px] font-black uppercase tracking-[0.25em] opacity-40">AI Simulation Result</p>
                               <Badge variant="outline" className="text-[9px] font-black">{solverResult.status}</Badge>
                            </div>
                            <p className="text-lg font-bold text-foreground leading-relaxed tracking-tight">{solverResult.summary}</p>
@@ -257,7 +259,7 @@ export default function RosterSolver() {
             <CardFooter className="border-t bg-muted/5 p-6">
               <Button variant="ghost" className="w-full text-[11px] font-black uppercase tracking-[0.3em] h-14 hover:bg-white transition-all rounded-xl" onClick={handleExplain} disabled={!solverResult}>
                 <BrainCircuit className="mr-4 h-6 w-6 text-secondary" /> 
-                Interpret Mathematical Logic
+                Interpret AI Logic
               </Button>
             </CardFooter>
           </Card>
@@ -315,7 +317,7 @@ export default function RosterSolver() {
               ) : (
                 <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-700">
                   <div className="p-8 rounded-[2rem] bg-white/5 border border-white/10 space-y-4 shadow-2xl">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-secondary opacity-60">Solver Rationale</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-secondary opacity-60">AI Rationale</p>
                     <p className="text-[14px] font-medium leading-relaxed italic opacity-90">"{explanation.solverInterpretation}"</p>
                   </div>
                   
@@ -344,14 +346,14 @@ export default function RosterSolver() {
           <Card className="bg-white shadow-xl border-none rounded-[2.5rem] overflow-hidden border-l-4 border-l-secondary">
             <CardHeader className="p-8 pb-4">
                <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-3 text-muted-foreground">
-                <ShieldCheck className="size-5 text-secondary" /> Solver Governance
+                <ShieldCheck className="size-5 text-secondary" /> Engine Governance
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 pt-2 space-y-8">
               <div className="flex gap-6 items-start">
                  <div className="size-2 rounded-full bg-secondary mt-2 shrink-0 shadow-[0_0_12px_blue]" />
                  <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
-                    Hard constraints (Quotas, Leaves, Adjacency) are mathematically guaranteed.
+                    Hard constraints (Quotas, Leaves, Adjacency) are mathematically modeled by the AI.
                  </p>
               </div>
               <div className="flex gap-6 items-start">
