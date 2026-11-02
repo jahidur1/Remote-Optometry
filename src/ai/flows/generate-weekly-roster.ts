@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -126,7 +127,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   async (input) => {
     const start = Date.now();
     
-    // Independent Validation: Check if daily totals match availability
+    // Independent Pre-Feasibility Check
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const issues: string[] = [];
 
@@ -141,14 +142,14 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       const available = input.employees.length - offCount;
 
       if (quotaForDay !== available) {
-        issues.push(`${day}: Planned assignments (${quotaForDay}) do not match available staff (${available}). Surplus/Shortage of ${available - quotaForDay} must be corrected before solve.`);
+        issues.push(`${day}: Quota shortfall/surplus. Available (${available}) != Required (${quotaForDay}).`);
       }
     });
 
     if (issues.length > 0) {
       return {
         rosterAssignments: [],
-        summary: "Pre-feasibility validation failed. Headcount imbalance detected.",
+        summary: "Mathematical pre-feasibility failed. Staffing imbalance detected.",
         status: 'INFEASIBLE',
         issuesEncountered: issues,
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: issues.length }

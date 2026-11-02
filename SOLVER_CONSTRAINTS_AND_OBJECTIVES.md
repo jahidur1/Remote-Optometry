@@ -1,18 +1,27 @@
 # Solver Constraints & Objectives Matrix
 
-## 1. Hard Constraints (Unbreakable)
-1. **Clinical Coverage**: Every operational shift must have exactly the requested professional count.
-2. **Duty Hours**: Minimum 10 hours rest between shifts (implied by timing patterns).
-3. **Identity Protection**: Super Opening (SO) and Super Closing (SC) cannot overlap.
-4. **Fairness Adjacency**: If restricted to "Opening only" after a day off, Mid/Closing shifts are mathematically excluded.
+## 1. Hard Constraints (Mandatory)
+These must be satisfied 100% or the solver returns `INFEASIBLE`.
+
+| Constraint | Description |
+| :--- | :--- |
+| **Exact Quotas** | Every shift must have exactly the count of staff requested by Admin. |
+| **No Overlap** | Max 1 shift per employee per day. |
+| **Off Protection** | Zero assignments on Confirmed Weekly-Off days. |
+| **Leave Protection** | Zero assignments on Approved Leave/Training dates. |
+| **Adjacency** | Restricted shift types (SO/OP) based on proximity to Off-days. |
 
 ## 2. Soft Objectives (Optimized)
-1. **Employee Preference (Weight: 0.5)**: System attempts to award requested shifts.
-2. **Gender Proximity (Weight: 0.7)**: Aiming for target bands (e.g., 2 Women on Closing).
-3. **Opening Cycle (Weight: 0.3)**: Prioritize employees who didn't work Opening last week.
-4. **Weekend Balance (Weight: 0.4)**: Distribute Saturday/Sunday duties evenly.
+Weighted goals that the solver attempts to reach without breaking Hard Constraints.
 
-## 3. Feasibility Thresholds
-- **Infeasible**: Availability < Quota. System blocks generation.
-- **Feasible**: Constraints met, objectives partially met.
-- **Optimal**: All constraints met, maximum objective score reached.
+| Objective | Weight | Logic |
+| :--- | :--- | :--- |
+| **Employee Preference** | 0.5 | Honor 'Preferred Shift' requests. |
+| **Gender Balance** | 0.8 | Aim for diversity bands (e.g., "2-3 women"). |
+| **Opening Fairness** | 0.3 | Avoid back-to-back Opening shifts for the same person. |
+| **Closing Fairness** | 0.3 | Avoid back-to-back Super Closing shifts. |
+
+## 3. Feasibility Logic
+The NextJS frontend performs a **Pre-Feasibility Check**:
+- If `Sum(Quotas) != (ActivePool - Absences)`, the "Run Solver" button is blocked.
+- This ensures the CP-SAT engine never attempts a mathematically impossible task.
