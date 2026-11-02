@@ -7,11 +7,12 @@ import { useFirestore, useUser, useDoc, useCollection } from "@/firebase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, CalendarDays, CheckCircle2, ArrowRight, Loader2, Building2, MapPin, Settings, AlertCircle } from "lucide-react"
+import { Clock, CalendarDays, CheckCircle2, ArrowRight, Loader2, Building2, MapPin, Settings, AlertCircle, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { DemoBadge } from "@/components/ui/demo-badge"
+import { cn } from "@/lib/utils"
 
-function Countdown({ targetDate, onComplete }: { targetDate: string, onComplete?: () => void }) {
+function Countdown({ targetDate, onComplete, label }: { targetDate: string, onComplete?: () => void, label: string }) {
   const [timeLeft, setTimeLeft] = useState<string>('');
 
   useEffect(() => {
@@ -36,7 +37,12 @@ function Countdown({ targetDate, onComplete }: { targetDate: string, onComplete?
     return () => clearInterval(timer);
   }, [targetDate]);
 
-  return <span className="font-black tabular-nums">{timeLeft}</span>;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[9px] font-black uppercase text-accent-foreground/50 tracking-widest">{label}</span>
+      <span className="font-black tabular-nums text-xl tracking-tighter">{timeLeft}</span>
+    </div>
+  );
 }
 
 export default function EmployeePortal() {
@@ -69,6 +75,7 @@ export default function EmployeePortal() {
   }, [publishedRosters, profile]);
 
   useEffect(() => {
+    // Verified Office Schedule Access: Only fetch windows for the user's office
     if (!profile?.office || !db) return;
     const q = query(
       collection(db, 'weekoff_configs'), 
@@ -83,13 +90,15 @@ export default function EmployeePortal() {
     return () => unsubscribe();
   }, [db, profile]);
 
-  const isWindowOpen = activeConfig && new Date() >= new Date(activeConfig.bookingOpen) && new Date() <= new Date(activeConfig.bookingClose);
+  const now = new Date();
+  const isWindowOpen = activeConfig && now >= new Date(activeConfig.bookingOpen) && now <= new Date(activeConfig.bookingClose);
+  const isWindowUpcoming = activeConfig && now < new Date(activeConfig.bookingOpen);
 
   if (userLoading || loading || rosterLoading) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-4">
         <Loader2 className="size-12 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Syncing Cluster Node</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Syncing Unified Portal</p>
       </div>
     );
   }
@@ -122,6 +131,68 @@ export default function EmployeePortal() {
 
       <div className="grid gap-8 lg:grid-cols-7">
         <div className="lg:col-span-4 space-y-8">
+          {userBooking ? (
+            <Card className="border-none bg-emerald-600 text-white shadow-2xl rounded-[2.5rem] overflow-hidden relative group animate-in zoom-in-95 duration-500">
+               <div className="absolute top-0 right-0 p-8 transform group-hover:scale-110 transition-transform duration-700 opacity-10"><Sparkles size={160} /></div>
+               <CardHeader className="p-10 pb-4">
+                  <div className="flex items-center gap-4">
+                     <div className="size-14 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                        <CheckCircle2 className="size-8 text-white" />
+                     </div>
+                     <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Success Confirmation</p>
+                        <CardTitle className="text-2xl font-black uppercase tracking-tight">Reservation Secured</CardTitle>
+                     </div>
+                  </div>
+               </CardHeader>
+               <CardContent className="p-10 pt-0">
+                  <div className="bg-white/10 p-8 rounded-[2rem] border border-white/20 shadow-inner mt-4">
+                      <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-40 mb-2">Clinical Weekly-Off</p>
+                      <p className="text-6xl font-black uppercase tracking-tighter italic">{userBooking.dayOfWeek}</p>
+                  </div>
+                  <p className="text-[11px] font-bold uppercase mt-8 leading-relaxed opacity-80">
+                     Congratulations! You have successfully secured your preference for Week {currentWeek}. 
+                     Your roster has been adjusted to protect this slot.
+                  </p>
+               </CardContent>
+            </Card>
+          ) : activeConfig && (
+            <Card className="border-none bg-accent/5 shadow-2xl rounded-[2.5rem] overflow-hidden border-2 border-accent/10 transition-all hover:bg-accent/[0.07]">
+              <CardHeader className="p-10 pb-4">
+                <div className="flex items-center gap-4 font-black text-[12px] uppercase tracking-[0.3em] text-accent-foreground">
+                  <div className="size-2 rounded-full bg-accent animate-ping" />
+                  Priority Action: FCFS Pulse
+                </div>
+              </CardHeader>
+              <CardContent className="px-10 pb-10">
+                  <div className="space-y-8 py-4 text-center sm:text-left">
+                    <div className="flex flex-col sm:flex-row items-center gap-12">
+                       <div className="size-24 rounded-[2rem] bg-accent/10 flex items-center justify-center shrink-0 shadow-inner">
+                          <Clock className="size-12 text-accent-foreground opacity-60" />
+                       </div>
+                       <div className="flex-1 space-y-4">
+                          <div className="flex flex-wrap gap-8 justify-center sm:justify-start">
+                            {isWindowUpcoming && <Countdown targetDate={activeConfig.bookingOpen} label="Pulse Initiates In" />}
+                            {isWindowOpen && <Countdown targetDate={activeConfig.bookingClose} label="Pulse Terminates In" />}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed opacity-70 mt-2">
+                             Localized reservation for <strong>{profile?.office?.replace('_', ' ')}</strong>. 
+                             Slots are claimed in real-time by clinical professionals.
+                          </p>
+                       </div>
+                    </div>
+                    {isWindowOpen && (
+                      <Link href="/employee/book-off" className="block">
+                        <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-black uppercase tracking-[0.3em] h-16 rounded-[1.5rem] shadow-2xl shadow-accent/20 transition-all hover:scale-[1.02]">
+                          Enter Pulse Matrix <ArrowRight className="ml-3 size-6" />
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2.5rem]">
              <CardHeader className="bg-primary p-8 text-primary-foreground border-none relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5"><CalendarDays size={180} /></div>
@@ -166,74 +237,9 @@ export default function EmployeePortal() {
                 )}
              </CardContent>
           </Card>
-
-          {activeConfig && !userBooking && (
-            <Card className="border-none bg-accent/5 shadow-2xl rounded-[2.5rem] overflow-hidden border-2 border-accent/10">
-              <CardHeader className="p-10 pb-4">
-                <div className="flex items-center gap-4 font-black text-[12px] uppercase tracking-[0.3em] text-accent-foreground">
-                  <div className="size-2 rounded-full bg-accent animate-ping" />
-                  Priority Action: Week-Off Pulse
-                </div>
-              </CardHeader>
-              <CardContent className="px-10 pb-10">
-                  <div className="space-y-8 py-4 text-center sm:text-left">
-                    <div className="flex flex-col sm:flex-row items-center gap-8">
-                       <div className="size-20 rounded-[2rem] bg-accent/10 flex items-center justify-center shrink-0 shadow-inner">
-                          <Clock className="size-10 text-accent-foreground opacity-60" />
-                       </div>
-                       <div className="space-y-2">
-                          <p className="text-2xl font-black text-accent-foreground uppercase tracking-tight leading-none">
-                            {isWindowOpen 
-                              ? "PULSE LIVE" 
-                              : <Countdown targetDate={activeConfig.bookingOpen} />}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed opacity-70 mt-2">
-                             Atomic FCFS reservation for {profile?.office?.replace('_', ' ')}. 
-                             Slots are claimed in real-time by cluster professionals.
-                          </p>
-                       </div>
-                    </div>
-                    {isWindowOpen && (
-                      <Link href="/employee/book-off" className="block">
-                        <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-black uppercase tracking-[0.3em] h-16 rounded-[1.5rem] shadow-2xl shadow-accent/20 transition-all hover:scale-[1.02]">
-                          Enter Location Matrix <ArrowRight className="ml-3 size-6" />
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <div className="lg:col-span-3 space-y-8">
-          <Card className={cn("shadow-2xl border-none rounded-[2.5rem] overflow-hidden transition-all", userBooking ? "bg-emerald-600" : "bg-primary")}>
-            <CardHeader className="p-8 pb-4 text-center">
-               <p className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em]">Institutional Off-Day</p>
-            </CardHeader>
-            <CardContent className="p-8 pt-0 flex flex-col items-center text-center space-y-6">
-                <div className="p-10 rounded-[2rem] bg-white/10 border-2 border-white/10 w-full shadow-inner">
-                    <p className="text-5xl font-black text-white uppercase tracking-tighter italic">
-                        {userBooking?.dayOfWeek || <span className="opacity-20 italic">UNSET</span>}
-                    </p>
-                </div>
-                {userBooking ? (
-                   <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-center gap-3 text-[11px] text-white/90 font-black uppercase tracking-widest">
-                         <CheckCircle2 className="size-4 text-white" /> Secured & Locked
-                      </div>
-                      <p className="text-[12px] font-bold text-white text-center leading-snug mt-2">
-                        Congratulations! You have secured your preference for Week {currentWeek}.
-                      </p>
-                   </div>
-                ) : (
-                   <div className="flex items-center gap-3 text-[11px] text-white/60 font-bold uppercase tracking-widest">
-                      <AlertCircle className="size-4 text-accent animate-pulse" /> Pending Pulse Action
-                   </div>
-                )}
-            </CardContent>
-          </Card>
-
           <Card className="bg-primary text-primary-foreground shadow-2xl border-none overflow-hidden rounded-[2.5rem]">
             <CardHeader className="p-8 pb-4">
               <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-3 text-secondary">
@@ -249,6 +255,17 @@ export default function EmployeePortal() {
                 <p className="text-[10px] text-white/50 leading-relaxed uppercase font-black tracking-[0.1em]">
                    Rosters are optimized per pod. Shift-briefings via WhatsApp occur at 22:00 IST for published cycles.
                 </p>
+              </div>
+              <div className="pt-6 border-t border-white/5 space-y-4">
+                 <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Office Registry</p>
+                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <p className="text-[11px] font-bold text-white/80 uppercase">
+                       {profile?.office === 'KOLKATA_ROC' && 'Kolkata Remote Operations'}
+                       {profile?.office === 'GURGAON_ROC' && 'Gurgaon Remote Operations'}
+                       {profile?.office === 'LUCKNOW_ROC' && 'Lucknow Remote Operations'}
+                    </p>
+                    <p className="text-[9px] font-black text-white/30 uppercase mt-1">ID: {profile?.office}</p>
+                 </div>
               </div>
             </CardContent>
           </Card>

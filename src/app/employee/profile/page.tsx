@@ -50,6 +50,8 @@ export default function EmployeeProfile() {
     if (!profile?.employeeId) return;
     setSaving(true);
     try {
+      // SECURITY REMEDIATION: Employees can only modify non-mandatory fields.
+      // Database rules strictly block updates to Name, ID, Office, Gender, Mobile.
       const empRef = doc(db, 'employees', profile.employeeId);
       await updateDoc(empRef, {
         email: formData.email.toLowerCase(),
@@ -58,9 +60,9 @@ export default function EmployeeProfile() {
       });
       
       logAudit(db, profile.uid, 'UPDATE_PERSONAL_PROFILE', profile.employeeId, { email: formData.email, age: formData.age });
-      toast({ title: "Profile Synchronized", description: "Age and Email updated successfully." });
+      toast({ title: "Profile Synchronized", description: "Age and Official Email updated successfully." });
     } catch (e: any) {
-      toast({ title: "Locked Fields Detected", description: "Identity fields (Name, ID, Office, Mobile) are managed by Administration.", variant: "destructive" });
+      toast({ title: "Operation Blocked", description: "Mandatory identity fields (Name, ID, Office, Mobile) can only be managed by Administration.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -76,9 +78,9 @@ export default function EmployeeProfile() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-24 px-4 pt-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">My Identity</h1>
-        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive font-black uppercase text-[10px] tracking-widest">
-            <LogOut className="size-4 mr-2" /> De-Authorize
+        <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">My Clinical Identity</h1>
+        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive font-black uppercase text-[10px] tracking-widest hover:bg-destructive/5">
+            <LogOut className="size-4 mr-2" /> De-Authorize Device
         </Button>
       </div>
 
@@ -92,37 +94,37 @@ export default function EmployeeProfile() {
               <CardTitle className="text-2xl font-black uppercase tracking-tight">{empData.fullName}</CardTitle>
               <div className="flex flex-wrap gap-2">
                  <Badge className="bg-white/10 text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-3">ID: {empData.id}</Badge>
-                 <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-3">{empData.role}</Badge>
+                 <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-3">{empData.office?.replace('_', ' ')}</Badge>
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* LOCKED FIELDS */}
+            {/* ADMINISTRATIVE CONTROLLED FIELDS */}
             {[
-              { label: 'Name', value: empData.fullName, icon: <Lock className="size-3" /> },
-              { label: 'Clinical Cluster', value: empData.office?.replace('_', ' '), icon: <Building2 className="size-4" /> },
-              { label: 'Mobile Endpoint', value: empData.whatsappNumber, icon: <Phone className="size-4" /> },
-              { label: 'Gender', value: empData.gender, icon: <User className="size-4" /> },
+              { label: 'Official Name', value: empData.fullName },
+              { label: 'ROC Cluster', value: empData.office?.replace('_', ' ') },
+              { label: 'Mobile Endpoint', value: empData.whatsappNumber },
+              { label: 'Gender', value: empData.gender },
             ].map((field, i) => (
               <div key={i} className="space-y-2 opacity-50 grayscale select-none">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] flex items-center gap-2">
                   <Lock className="size-2.5" /> {field.label} (Locked)
                 </Label>
-                <div className="h-12 flex items-center px-4 rounded-xl bg-muted border font-bold text-sm">{field.value}</div>
+                <div className="h-12 flex items-center px-4 rounded-xl bg-muted border-2 font-bold text-sm">{field.value}</div>
               </div>
             ))}
 
-            {/* EDITABLE FIELDS */}
+            {/* SELF-MANAGED FIELDS */}
             <div className="space-y-2">
-                <Label htmlFor="age" className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
-                  <Calendar className="size-3" /> Age (Self-Managed)
+                <Label htmlFor="age" className="text-[10px] font-black uppercase text-secondary tracking-[0.2em] flex items-center gap-2">
+                  <Calendar className="size-3" /> Professional Age
                 </Label>
                 <Input id="age" type="number" className="h-12 font-black border-2 border-secondary/20 focus:border-secondary rounded-xl" value={formData.age} onChange={e => setFormData({ ...formData, age: e.target.value })} />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="email" className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
+                <Label htmlFor="email" className="text-[10px] font-black uppercase text-secondary tracking-[0.2em] flex items-center gap-2">
                   <Mail className="size-3" /> Official Email
                 </Label>
                 <Input id="email" className="h-12 font-black border-2 border-secondary/20 focus:border-secondary rounded-xl" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
@@ -133,12 +135,12 @@ export default function EmployeeProfile() {
             <div className="flex items-center gap-3">
                <ShieldCheck className="size-8 text-emerald-600 opacity-30" />
                <div className="space-y-0.5">
-                  <p className="text-[10px] font-black uppercase text-primary">Identity Verified</p>
-                  <p className="text-[9px] font-bold uppercase text-muted-foreground">Server-Side Protection Active</p>
+                  <p className="text-[10px] font-black uppercase text-primary">Identity Secure</p>
+                  <p className="text-[9px] font-bold uppercase text-muted-foreground">Audit Protection Active</p>
                </div>
             </div>
             <Button className="bg-primary h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 transition-all" onClick={handleSave} disabled={saving}>
-                {saving ? 'Syncing...' : 'Save Updates'}
+                {saving ? 'Syncing...' : 'Update Records'}
             </Button>
         </CardFooter>
       </Card>

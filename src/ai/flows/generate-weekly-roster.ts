@@ -66,7 +66,7 @@ export const GenerateWeeklyRosterInputSchema = z.object({
   softWeights: z.object({
     preferences: z.number().default(0.5),
     genderBalance: z.number().default(0.7),
-    fairness: z.number().default(0.5),
+    fairness: z.number().default(0.8),
   }).optional(),
 });
 
@@ -108,20 +108,20 @@ Your objective is to find a perfect assignment of employees to shifts that satis
 1. EXACT STAFFING: Every shift on every day MUST have precisely the number of employees specified in 'weeklyQuotas'.
 2. SINGLE ASSIGNMENT: An employee can work at most ONE shift per day.
 3. PROTECTED OFF-TIME: No shifts can be assigned to an employee on a day where they have a 'weeklyOff' or 'unavailable' constraint.
-4. ADJACENCY ELIGIBILITY: If an employee has a 'restrictedShift' constraint, they can ONLY be assigned to the shifts listed in 'restrictedToShifts'. This is a NON-NEGOTIABLE hard constraint (Pre/Post Off protection).
+4. ADJACENCY ELIGIBILITY: If an employee has a 'restrictedShift' constraint (from Adjacency Rules), they can ONLY be assigned to the shifts listed in 'restrictedToShifts'. This is a NON-NEGOTIABLE hard constraint.
 
 ## SOFT OBJECTIVES (PRIORITIZED BY WEIGHTS)
-1. Opening Fairness: Use 'historicalSO' and 'historicalOP' counts to avoid repeatedly assigning Super Opening (SO) and Opening (OP) shifts to the same people. Penalize assignments for those with high counts.
+1. Opening Fairness: Use 'historicalSO' and 'historicalOP' metrics. Penalize assignments of Super Opening (SO) and Opening (OP) shifts to employees who already have high historical counts. Distribute these shifts fairly across the pool.
 2. Preferences: Honor 'employeeSoftPreferences' where possible.
 3. Gender Balance: Aim for 'genderTargets' per shift instance.
-4. Fairness: Distribute Opening and Closing shifts evenly across the active pool.
+4. Fairness: Distribute Closing shifts evenly across the active pool.
 
 ## INPUT DATA
 Week: {{{weekId}}}
 Available Staff: {{employees.length}}
 Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
 
-If feasible, generate the assignment grid in 'rosterAssignments'. If no solution exists because of conflicting hard constraints (like Adjacency vs Quota), return status INFEASIBLE.`,
+Analyze the constraints and generate the assignment grid in 'rosterAssignments'. If hard constraints make the roster mathematically impossible, return INFEASIBLE.`,
 });
 
 const generateWeeklyRosterFlow = ai.defineFlow(
@@ -155,7 +155,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     if (issues.length > 0) {
       return {
         rosterAssignments: [],
-        summary: "Mathematical pre-feasibility failed. Staffing imbalance detected.",
+        summary: "Mathematical pre-feasibility failed. Staffing imbalance detected across ROC cluster.",
         status: 'INFEASIBLE',
         issuesEncountered: issues,
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: issues.length }

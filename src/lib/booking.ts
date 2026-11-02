@@ -15,10 +15,10 @@ export type BookingResult = {
 /**
  * Performs an atomic weekly-off booking using Firestore Transactions.
  * 
- * REQUIREMENTS INTEGRATED:
- * 1. Office-specific schedule validation.
+ * INTEGRATED REQUIREMENTS:
+ * 1. Office-specific schedule validation (Server-side enforced).
  * 2. Simultaneous final-slot competition handling.
- * 3. Server-side office verification.
+ * 3. Atomic counter increment.
  */
 export async function bookWeeklyOff(
   db: Firestore,
@@ -42,22 +42,23 @@ export async function bookWeeklyOff(
       const config = configDoc.data();
       const employee = employeeDoc.data();
 
-      // 1. Office Verification (Server-Side)
+      // 1. Office Identity Verification (Server-Side)
+      // An employee from Kolkata ROC must never book a Gurgaon ROC slot.
       if (config.office !== employee.office) {
-        return { success: false, message: "Unauthorized: You can only book slots for your assigned ROC cluster." };
+        return { success: false, message: `Unauthorized: Your profile is assigned to ${employee.office}. You cannot book for ${config.office}.` };
       }
 
       // 2. Status & Window Checks
       if (employee.status !== 'Active') {
-        return { success: false, message: "Access Denied: Inactive account." };
+        return { success: false, message: "Access Denied: Your clinical account is not active." };
       }
 
       const now = new Date();
       if (now < new Date(config.bookingOpen)) {
-        return { success: false, message: "Booking window is not yet open." };
+        return { success: false, message: "The booking pulse has not yet initiated." };
       }
       if (now > new Date(config.bookingClose)) {
-        return { success: false, message: "Booking window has closed." };
+        return { success: false, message: "The booking window for this cycle has closed." };
       }
 
       // 3. Duplicate Booking Check for this week
@@ -66,7 +67,7 @@ export async function bookWeeklyOff(
       const bookingDoc = await transaction.get(bookingRef);
 
       if (bookingDoc.exists()) {
-        return { success: false, message: "You have already secured a weekly-off for this cycle." };
+        return { success: false, message: "A reservation already exists for your ID this week." };
       }
 
       // 4. Quota Competition Check
@@ -74,7 +75,7 @@ export async function bookWeeklyOff(
       const currentBooked = config.booked?.[dayOfWeek] || 0;
 
       if (currentBooked >= totalQuota) {
-        return { success: false, message: `SLOT FULL: ${dayOfWeek} was claimed by another professional. Please select another day.` };
+        return { success: false, message: `SLOT FULL: The last slot for ${dayOfWeek} was just claimed. Please select another day.` };
       }
 
       // 5. Atomic Commit
@@ -95,10 +96,10 @@ export async function bookWeeklyOff(
         updatedAt: serverTimestamp()
       });
 
-      return { success: true, message: `Success! Your weekly-off for ${dayOfWeek} is secured.` };
+      return { success: true, message: `CONGRATULATIONS! Your weekly-off for ${dayOfWeek} is secured and locked.` };
     });
   } catch (error: any) {
     console.error("Booking transaction failed:", error);
-    return { success: false, message: "A network conflict occurred. Please retry your selection." };
+    return { success: false, message: "A network conflict occurred during reservation. Please refresh and try again." };
   }
 }

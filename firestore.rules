@@ -26,7 +26,7 @@ service cloud.firestore {
 
     // --- WEEKOFF CONFIGURATIONS ---
     match /weekoff_configs/{configId} {
-      // Employees can only see configurations for their specific office
+      // Employees can only see configurations for their specific office ID
       allow read: if isUserActive() && (isAdmin() || resource.data.office == getUserData().office);
       allow write: if isAdmin() && isUserActive();
     }
@@ -35,10 +35,11 @@ service cloud.firestore {
     match /weekoff_bookings/{bookingId} {
       allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
       
-      // Creation logic: user can only book for themselves
+      // Creation logic: user can only book for themselves and must match their office schedule
       allow create: if isUserActive() && 
         request.resource.data.employeeId == getUserData().employeeId &&
-        request.resource.data.status == 'confirmed';
+        request.resource.data.status == 'confirmed' &&
+        request.resource.data.office == getUserData().office;
       
       allow update, delete: if isAdmin() && isUserActive();
     }
