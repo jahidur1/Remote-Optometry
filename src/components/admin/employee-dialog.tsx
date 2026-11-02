@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import {
   Dialog,
@@ -33,6 +34,8 @@ interface EmployeeDialogProps {
   employee?: any;
 }
 
+const OFFICES = ["Kolkata ROC", "Gurgaon ROC", "Lucknow ROC"];
+
 export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogProps) {
   const db = useFirestore();
   const { profile } = useUser();
@@ -46,11 +49,12 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     role: 'EMPLOYEE',
     status: 'Active',
     gender: 'Male',
+    age: '',
+    office: 'Kolkata ROC',
     whatsappNumber: '',
-    department: '',
-    designation: '',
+    department: 'Remote Optometry',
+    designation: 'Staff Professional',
     joinedAt: new Date().toISOString().split('T')[0],
-    eligibility: [] as string[],
   });
 
   useEffect(() => {
@@ -62,11 +66,12 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         role: employee.role || 'EMPLOYEE',
         status: employee.status || 'Active',
         gender: employee.gender || 'Male',
+        age: employee.age?.toString() || '',
+        office: employee.office || 'Kolkata ROC',
         whatsappNumber: employee.whatsappNumber || '',
         department: employee.department || '',
         designation: employee.designation || '',
         joinedAt: employee.joinedAt || new Date().toISOString().split('T')[0],
-        eligibility: employee.eligibility || [],
       });
     } else {
       setFormData({
@@ -76,11 +81,12 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         role: 'EMPLOYEE',
         status: 'Active',
         gender: 'Male',
+        age: '',
+        office: 'Kolkata ROC',
         whatsappNumber: '',
-        department: '',
-        designation: '',
+        department: 'Remote Optometry',
+        designation: 'Staff Professional',
         joinedAt: new Date().toISOString().split('T')[0],
-        eligibility: [],
       });
     }
   }, [employee, open]);
@@ -91,14 +97,6 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
     try {
       if (!employee) {
-        const qEmail = query(collection(db, 'employees'), where('email', '==', formData.email));
-        const emailSnap = await getDocs(qEmail);
-        if (!emailSnap.empty) {
-          toast({ title: 'Validation Error', description: 'Work email already exists.', variant: 'destructive' });
-          setLoading(false);
-          return;
-        }
-
         const qId = query(collection(db, 'employees'), where('id', '==', formData.id));
         const idSnap = await getDocs(qId);
         if (!idSnap.empty) {
@@ -113,6 +111,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
       const payload = {
         ...formData,
+        age: parseInt(formData.age) || 0,
         updatedAt: new Date().toISOString(),
       };
 
@@ -139,13 +138,13 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
       logAudit(db, profile?.uid || 'system', employee ? 'UPDATE_EMPLOYEE' : 'CREATE_EMPLOYEE', docId, {
         fullName: formData.fullName,
-        role: formData.role,
-        status: formData.status
+        office: formData.office,
+        role: formData.role
       });
 
       toast({
-        title: employee ? 'Employee Updated' : 'Employee Created',
-        description: `${formData.fullName} (ID: ${formData.id}) has been saved.`,
+        title: employee ? 'Employee Updated' : 'Employee Provisioned',
+        description: `${formData.fullName} (ID: ${formData.id}) record secured.`,
       });
       onOpenChange(false);
     } catch (error: any) {
@@ -163,30 +162,30 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>{employee ? 'Edit Workforce Record' : 'Provision New Employee'}</DialogTitle>
+          <DialogTitle className="uppercase font-black tracking-tight">{employee ? 'Edit Clinical Record' : 'Provision Professional'}</DialogTitle>
           <DialogDescription>
-            Maintain accurate professional data for scheduling and operational reports.
+            Mandatory identity fields can only be modified by authorized administration.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[80vh] pr-4">
           <form onSubmit={handleSubmit} className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="id">Employee ID (Permanent)</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Professional ID</Label>
                 <Input
-                  id="id"
                   placeholder="EMP001"
+                  className="font-bold h-11"
                   value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
                   disabled={!!employee}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</Label>
                 <Input
-                  id="fullName"
-                  placeholder="Johnathan Doe"
+                  placeholder="John Doe"
+                  className="font-bold h-11"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   required
@@ -196,35 +195,39 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Work Email (Unique)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john.doe@roc.example"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Clinical Office</Label>
+                <Select
+                  value={formData.office}
+                  onValueChange={(val) => setFormData({ ...formData, office: val })}
+                >
+                  <SelectTrigger className="h-11 font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OFFICES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="whatsapp">WhatsApp (Notifications)</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mobile (Auth Target)</Label>
                 <Input
-                  id="whatsapp"
-                  placeholder="+91 99999 99999"
+                  placeholder="+91 00000 00000"
+                  className="font-bold h-11"
                   value={formData.whatsappNumber}
                   onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                  required
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Gender</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Gender</Label>
                 <Select
                   value={formData.gender}
                   onValueChange={(val) => setFormData({ ...formData, gender: val })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 font-bold">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -235,30 +238,22 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(val) => setFormData({ ...formData, role: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EMPLOYEE">Clinical Professional</SelectItem>
-                    <SelectItem value="ADMIN">System Administrator</SelectItem>
-                    {profile?.role === 'SUPER_ADMIN' && (
-                      <SelectItem value="SUPER_ADMIN">Executive Board</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Age</Label>
+                <Input
+                  type="number"
+                  placeholder="25"
+                  className="font-bold h-11"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</Label>
                 <Select
                   value={formData.status}
                   onValueChange={(val) => setFormData({ ...formData, status: val })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 font-bold">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -270,40 +265,49 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Official Email ID</Label>
+              <Input
+                type="email"
+                placeholder="professional@roc.example"
+                className="font-bold h-11"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
+                required
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="dept">Department</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Department</Label>
                 <Input
-                  id="dept"
                   placeholder="Remote Optometry"
+                  className="font-bold h-11"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="designation">Designation</Label>
-                <Input
-                  id="designation"
-                  placeholder="Senior Optometrist"
-                  value={formData.designation}
-                  onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                />
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">System Role</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(val) => setFormData({ ...formData, role: val })}
+                >
+                  <SelectTrigger className="h-11 font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EMPLOYEE">Clinical Professional</SelectItem>
+                    <SelectItem value="ADMIN">Administrator</SelectItem>
+                    <SelectItem value="SUPER_ADMIN">Executive Board</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="joinedAt">Joining Date</Label>
-              <Input
-                id="joinedAt"
-                type="date"
-                value={formData.joinedAt}
-                onChange={(e) => setFormData({ ...formData, joinedAt: e.target.value })}
-              />
-            </div>
-
-            <DialogFooter className="pt-4">
-              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
-                {loading ? 'Processing...' : employee ? 'Update Record' : 'Provision Account'}
+            <DialogFooter className="pt-6">
+              <Button type="submit" disabled={loading} className="w-full h-12 font-black uppercase tracking-widest shadow-xl">
+                {loading ? 'Committing Changes...' : employee ? 'Update Audit Record' : 'Enroll Professional'}
               </Button>
             </DialogFooter>
           </form>

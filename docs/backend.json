@@ -10,170 +10,43 @@
         "email": { "type": "string", "format": "email" },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "displayName": { "type": "string" },
-        "employeeId": { "type": "string", "description": "Link to the Employee record" },
+        "employeeId": { "type": "string" },
         "phoneNumber": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
       },
       "required": ["uid", "role"]
     },
     "Employee": {
       "title": "Employee",
-      "description": "Permanent employee record.",
+      "description": "Permanent clinical professional record.",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "Unique Internal ID (e.g., EMP001)" },
+        "id": { "type": "string" },
         "fullName": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
+        "age": { "type": "number" },
+        "office": { "type": "string", "enum": ["Kolkata ROC", "Gurgaon ROC", "Lucknow ROC"] },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
-        "whatsappNumber": { "type": "string", "description": "Primary login number" },
+        "whatsappNumber": { "type": "string" },
         "joinedAt": { "type": "string", "format": "date" },
         "department": { "type": "string" },
-        "designation": { "type": "string" },
-        "eligibility": { "type": "array", "items": { "type": "string" } },
-        "authUid": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "designation": { "type": "string" }
       },
-      "required": ["id", "fullName", "whatsappNumber", "role", "status"]
+      "required": ["id", "fullName", "whatsappNumber", "office", "role", "status"]
     },
-    "ShiftAdjacencyRule": {
-      "title": "Shift Adjacency Rule",
-      "description": "Restricts shift types before and after a week-off day.",
-      "type": "object",
-      "properties": {
-        "employeeId": { "type": "string" },
-        "weekId": { "type": "string" },
-        "allowedPreOffShifts": { "type": "array", "items": { "type": "string" } },
-        "allowedPostOffShifts": { "type": "array", "items": { "type": "string" } },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "Session": {
-      "title": "Device Session",
-      "description": "Tracks 365-day verification status per browser/device.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "uid": { "type": "string" },
-        "employeeId": { "type": "string" },
-        "label": { "type": "string" },
-        "userAgent": { "type": "string" },
-        "verifiedAt": { "type": "string", "format": "date-time" },
-        "deadlineAt": { "type": "string", "format": "date-time" },
-        "lastActive": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["active", "revoked"] }
-      }
-    },
-    "Shift": {
-      "title": "Shift Master",
-      "description": "Core shift definitions.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "displayOrder": { "type": "number" }
-      }
-    },
-    "RosterQuota": {
-      "title": "Roster Quota Configuration",
-      "description": "Exact staffing requirements and gender targets for a roster week.",
+    "WeekOffConfig": {
+      "title": "Week-Off Configuration",
+      "description": "Scheduled FCFS window for a specific office.",
       "type": "object",
       "properties": {
         "weekId": { "type": "string" },
-        "quotas": { "type": "object", "description": "Map of dayOfWeek_shiftId to requiredCount" },
-        "genderTargets": { "type": "object", "description": "Map of shiftId to { male: string, female: string }" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "actorId": { "type": "string" }
-      }
-    },
-    "RosterDraft": {
-      "title": "Roster Draft",
-      "description": "Generated shift assignments awaiting review.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string" },
-        "version": { "type": "number" },
-        "status": { "type": "string", "enum": ["draft", "validated", "published"] },
-        "assignments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "employeeId": { "type": "string" },
-              "dayOfWeek": { "type": "string" },
-              "shiftId": { "type": "string" }
-            }
-          }
-        },
-        "solverStatus": { "type": "string" },
-        "solverMetadata": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "RosterPublished": {
-      "title": "Published Roster",
-      "description": "Official authorized roster version.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string" },
-        "version": { "type": "number" },
-        "publishedAt": { "type": "string", "format": "date-time" },
-        "publisherId": { "type": "string" },
-        "assignments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "employeeId": { "type": "string" },
-              "dayOfWeek": { "type": "string" },
-              "shiftId": { "type": "string" }
-            }
-          }
-        }
-      }
-    },
-    "WhatsAppLog": {
-      "title": "WhatsApp Delivery Log",
-      "description": "Tracking for automated shift notifications.",
-      "type": "object",
-      "properties": {
-        "employeeId": { "type": "string" },
-        "maskedPhone": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
-        "rosterVersion": { "type": "string" },
-        "status": { "type": "string", "enum": ["success", "failed", "retrying"] },
-        "messageId": { "type": "string" },
-        "failureReason": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      }
-    },
-    "ShiftSwapRequest": {
-        "title": "Shift Swap Request",
-        "description": "Employee-to-employee shift change requests.",
-        "type": "object",
-        "properties": {
-            "requesterId": { "type": "string" },
-            "targetEmployeeId": { "type": "string" },
-            "date": { "type": "string" },
-            "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "cancelled"] },
-            "createdAt": { "type": "string", "format": "date-time" }
-        }
-    },
-    "AuditLog": {
-      "title": "Audit Log",
-      "description": "Immutable log of sensitive actions.",
-      "type": "object",
-      "properties": {
-        "action": { "type": "string" },
-        "actorId": { "type": "string" },
-        "targetId": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "details": { "type": "object" }
+        "office": { "type": "string" },
+        "bookingOpen": { "type": "string", "format": "date-time" },
+        "bookingClose": { "type": "string", "format": "date-time" },
+        "quotas": { "type": "object" },
+        "booked": { "type": "object" }
       }
     }
   },
@@ -189,41 +62,9 @@
       "schema": "Employee",
       "description": "Master employee records."
     },
-    "/shift_adjacency_rules/{ruleId}": {
-      "schema": "ShiftAdjacencyRule",
-      "description": "Rules for fairness around off-days."
-    },
-    "/sessions/{sessionId}": {
-      "schema": "Session",
-      "description": "Device-specific persistent sessions."
-    },
-    "/shift_master/{shiftId}": {
-      "schema": "Shift",
-      "description": "Definitions of the 6 core shifts."
-    },
-    "/roster_quotas/{weekId}": {
-      "schema": "RosterQuota",
-      "description": "Exact shift quotas and gender targets."
-    },
-    "/roster_drafts/{draftId}": {
-      "schema": "RosterDraft",
-      "description": "Unpublished roster generations."
-    },
-    "/published_rosters/{versionId}": {
-      "schema": "RosterPublished",
-      "description": "The official authorized roster versions."
-    },
-    "/whatsapp_logs/{logId}": {
-      "schema": "WhatsAppLog",
-      "description": "Automated notification history."
-    },
-    "/shift_swaps/{swapId}": {
-      "schema": "ShiftSwapRequest",
-      "description": "Workflow for employee shift exchanges."
-    },
-    "/audit_logs/{logId}": {
-      "schema": "AuditLog",
-      "description": "System-wide audit trail."
+    "/weekoff_configs/{configId}": {
+      "schema": "WeekOffConfig",
+      "description": "Office-specific booking window settings."
     }
   }
 }

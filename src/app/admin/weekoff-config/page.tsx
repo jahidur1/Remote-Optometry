@@ -9,16 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Save, Clock, Info, ShieldCheck, History } from "lucide-react";
+import { CalendarDays, Save, Clock, Info, ShieldCheck, History, Building2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const OFFICES = ["Kolkata ROC", "Gurgaon ROC", "Lucknow ROC"];
 
 export default function WeekOffConfiguration() {
   const [weekId, setWeekId] = useState('');
+  const [office, setOffice] = useState('Kolkata ROC');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [quotas, setQuotas] = useState<Record<string, number>>(
@@ -43,16 +46,21 @@ export default function WeekOffConfiguration() {
   }, [db]);
 
   const handleSave = async () => {
-    if (!weekId || !openTime || !closeTime) {
-      toast({ title: "Validation Error", description: "All window fields (Week, Open, Close) are required.", variant: "destructive" });
+    if (!weekId || !openTime || !closeTime || !office) {
+      toast({ title: "Validation Error", description: "Office and window timing fields are mandatory.", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      const configRef = doc(db, 'weekoff_configs', weekId);
+      // Configuration ID includes office to allow separate schedules for different locations
+      const configId = `${weekId}_${office.replace(/\s+/g, '_')}`;
+      const configRef = doc(db, 'weekoff_configs', configId);
+      
       const payload = {
+        id: configId,
         weekId,
+        office,
         bookingOpen: openTime,
         bookingClose: closeTime,
         quotas,
@@ -64,22 +72,22 @@ export default function WeekOffConfiguration() {
 
       await setDoc(configRef, payload);
 
-      logAudit(db, profile?.uid || 'system', 'CONFIGURE_WEEKOFF', weekId, {
-        openTime,
-        closeTime,
-        quotas
+      logAudit(db, profile?.uid || 'system', 'CONFIGURE_WEEKOFF', configId, {
+        office,
+        weekId,
+        openTime
       });
 
       toast({ 
-        title: "Configuration Published", 
-        description: `FCFS Booking window for ${weekId} has been successfully scheduled.` 
+        title: "Window Published", 
+        description: `FCFS Booking for ${office} (Week ${weekId}) successfully established.` 
       });
       
       setWeekId('');
       setOpenTime('');
       setCloseTime('');
     } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "Publication Failed", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -91,56 +99,57 @@ export default function WeekOffConfiguration() {
     setQuotas({ ...quotas, [day]: num });
   };
 
-  const getStatusBadge = (status: string) => {
-    switch(status) {
-      case 'open': return <Badge className="bg-emerald-500">Live & Open</Badge>;
-      case 'scheduled': return <Badge variant="secondary">Scheduled</Badge>;
-      case 'closed': return <Badge variant="destructive">Closed</Badge>;
-      default: return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Weekly-Off Control Panel</h1>
-        <p className="text-muted-foreground">Establish the FCFS booking window and set daily staff-off limits (Asia/Kolkata).</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase leading-tight">Weekly-Off Control Panel</h1>
+        <p className="text-muted-foreground font-medium">Establish office-specific FCFS booking windows and staff-off quotas (Asia/Kolkata).</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1 space-y-6">
-          <Card className="shadow-md border-t-4 border-t-secondary">
-            <CardHeader>
+          <Card className="shadow-xl border-t-4 border-t-secondary overflow-hidden">
+            <CardHeader className="bg-muted/5 border-b">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-secondary" />
-                <CardTitle>Schedule Window</CardTitle>
+                <CardTitle className="text-lg uppercase font-black">Schedule Window</CardTitle>
               </div>
-              <CardDescription>Determine when employees can start booking.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5 pt-6">
               <div className="space-y-2">
-                <Label htmlFor="weekId">Roster Week (YYYY-WW)</Label>
+                <Label className="text-[10px] font-black uppercase text-muted-foreground px-1">Target Location</Label>
+                <Select value={office} onValueChange={setOffice}>
+                   <SelectTrigger className="h-11 font-bold border-2 focus:border-secondary transition-all">
+                      <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                      {OFFICES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                   </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground px-1">Roster Cycle (YYYY-WW)</Label>
                 <Input 
-                  id="weekId" 
                   placeholder="e.g. 2024-52" 
+                  className="h-11 font-bold border-2 focus:border-secondary transition-all"
                   value={weekId}
                   onChange={(e) => setWeekId(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="open">Booking Opens</Label>
+                <Label className="text-[10px] font-black uppercase text-muted-foreground px-1">Window Opens (IST)</Label>
                 <Input 
-                  id="open" 
                   type="datetime-local" 
+                  className="h-11 font-bold border-2"
                   value={openTime}
                   onChange={(e) => setOpenTime(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="close">Booking Closes</Label>
+                <Label className="text-[10px] font-black uppercase text-muted-foreground px-1">Window Closes (IST)</Label>
                 <Input 
-                  id="close" 
                   type="datetime-local" 
+                  className="h-11 font-bold border-2"
                   value={closeTime}
                   onChange={(e) => setCloseTime(e.target.value)}
                 />
@@ -148,38 +157,35 @@ export default function WeekOffConfiguration() {
             </CardContent>
           </Card>
 
-          <Card className="bg-secondary/5 border-secondary/20 shadow-sm">
-            <CardContent className="pt-6">
-              <div className="flex gap-3">
-                <ShieldCheck className="size-5 text-secondary mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-secondary">FCFS Enforcement</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Priority is strictly determined by server-side transaction commit time. Slot allocations are atomic 
-                    to prevent overbooking.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
+          <Card className="bg-primary text-primary-foreground shadow-2xl rounded-[1.5rem] border-none overflow-hidden relative group transition-all hover:scale-[1.02]">
+             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform duration-500">
+                <Building2 size={80} />
+             </div>
+             <CardContent className="pt-8 pb-8 space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Policy: Location Isolation</p>
+                <p className="text-[13px] font-medium leading-relaxed opacity-80">
+                   Booking windows are now **location-specific**. Only professionals assigned to the target office will see the live countdown on their dashboard.
+                </p>
+             </CardContent>
           </Card>
         </div>
 
-        <Card className="lg:col-span-2 shadow-md border-t-4 border-t-accent">
-          <CardHeader>
+        <Card className="lg:col-span-2 shadow-xl border-t-4 border-t-accent">
+          <CardHeader className="bg-muted/5 border-b">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-accent" />
-              <CardTitle>Daily Slot Quotas</CardTitle>
+              <CardTitle className="text-lg uppercase font-black">Location Daily Quotas</CardTitle>
             </div>
-            <CardDescription>Maximum employees allowed to be OFF on eligible weekdays (Mon-Fri).</CardDescription>
+            <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-60">Maximum clinical absences allowed for {office}.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {DAYS.map((day) => (
-                <div key={day} className="space-y-2 p-3 rounded-lg border bg-muted/20 text-center">
-                  <Label className="text-[10px] uppercase tracking-wider font-bold opacity-70 block mb-1">{day.substring(0, 3)}</Label>
+                <div key={day} className="space-y-3 p-4 rounded-2xl border-2 border-muted bg-white text-center hover:border-accent/30 transition-all shadow-sm">
+                  <Label className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground block">{day.substring(0, 3)}</Label>
                   <Input 
                     type="number" 
-                    className="h-9 font-bold text-center border-accent/20 focus:border-accent"
+                    className="h-10 font-black text-center border-none bg-muted/30 focus:ring-accent transition-all text-lg"
                     value={quotas[day]}
                     onChange={(e) => handleQuotaChange(day, e.target.value)}
                   />
@@ -187,33 +193,42 @@ export default function WeekOffConfiguration() {
               ))}
             </div>
             
-            <div className="mt-8">
-              <div className="flex items-center gap-2 mb-4">
-                <History className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-bold">Existing Configurations</h3>
+            <div className="mt-12 space-y-4">
+              <div className="flex items-center gap-3 px-1">
+                <History className="size-4 text-muted-foreground" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.1em] text-primary">Location Schedule History</h3>
               </div>
-              <div className="rounded-md border overflow-hidden">
+              <div className="rounded-[1.5rem] border-2 overflow-hidden bg-white shadow-inner">
                 <Table>
-                  <TableHeader className="bg-muted/50">
+                  <TableHeader className="bg-muted/50 border-b">
                     <TableRow>
-                      <TableHead className="text-xs">Week ID</TableHead>
-                      <TableHead className="text-xs">Open Window</TableHead>
-                      <TableHead className="text-xs text-right">Avg. Quota</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest pl-6">Week & Office</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest">Window (IST)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-right pr-6">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {fetching ? (
                       Array(3).fill(0).map((_, i) => (
-                        <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
+                        <TableRow key={i}><TableCell colSpan={3} className="py-4"><Skeleton className="h-4 w-full" /></TableCell></TableRow>
                       ))
                     ) : configs.map((c) => (
-                      <TableRow key={c.weekId} className="text-xs">
-                        <TableCell className="font-bold">{c.weekId}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(c.bookingOpen).toLocaleString()}
+                      <TableRow key={c.id} className="hover:bg-muted/5 transition-colors border-b last:border-0 group">
+                        <TableCell className="pl-6 py-4">
+                           <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-[13px] text-primary tracking-tight">{c.weekId}</span>
+                              <span className="text-[10px] font-bold text-secondary uppercase flex items-center gap-1">
+                                 <Building2 className="size-2.5" /> {c.office}
+                              </span>
+                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {Math.round(Object.values(c.quotas as Record<string, number>).reduce((a, b) => a + b, 0) / 5)} / day
+                        <TableCell className="text-[11px] font-bold text-muted-foreground">
+                          {new Date(c.bookingOpen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                           <Badge variant="outline" className="text-[8px] font-black uppercase border-muted-foreground/20 text-muted-foreground bg-muted/10 px-3">
+                              Active Node
+                           </Badge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -222,9 +237,9 @@ export default function WeekOffConfiguration() {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="border-t bg-muted/5 p-4 flex justify-end">
-            <Button className="bg-secondary" onClick={handleSave} disabled={loading}>
-              <Save className="mr-2 h-4 w-4" /> {loading ? 'Publishing...' : 'Publish Window'}
+          <CardFooter className="border-t bg-muted/5 p-6 flex justify-end">
+            <Button className="bg-secondary h-12 px-10 font-black uppercase tracking-widest shadow-xl shadow-secondary/10 transition-all hover:scale-105" onClick={handleSave} disabled={loading}>
+              <Save className="mr-3 h-5 w-5" /> {loading ? 'Rollout in Progress...' : 'Establish Window'}
             </Button>
           </CardFooter>
         </Card>

@@ -2,16 +2,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, Phone, Bell, ShieldCheck, Loader2, Save, LogOut } from "lucide-react";
+import { User, Mail, Phone, ShieldCheck, Loader2, Save, LogOut, Building2, Calendar, Lock } from "lucide-react";
 import { logAudit } from '@/lib/audit';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '@/firebase';
@@ -23,36 +22,46 @@ export default function EmployeeProfile() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  
+  const [empData, setEmpData] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   
   const [formData, setFormData] = useState({
-    whatsappNumber: '',
-    whatsappEnabled: true,
+    email: '',
+    age: '',
   });
 
+  // Listen to the source employee record for real-time institutional data
   useEffect(() => {
-    if (profile) {
-      setFormData({
-        whatsappNumber: profile.whatsappNumber || '',
-        whatsappEnabled: true,
-      });
-    }
-  }, [profile]);
+    if (!profile?.employeeId || !db) return;
+    const unsub = onSnapshot(doc(db, 'employees', profile.employeeId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setEmpData(data);
+        setFormData({
+          email: data.email || '',
+          age: data.age?.toString() || '',
+        });
+      }
+    });
+    return () => unsub();
+  }, [profile, db]);
 
   const handleSave = async () => {
-    if (!profile?.uid || !profile.employeeId) return;
+    if (!profile?.employeeId) return;
     setSaving(true);
     try {
       const empRef = doc(db, 'employees', profile.employeeId);
       await updateDoc(empRef, {
-        whatsappNumber: formData.whatsappNumber,
+        email: formData.email.toLowerCase(),
+        age: parseInt(formData.age) || 0,
         updatedAt: new Date().toISOString()
       });
       
-      logAudit(db, profile.uid, 'UPDATE_PERSONAL_PROFILE', profile.employeeId, { whatsappNumber: formData.whatsappNumber });
-      toast({ title: "Profile Updated", description: "Your clinical contact preferences have been preserved." });
+      logAudit(db, profile.uid, 'UPDATE_PERSONAL_PROFILE', profile.employeeId, { email: formData.email, age: formData.age });
+      toast({ title: "Profile Synchronized", description: "Personal professional data updated successfully." });
     } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "Update Blocked", description: e.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -63,94 +72,121 @@ export default function EmployeeProfile() {
     router.push('/login');
   };
 
-  if (userLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
+  if (userLoading || !empData) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-24 px-4">
+    <div className="max-w-2xl mx-auto space-y-6 pb-24 px-4 pt-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">Professional Account</h1>
+        <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">My Identity</h1>
         <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive font-black uppercase text-[10px] tracking-widest">
-            <LogOut className="size-4 mr-2" /> Sign Out
+            <LogOut className="size-4 mr-2" /> De-Authorize Device
         </Button>
       </div>
 
-      <Card className="shadow-md border-t-4 border-t-primary overflow-hidden">
-        <CardHeader className="bg-muted/5 border-b">
-          <div className="flex items-center gap-4">
-            <div className="size-16 rounded-2xl bg-primary/10 flex items-center justify-center border-4 border-white shadow-sm">
-                <User className="size-8 text-primary" />
+      <Card className="shadow-2xl border-none overflow-hidden rounded-[2rem] bg-white">
+        <CardHeader className="bg-primary p-8 text-primary-foreground">
+          <div className="flex items-center gap-6">
+            <div className="size-20 rounded-[1.5rem] bg-secondary flex items-center justify-center border-4 border-white/10 shadow-xl">
+                <User className="size-10 text-white" />
             </div>
-            <div>
-              <CardTitle className="text-xl font-black uppercase tracking-tight">{profile?.displayName}</CardTitle>
-              <CardDescription className="text-xs font-black uppercase tracking-widest text-secondary">{profile?.role} • ID: {profile?.employeeId}</CardDescription>
+            <div className="space-y-1">
+              <CardTitle className="text-2xl font-black uppercase tracking-tight">{empData.fullName}</CardTitle>
+              <div className="flex flex-wrap gap-2">
+                 <Badge className="bg-white/10 text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-3">
+                    ID: {empData.id}
+                 </Badge>
+                 <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-3">
+                    {empData.role}
+                 </Badge>
+              </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6">
-          <div className="grid gap-4">
-            <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">Institutional Email (Read Only)</Label>
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
-                    <Mail className="size-4 text-muted-foreground" />
-                    <span className="text-sm font-bold text-foreground/70">{profile?.email}</span>
+        <CardContent className="p-8 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Locked Fields */}
+            <div className="space-y-2 opacity-60 grayscale">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                  <Lock className="size-3" /> Professional Name (Locked)
+                </Label>
+                <div className="h-12 flex items-center px-4 rounded-xl bg-muted border font-bold text-sm">
+                  {empData.fullName}
+                </div>
+            </div>
+            <div className="space-y-2 opacity-60 grayscale">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                  <Lock className="size-3" /> Clinical Office (Locked)
+                </Label>
+                <div className="h-12 flex items-center px-4 rounded-xl bg-muted border font-bold text-sm">
+                  <Building2 className="size-4 mr-2 text-primary" /> {empData.office}
+                </div>
+            </div>
+            <div className="space-y-2 opacity-60 grayscale">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                  <Lock className="size-3" /> Mobile Endpoint (Locked)
+                </Label>
+                <div className="h-12 flex items-center px-4 rounded-xl bg-muted border font-bold text-sm">
+                  <Phone className="size-4 mr-2 text-primary" /> {empData.whatsappNumber}
+                </div>
+            </div>
+            <div className="space-y-2 opacity-60 grayscale">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                  <Lock className="size-3" /> Gender (Locked)
+                </Label>
+                <div className="h-12 flex items-center px-4 rounded-xl bg-muted border font-bold text-sm uppercase">
+                  {empData.gender}
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="whatsapp" className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">WhatsApp Broadcast Target</Label>
-                <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                        id="whatsapp"
-                        className="pl-10 h-11 font-black uppercase tracking-widest"
-                        placeholder="+91 00000 00000"
-                        value={formData.whatsappNumber}
-                        onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                    />
-                </div>
-                <p className="text-[9px] text-muted-foreground leading-relaxed italic px-1 font-bold">
-                    Shift briefings are dispatched daily at 22:00 Asia/Kolkata via Meta Cloud API.
-                </p>
+            {/* Editable Fields */}
+            <div className="space-y-2 md:col-span-1">
+                <Label htmlFor="age" className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
+                  <Calendar className="size-3" /> Age (Self-Managed)
+                </Label>
+                <Input 
+                  id="age"
+                  type="number"
+                  className="h-12 font-black border-2 border-secondary/20 focus:border-secondary rounded-xl transition-all"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                />
             </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2 px-1">
-                  <Bell className="size-3" /> Communication Preferences
-              </h4>
-              <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
-                  <div className="space-y-0.5">
-                      <p className="text-sm font-black uppercase tracking-tight">Daily Briefing Sync</p>
-                      <p className="text-[9px] text-muted-foreground font-black uppercase">Automated WhatsApp dispatches for upcoming shifts</p>
-                  </div>
-                  <Switch checked={formData.whatsappEnabled} />
-              </div>
+            <div className="space-y-2 md:col-span-1">
+                <Label htmlFor="email" className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
+                  <Mail className="size-3" /> Work Email (Self-Managed)
+                </Label>
+                <Input 
+                  id="email"
+                  className="h-12 font-black border-2 border-secondary/20 focus:border-secondary rounded-xl transition-all"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+            </div>
           </div>
         </CardContent>
-        <CardFooter className="bg-muted/5 border-t p-4 flex justify-between items-center">
-            <div className="flex items-center gap-2 text-[9px] font-black uppercase text-muted-foreground">
-                <ShieldCheck className="size-4 text-emerald-600" /> Secure Workforce Record
+        <CardFooter className="bg-muted/30 p-8 flex justify-between items-center border-t border-dashed">
+            <div className="flex items-center gap-3">
+               <div className="size-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                  <ShieldCheck className="size-5 text-emerald-600" />
+               </div>
+               <div className="space-y-0.5">
+                  <p className="text-[10px] font-black uppercase tracking-tight text-primary">Identity Verified</p>
+                  <p className="text-[9px] font-bold uppercase text-muted-foreground">Server-Side Enforcement Active</p>
+               </div>
             </div>
-            <Button className="bg-primary shadow-lg shadow-primary/10 h-10 px-6 font-black uppercase tracking-widest" onClick={handleSave} disabled={saving}>
-                <Save className="size-4 mr-2" /> {saving ? 'Syncing...' : 'Save Preferences'}
+            <Button className="bg-primary h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 transition-all" onClick={handleSave} disabled={saving}>
+                {saving ? 'Syncing...' : 'Preserve Changes'}
             </Button>
         </CardFooter>
       </Card>
       
-      <Card className="bg-destructive/5 border-destructive/20 border-dashed">
-        <CardContent className="pt-6">
-            <div className="flex gap-4 items-start">
-                <AlertCircle className="size-5 text-destructive mt-0.5" />
-                <div className="space-y-1">
-                    <p className="text-xs font-black text-destructive uppercase tracking-widest">Access Restriction</p>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed font-bold uppercase">
-                        Account deactivation or suspension will result in immediate loss of portal access. 
-                        Historical roster data will be preserved for institutional compliance.
-                    </p>
-                </div>
-            </div>
-        </CardContent>
-      </Card>
+      <div className="p-6 rounded-[1.5rem] bg-muted/20 border-2 border-dashed flex gap-4 items-start">
+          <Building2 className="size-6 text-muted-foreground/30 mt-1 shrink-0" />
+          <p className="text-[11px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight">
+            Institutional Notice: Core identity details (Name, Office, ID, Mobile) are managed exclusively by the Human Resources and IT Board. 
+            Contact support to request administrative modifications.
+          </p>
+      </div>
     </div>
   );
 }

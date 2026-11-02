@@ -5,11 +5,11 @@ import { useState } from 'react';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreVertical, Edit2, ShieldAlert } from "lucide-react";
+import { Search, UserPlus, Filter, MoreVertical, Edit2, ShieldAlert, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmployeeDialog } from '@/components/admin/employee-dialog';
 import { DemoBadge } from '@/components/ui/demo-badge';
@@ -39,6 +39,7 @@ export default function EmployeeManagement() {
     emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.office?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.department?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -57,34 +58,34 @@ export default function EmployeeManagement() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Workforce Directory</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase">Professional Directory</h1>
             <DemoBadge />
           </div>
-          <p className="text-muted-foreground">Manage optometry professionals and clinical support staff.</p>
+          <p className="text-muted-foreground font-medium">Manage clinical identities and institutional access across all ROC clusters.</p>
         </div>
-        <Button className="bg-secondary" onClick={handleAdd}>
-          <UserPlus className="mr-2 h-4 w-4" /> Provision Employee
+        <Button className="bg-secondary h-11 px-8 font-black uppercase tracking-widest shadow-lg shadow-secondary/10" onClick={handleAdd}>
+          <UserPlus className="mr-3 h-5 w-5" /> Provision Profile
         </Button>
       </div>
 
-      <Card className="shadow-md">
-        <CardHeader className="pb-2 border-b">
+      <Card className="shadow-xl border-none overflow-hidden rounded-[1.5rem]">
+        <CardHeader className="bg-muted/10 border-b p-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-lg">Staff Records</CardTitle>
-              <CardDescription>Total Managed: {employees?.length || 0}</CardDescription>
+            <div className="space-y-1">
+              <CardTitle className="text-base font-black uppercase tracking-tight">Clinical Staff Ledger</CardTitle>
+              <CardDescription className="text-[10px] font-black uppercase tracking-widest">Global Workforce: {employees?.length || 0} Registered</CardDescription>
             </div>
             <div className="flex gap-2 w-full max-w-md">
               <div className="relative w-full">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Filter by name, ID, email or department..." 
-                  className="pl-8 bg-muted/50"
+                  placeholder="Search by name, ID, or clinical office..." 
+                  className="pl-10 h-10 font-bold bg-white"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon" className="shrink-0">
+              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0 border-2">
                 <Filter className="h-4 w-4" />
               </Button>
             </div>
@@ -93,88 +94,75 @@ export default function EmployeeManagement() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead className="w-[120px]">Employee ID</TableHead>
-                  <TableHead>Professional Profile</TableHead>
-                  <TableHead>Org Unit</TableHead>
-                  <TableHead>Gender</TableHead>
+              <TableHeader className="bg-muted/30 border-b">
+                <TableRow className="text-[10px] font-black uppercase tracking-widest">
+                  <TableHead className="w-[120px] pl-6">Professional ID</TableHead>
+                  <TableHead>Clinical Identity</TableHead>
+                  <TableHead>Location Cluster</TableHead>
+                  <TableHead>Profile Info</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right pr-6">Management</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   Array(5).fill(0).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell>
-                        <div className="space-y-2">
-                          <Skeleton className="h-4 w-32" />
-                          <Skeleton className="h-3 w-48" />
-                        </div>
-                      </TableCell>
-                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                      <TableCell colSpan={6} className="py-6"><Skeleton className="h-8 w-full" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredEmployees?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground italic">
-                      No matching employee records found in the directory.
+                    <TableCell colSpan={6} className="h-48 text-center text-muted-foreground italic font-medium uppercase text-xs tracking-widest">
+                      No matching clinical records found in the directory.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredEmployees?.map((employee) => (
-                    <TableRow key={employee.id} className="group hover:bg-muted/20 transition-colors">
-                      <TableCell className="font-mono text-xs font-semibold text-secondary">
+                    <TableRow key={employee.id} className="group hover:bg-muted/10 transition-colors border-b last:border-0">
+                      <TableCell className="pl-6 font-mono text-xs font-black text-secondary uppercase">
                         {employee.id}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm text-foreground">{employee.fullName}</span>
-                          <span className="text-xs text-muted-foreground font-medium">{employee.email}</span>
-                          <span className="text-[10px] uppercase tracking-wider font-bold text-accent mt-0.5">{employee.role}</span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-black text-[13px] text-primary tracking-tight">{employee.fullName}</span>
+                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{employee.designation || 'Staff'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{employee.department || '—'}</span>
-                          <span className="text-[10px] text-muted-foreground">{employee.designation || 'Unassigned'}</span>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="size-3 text-secondary" />
+                          <span className="text-[11px] font-black uppercase text-foreground/80 tracking-tight">{employee.office || 'UNASSIGNED'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        {employee.gender}
+                      <TableCell>
+                         <div className="flex flex-col gap-0.5 text-[10px] font-bold text-muted-foreground uppercase">
+                            <span>AGE: {employee.age || '—'}</span>
+                            <span>{employee.gender}</span>
+                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge 
                           variant={employee.status === 'Active' ? 'default' : 'destructive'} 
-                          className={employee.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20' : ''}
+                          className={employee.status === 'Active' ? 'bg-emerald-500 font-black text-[9px] uppercase px-3' : 'font-black text-[9px] uppercase px-3'}
                         >
                           {employee.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-medium">
-                        {employee.joinedAt ? new Date(employee.joinedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right pr-6">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-50 group-hover:opacity-100">
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-muted">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                              <Edit2 className="mr-2 h-4 w-4" /> Edit Profile
+                          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-2xl border-none p-1">
+                            <DropdownMenuItem className="h-10 font-bold uppercase text-[10px] tracking-widest rounded-lg" onClick={() => handleEdit(employee)}>
+                              <Edit2 className="mr-3 h-4 w-4" /> Edit Registry
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive font-medium">
-                              <ShieldAlert className="mr-2 h-4 w-4" /> Suspend Access
+                            <DropdownMenuItem className="h-10 font-bold uppercase text-[10px] tracking-widest rounded-lg text-destructive focus:text-destructive">
+                              <ShieldAlert className="mr-3 h-4 w-4" /> Revoke All Access
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
