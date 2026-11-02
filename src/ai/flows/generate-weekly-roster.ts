@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -29,8 +30,9 @@ const WeeklyQuotaSchema = z.object({
 
 const EmployeeConstraintSchema = z.object({
   employeeId: z.string(),
-  type: z.enum(['unavailable', 'weeklyOff']),
+  type: z.enum(['unavailable', 'weeklyOff', 'restrictedShift']),
   dayOfWeek: DayOfWeekSchema,
+  restrictedToShifts: z.array(z.string()).optional().describe('List of eligible shift IDs for this day'),
 });
 
 const EmployeePreferenceSchema = z.object({
@@ -96,8 +98,8 @@ const generateWeeklyRosterPrompt = ai.definePrompt({
 Your primary goal is to satisfy all HARD CONSTRAINTS:
 1. Exact Staffing Quotas: Every shift MUST have exactly the required number of employees.
 2. No Overlaps: One employee per shift per day maximum.
-3. Protected Time: No shifts on weeklyOff or unavailable days (leave/training).
-4. Shift Eligibility: Only assign employees to shifts they are eligible for.
+3. Protected Time: No shifts on weeklyOff or unavailable days.
+4. Shift Adjacency Eligibility: If an employee has a "restrictedShift" constraint for a specific day, they MUST ONLY be assigned to one of the shifts listed in "restrictedToShifts".
 
 Optimize for SOFT OBJECTIVES (using weights if provided):
 1. Employee shift preferences.
@@ -109,7 +111,6 @@ Data for Week {{{weekId}}}:
 - Employees: {{employees.length}} total.
 - Hard Constraints: {{employeeHardConstraints.length}} restricted assignments.
 - Quotas: {{#each weeklyQuotas}}{{{this.dayOfWeek}}} {{{this.shiftId}}}: {{{this.requiredStaff}}}; {{/each}}
-- Gender Targets: {{#each genderTargets}}{{{this.shiftId}}}: M {{{this.maleTarget}}} F {{{this.femaleTarget}}}; {{/each}}
 
 If hard constraints (specifically staffing totals vs availability) cannot be satisfied, return status INFEASIBLE and list the shortages in issuesEncountered. Otherwise, provide the best FEASIBLE or OPTIMAL assignments.`,
 });
@@ -121,14 +122,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     outputSchema: GenerateWeeklyRosterOutputSchema,
   },
   async (input) => {
-    // In production, this calls a private Python FastAPI Cloud Run service:
-    // const solverResponse = await fetch(process.env.SOLVER_SERVICE_URL, {
-    //   method: 'POST',
-    //   headers: { 'Authorization': `Bearer ${adminToken}` },
-    //   body: JSON.stringify(input)
-    // });
-    
-    // For the foundation, we use Genkit to simulate the optimization logic.
     const start = Date.now();
     const { output } = await generateWeeklyRosterPrompt(input);
     

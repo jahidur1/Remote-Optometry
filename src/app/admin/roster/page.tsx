@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { logAudit } from '@/lib/audit';
 import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
+import { format, addDays, subDays } from 'date-fns';
 import Link from 'next/link';
 
 export default function RosterSolver() {
@@ -46,13 +47,14 @@ export default function RosterSolver() {
       const weekDates = getDatesForWeek(weekId);
       if (weekDates.length === 0) throw new Error("Invalid Week ID format.");
 
-      const [employeesSnap, shiftsSnap, quotasSnap, bookingsSnap, leavesSnap, prefsSnap] = await Promise.all([
+      const [employeesSnap, shiftsSnap, quotasSnap, bookingsSnap, leavesSnap, prefsSnap, rulesSnap] = await Promise.all([
         getDocs(query(collection(db, 'employees'), where('status', '==', 'Active'))),
         getDocs(query(collection(db, 'shift_master'), orderBy('displayOrder'))),
         getDocs(doc(db, 'roster_quotas', weekId)),
         getDocs(query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId))),
         getDocs(query(collection(db, 'employee_leaves'), where('status', '==', 'approved'))),
-        getDocs(query(collection(db, 'employee_preferences'), where('weekId', '==', weekId)))
+        getDocs(query(collection(db, 'employee_preferences'), where('weekId', '==', weekId))),
+        getDocs(query(collection(db, 'shift_adjacency_rules'), where('weekId', '==', weekId)))
       ]);
 
       if (!quotasSnap.exists()) {
@@ -61,6 +63,7 @@ export default function RosterSolver() {
 
       const quotaData = quotasSnap.data();
       const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const adjacencyRules = rulesSnap.docs.map(d => d.data());
 
       setProgress(40);
       
@@ -77,11 +80,13 @@ export default function RosterSolver() {
           return { dayOfWeek: day as any, shiftId, requiredStaff: val as number };
         }),
         employeeHardConstraints: [
+          // 1. Weekly-Offs
           ...bookingsSnap.docs.map(d => ({ 
             employeeId: d.data().employeeId, 
             type: 'weeklyOff' as const, 
             dayOfWeek: d.data().dayOfWeek as any 
           })),
+          // 2. Approved Absences
           ...leavesSnap.docs.flatMap(d => {
             const leaf = d.data();
             return DAYS.filter((day, idx) => isDateInRange(weekDates[idx], leaf.startDate, leaf.endDate))
@@ -90,6 +95,37 @@ export default function RosterSolver() {
                 type: 'unavailable' as const,
                 dayOfWeek: day as any
               }));
+          }),
+          // 3. Adjacency Logic (Pre/Post Off Fairness)
+          ...bookingsSnap.docs.flatMap(d => {
+            const booking = d.data();
+            const rule = adjacencyRules.find(r => r.employeeId === booking.employeeId);
+            if (!rule) return [];
+
+            const constraints: any[] = [];
+            const offDayIdx = DAYS.indexOf(booking.dayOfWeek);
+
+            // Pre-Off Day (Day before)
+            if (offDayIdx > 0 && rule.allowedPreOffShifts?.length > 0) {
+              constraints.push({
+                employeeId: booking.employeeId,
+                type: 'restrictedShift' as const,
+                dayOfWeek: DAYS[offDayIdx - 1],
+                restrictedToShifts: rule.allowedPreOffShifts
+              });
+            }
+
+            // Post-Off Day (Day after)
+            if (offDayIdx < 6 && rule.allowedPostOffShifts?.length > 0) {
+              constraints.push({
+                employeeId: booking.employeeId,
+                type: 'restrictedShift' as const,
+                dayOfWeek: DAYS[offDayIdx + 1],
+                restrictedToShifts: rule.allowedPostOffShifts
+              });
+            }
+
+            return constraints;
           })
         ],
         employeeSoftPreferences: prefsSnap.docs.map(d => ({ 
@@ -110,7 +146,7 @@ export default function RosterSolver() {
       setSolverResult(result);
 
       if (result.status === 'INFEASIBLE') {
-        throw new Error("Mathematical solver determined this configuration is INFEASIBLE. Hard constraints (Quotas) exceed clinical availability.");
+        throw new Error("Mathematical solver determined this configuration is INFEASIBLE. Hard constraints (Quotas or Adjacency Rules) exceed clinical availability.");
       }
 
       setProgress(90);
@@ -144,7 +180,7 @@ export default function RosterSolver() {
     if (!solverResult) return;
     const result = await explainSchedulingConflicts({
       problemDescription: `Weekly Roster Generation for Week ${weekId}`,
-      hardConstraints: ["Exact Staffing Quotas", "Protected Weekly-Offs", "Approved Absences"],
+      hardConstraints: ["Exact Staffing Quotas", "Protected Weekly-Offs", "Shift Adjacency Fairness Rules"],
       softConstraints: ["Employee Preferences", "Gender Balance Targets"],
       solverOutcome: solverResult.status,
       detectedConflicts: solverResult.issuesEncountered

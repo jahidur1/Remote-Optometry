@@ -39,6 +39,18 @@
       },
       "required": ["id", "fullName", "whatsappNumber", "role", "status"]
     },
+    "ShiftAdjacencyRule": {
+      "title": "Shift Adjacency Rule",
+      "description": "Restricts shift types before and after a week-off day.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "weekId": { "type": "string" },
+        "allowedPreOffShifts": { "type": "array", "items": { "type": "string" } },
+        "allowedPostOffShifts": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "Session": {
       "title": "Device Session",
       "description": "Tracks 365-day verification status per browser/device.",
@@ -176,6 +188,10 @@
     "/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Master employee records."
+    },
+    "/shift_adjacency_rules/{ruleId}": {
+      "schema": "ShiftAdjacencyRule",
+      "description": "Rules for fairness around off-days."
     },
     "/sessions/{sessionId}": {
       "schema": "Session",

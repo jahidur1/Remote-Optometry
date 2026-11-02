@@ -22,7 +22,8 @@ import {
   Target,
   BarChart3,
   ShieldAlert,
-  CreditCard
+  CreditCard,
+  ArrowRightLeft
 } from "lucide-react"
 
 import {
@@ -70,6 +71,12 @@ const adminItems = [
     title: "Shift Quotas",
     url: "/admin/quotas",
     icon: Target,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    title: "Adjacency Rules",
+    url: "/admin/adjacency",
+    icon: ArrowRightLeft,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
