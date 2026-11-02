@@ -56,6 +56,7 @@ export default function WeekOffConfiguration() {
         bookingOpen: openTime,
         bookingClose: closeTime,
         quotas,
+        booked: DAYS.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
         status: 'scheduled',
         updatedAt: new Date().toISOString(),
         actorId: profile?.uid,
@@ -74,7 +75,6 @@ export default function WeekOffConfiguration() {
         description: `FCFS Booking window for ${weekId} has been successfully scheduled.` 
       });
       
-      // Reset form
       setWeekId('');
       setOpenTime('');
       setCloseTime('');
@@ -105,9 +105,6 @@ export default function WeekOffConfiguration() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-primary font-headline">Weekly-Off Control Panel</h1>
         <p className="text-muted-foreground">Establish the FCFS booking window and set daily staff-off limits (Asia/Kolkata).</p>
-        <Badge variant="outline" className="w-fit text-accent border-accent/20 bg-accent/5 uppercase text-[10px] tracking-widest font-bold">
-          Policy: Mon-Fri Only • Sat-Sun Restricted
-        </Badge>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -159,7 +156,7 @@ export default function WeekOffConfiguration() {
                   <p className="text-sm font-bold text-secondary">FCFS Enforcement</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Priority is strictly determined by server-side transaction commit time. Slot allocations are atomic 
-                    to prevent overbooking during peak traffic.
+                    to prevent overbooking.
                   </p>
                 </div>
               </div>
@@ -201,48 +198,32 @@ export default function WeekOffConfiguration() {
                     <TableRow>
                       <TableHead className="text-xs">Week ID</TableHead>
                       <TableHead className="text-xs">Open Window</TableHead>
-                      <TableHead className="text-xs">Status</TableHead>
                       <TableHead className="text-xs text-right">Avg. Quota</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {fetching ? (
                       Array(3).fill(0).map((_, i) => (
-                        <TableRow key={i}>
-                          <TableCell colSpan={4}><Skeleton className="h-4 w-full" /></TableCell>
-                        </TableRow>
+                        <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
                       ))
-                    ) : configs.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-xs text-muted-foreground">
-                          No booking windows scheduled yet.
+                    ) : configs.map((c) => (
+                      <TableRow key={c.weekId} className="text-xs">
+                        <TableCell className="font-bold">{c.weekId}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(c.bookingOpen).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {Math.round(Object.values(c.quotas as Record<string, number>).reduce((a, b) => a + b, 0) / 5)} / day
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      configs.map((c) => (
-                        <TableRow key={c.weekId} className="text-xs">
-                          <TableCell className="font-bold">{c.weekId}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(c.bookingOpen).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} • {new Date(c.bookingOpen).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                          </TableCell>
-                          <TableCell>{getStatusBadge(c.status)}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {Math.round(Object.values(c.quotas as Record<string, number>).reduce((a, b) => a + b, 0) / 5)} / day
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="border-t bg-muted/5 p-4 flex justify-between items-center">
-             <div className="flex gap-2 items-center text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">
-                <Info className="size-3" />
-                Asia/Kolkata Timezone Applied
-             </div>
-            <Button className="bg-secondary shadow-lg shadow-secondary/10" onClick={handleSave} disabled={loading}>
+          <CardFooter className="border-t bg-muted/5 p-4 flex justify-end">
+            <Button className="bg-secondary" onClick={handleSave} disabled={loading}>
               <Save className="mr-2 h-4 w-4" /> {loading ? 'Publishing...' : 'Publish Window'}
             </Button>
           </CardFooter>

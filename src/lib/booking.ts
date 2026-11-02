@@ -56,7 +56,6 @@ export async function bookWeeklyOff(
       }
 
       // 4. Window Check: Is the booking window currently open?
-      // Note: We use the local device time for the check, but security rules should enforce this on the server.
       const now = new Date();
       const openTime = new Date(config.bookingOpen);
       const closeTime = new Date(config.bookingClose);
@@ -85,7 +84,6 @@ export async function bookWeeklyOff(
       }
 
       // 7. Atomic Write Operations
-      // Create the booking record
       transaction.set(bookingRef, {
         id: bookingId,
         weekId,
@@ -97,7 +95,6 @@ export async function bookWeeklyOff(
         source: 'employee_portal_v1'
       });
 
-      // Increment the booked count in the config document
       transaction.update(configRef, {
         [`booked.${dayOfWeek}`]: increment(1),
         updatedAt: serverTimestamp()
