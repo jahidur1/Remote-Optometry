@@ -20,7 +20,7 @@ import { UserPlus, ArrowLeft, ShieldCheck, Mail, Phone, Loader2, Key, RefreshCcw
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError } from '@/firebase/errors';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import Link from 'next/link';
 
@@ -89,7 +89,12 @@ export default function RegisterPage() {
       }
 
       // 2. Initialize reCAPTCHA and trigger OTP
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.clear();
+        (window as any).recaptchaVerifier = null;
+      }
       initializeRecaptcha();
+      
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
@@ -102,6 +107,7 @@ export default function RegisterPage() {
         description: "A verification code has been sent to your mobile.",
       });
     } catch (error: any) {
+      console.error("OTP Error:", error);
       toast({
         variant: "destructive",
         title: "Enrollment Blocked",
@@ -122,12 +128,10 @@ export default function RegisterPage() {
     
     setLoading(true);
     try {
-      // 1. Verify OTP (This creates the user in the "Authentication" tab)
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
-      // 2. Save professional record to Firestore
       const empId = `EMP-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString().slice(-4)}`;
       const empRef = doc(db, 'employees', empId);
       const userRef = doc(db, 'users', user.uid);
@@ -160,9 +164,22 @@ export default function RegisterPage() {
         lastLogin: new Date().toISOString()
       };
 
-      // Atomic write (simulated)
-      await setDoc(empRef, payload);
-      await setDoc(userRef, userData);
+      await setDoc(empRef, payload).catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: empRef.path,
+          operation: 'create',
+          requestResourceData: payload,
+        }));
+      });
+
+      await setDoc(userRef, userData).catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: userRef.path,
+          operation: 'create',
+          requestResourceData: userData,
+        }));
+      });
+
       await createOrUpdateSession(db, user.uid, empId);
       
       logAudit(db, user.uid, 'USER_SELF_REGISTER', empId, { role: formData.role });
@@ -172,7 +189,6 @@ export default function RegisterPage() {
         description: "Your professional account is now verified and active.",
       });
       
-      // Dispatch to correct portal
       if (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN') {
         router.push('/admin');
       } else {

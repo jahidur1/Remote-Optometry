@@ -47,14 +47,13 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
-    initializeRecaptcha();
     return () => {
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.clear();
         (window as any).recaptchaVerifier = null;
       }
     };
-  }, [auth]);
+  }, []);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -97,7 +96,12 @@ export default function LoginPage() {
         throw new Error(`Access restricted: Status is ${employee.status.toLowerCase()}.`);
       }
 
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.clear();
+        (window as any).recaptchaVerifier = null;
+      }
       initializeRecaptcha();
+
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
@@ -109,13 +113,13 @@ export default function LoginPage() {
       
       toast({ title: "OTP Sent", description: "Verification code sent to your registered mobile." });
     } catch (error: any) {
+      console.error("Login OTP Error:", error);
       toast({
         variant: "destructive",
         title: "Login Failed",
         description: error.message || "Failed to send verification code.",
       });
       
-      // Clear and re-initialize reCAPTCHA on error to allow retries
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.clear();
         (window as any).recaptchaVerifier = null;
