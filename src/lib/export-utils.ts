@@ -3,9 +3,21 @@ import { format } from 'date-fns';
 
 /**
  * Exports structured JSON data to a standard CSV file.
+ * Enhanced with formula injection protection (strip leading = + - @).
  */
 export function exportToCSV(filename: string, data: any[]) {
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  const sanitize = (val: any) => {
+    if (typeof val === 'string' && /^[=+\-@]/.test(val)) return `'${val}`;
+    return val;
+  };
+
+  const sanitizedData = data.map(row => {
+    const newRow: any = {};
+    Object.keys(row).forEach(key => newRow[key] = sanitize(row[key]));
+    return newRow;
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(sanitizedData);
   const csv = XLSX.utils.sheet_to_csv(worksheet);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -40,7 +52,7 @@ export function exportRosterReport(
     const row: any = {
       'Professional ID': emp.id,
       'Full Name': emp.fullName,
-      'Office': emp.office || 'N/A',
+      'Office': emp.office?.replace('_', ' ') || 'N/A',
       'Clinical Unit': emp.department || 'CLINICAL',
       'Designation': emp.designation || 'STAFF',
       'Secured Weekly-Off': userOff
@@ -76,7 +88,6 @@ export function exportRosterReport(
   ];
   worksheet['!cols'] = wscols;
 
-  // Header Styling Hint (Handled by the XLSX writer implicitly for JSON sheets)
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Clinical Roster");
   

@@ -46,9 +46,9 @@ export default function ReportsPage() {
 
   const officeStats = useMemo(() => {
     if (!employees) return [];
-    const offices = ["Kolkata ROC", "Gurgaon ROC", "Lucknow ROC"];
+    const offices = ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"];
     return offices.map(office => ({
-      name: office,
+      name: office.replace('_', ' '),
       value: employees.filter(e => e.office === office).length
     }));
   }, [employees]);
@@ -235,7 +235,7 @@ export default function ReportsPage() {
                     </td>
                     <td className="px-8 border-r">
                       <div className="flex flex-col gap-1">
-                         <span className="text-[11px] font-black text-foreground/80 uppercase">{emp.office}</span>
+                         <span className="text-[11px] font-black text-foreground/80 uppercase">{emp.office?.replace('_', ' ')}</span>
                          <span className="text-[9px] font-bold text-muted-foreground uppercase">{emp.department}</span>
                       </div>
                     </td>
