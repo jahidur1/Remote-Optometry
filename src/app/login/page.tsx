@@ -8,7 +8,8 @@ import {
   signInWithPhoneNumber, 
   ConfirmationResult,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  signOut
 } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
@@ -16,14 +17,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw, UserPlus } from 'lucide-react';
+import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import Link from 'next/link';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -85,20 +85,9 @@ export default function LoginPage() {
     try {
       const formattedPhone = `+91${phoneNumber}`;
       
-      // 1. Verify number is in the authorized clinical directory
-      const q = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        throw new Error("This mobile number is not authorized for portal access.");
-      }
-
-      const employee = snap.docs[0].data();
-      if (employee.status === 'Suspended' || employee.status === 'Inactive') {
-        throw new Error(`Access restricted: Status is ${employee.status.toLowerCase()}.`);
-      }
-
-      // 2. Clear old verifier and trigger new OTP
+      // SECURITY REMEDIATION: We no longer check the database before sending OTP.
+      // This prevents phone-number enumeration and protects unauthenticated employee PII.
+      
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.clear();
         (window as any).recaptchaVerifier = null;
@@ -112,10 +101,9 @@ export default function LoginPage() {
       setStep('otp');
       setResendCooldown(60);
       
-      // 3. Log attempt for cost audit
       logAudit(db, 'system', 'AUTH_OTP_REQUEST', phoneNumber, { source: 'web_portal' });
       
-      toast({ title: "OTP Sent", description: "Verification code sent to your registered mobile." });
+      toast({ title: "OTP Sent", description: "Verification code sent via SMS." });
     } catch (error: any) {
       console.error("Login OTP Error:", error);
       toast({
@@ -139,19 +127,24 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Force local persistence for the 365-day cycle
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
-      // 1. Final verification of profile and role
+      // SECURITY REMEDIATION: Post-authentication eligibility check.
+      // Now that we are signed in, we can query the employees collection safely.
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
       if (!snap.empty) {
         const employee = snap.docs[0].data();
-        const userRef = doc(db, 'users', user.uid);
         
+        if (employee.status === 'Suspended' || employee.status === 'Inactive') {
+          await signOut(auth);
+          throw new Error(`Your account status is ${employee.status.toLowerCase()}. Access denied.`);
+        }
+
+        const userRef = doc(db, 'users', user.uid);
         const userData = {
           uid: user.uid,
           email: employee.email || null,
@@ -163,19 +156,15 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         };
 
-        // Update user profile with explicit error handling
-        setDoc(userRef, userData, { merge: true }).catch(async (error) => {
-          const permissionError = new FirestorePermissionError({
+        await setDoc(userRef, userData, { merge: true }).catch(async (error) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: userRef.path,
             operation: 'update',
             requestResourceData: userData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
+          }));
         });
 
-        // 2. Register this device session for the 365-day cycle
         await createOrUpdateSession(db, user.uid, employee.id);
-        
         logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
 
         toast({
@@ -183,20 +172,21 @@ export default function LoginPage() {
           description: `Welcome back, ${employee.fullName.split(' ')[0]}.`,
         });
 
-        // 3. Dispatch to appropriate dashboard
         if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
           router.push('/admin');
         } else {
           router.push('/employee/portal');
         }
       } else {
-        throw new Error("Authorization failed. Please retry.");
+        // Number not in authorized directory
+        await signOut(auth);
+        throw new Error("This mobile number is not authorized for portal access. Please contact administration.");
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Verification Failed",
-        description: "Invalid or expired OTP. Please try again.",
+        description: error.message || "Invalid or expired OTP.",
       });
     } finally {
       setLoading(false);
@@ -226,7 +216,7 @@ export default function LoginPage() {
             <div className="space-y-6">
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Registered Mobile Number</Label>
+                  <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Verified Mobile Number</Label>
                   <div className="flex gap-2">
                     <div className="flex h-11 items-center justify-center rounded-md border bg-muted/50 px-3 font-bold text-muted-foreground">
                       +91
@@ -247,18 +237,9 @@ export default function LoginPage() {
                 </div>
                 <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg shadow-secondary/10 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
-                  Get Verification Code
+                  Request SMS OTP
                 </Button>
               </form>
-              
-              <div className="pt-4 border-t text-center space-y-4">
-                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">New clinical staff?</p>
-                <Link href="/register">
-                  <Button variant="outline" className="w-full border-dashed border-2 font-bold h-11 transition-all hover:bg-muted">
-                    <UserPlus className="mr-2 size-4" /> Provision Trial Record
-                  </Button>
-                </Link>
-              </div>
             </div>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
@@ -301,9 +282,9 @@ export default function LoginPage() {
         <CardFooter>
           <Alert variant="default" className="bg-muted/30 border-none">
             <AlertCircle className="h-4 w-4 text-secondary" />
-            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Security Policy</AlertTitle>
+            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Institutional Node</AlertTitle>
             <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed font-medium">
-              365-day verification cycle active per device. Unauthorized numbers cannot self-register.
+              365-day verification cycle active. Unauthorized mobile numbers cannot self-provision clinical access.
             </AlertDescription>
           </Alert>
         </CardFooter>

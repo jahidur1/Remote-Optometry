@@ -19,22 +19,32 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Employees Collection
+    function isOwnerRecord(employeeId) {
+       return isSignedIn() && get(/databases/$(database)/documents/employees/$(employeeId)).data.whatsappNumber == request.auth.token.phone_number;
+    }
+
+    // Employees Collection - SECURED
     match /employees/{employeeId} {
-      allow read, create: if true; 
-      allow update, delete: if isAdmin();
+      // Admins can manage all records. 
+      // Employees can only 'get' their own record to verify identity post-login.
+      allow get: if isSignedIn() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      
+      // Employees can only update self-managed fields (Age, Email).
+      // Block modification of Role, Status, Phone, and ID.
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        resource.data.whatsappNumber == request.auth.token.phone_number &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt'])
+      );
+      allow delete: if isAdmin();
     }
 
     // Users Collection (Auth Mapping)
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if isOwner(userId) || isAdmin();
-    }
-
-    // Shift Adjacency Rules
-    match /shift_adjacency_rules/{ruleId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
     }
 
     // Sessions Collection
@@ -46,7 +56,7 @@ service cloud.firestore {
     // Audit Logs
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if true; 
+      allow create: if isSignedIn(); 
     }
     
     // Workforce Collections
@@ -62,7 +72,7 @@ service cloud.firestore {
     
     match /weekoff_bookings/{bookingId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); 
+      allow write: if isSignedIn() && (request.resource.data.employeeId == getUserData().employeeId || isAdmin()); 
     }
     
     match /employee_leaves/{leaveId} {
