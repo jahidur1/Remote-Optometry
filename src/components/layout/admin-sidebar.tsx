@@ -80,6 +80,12 @@ const adminItems = [
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
+    title: "Shift Swaps",
+    url: "/admin/swaps",
+    icon: ArrowRightLeft,
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
     title: "Employees",
     url: "/admin/employees",
     icon: Users,
