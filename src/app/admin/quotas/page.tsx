@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Target, Save, Copy, AlertTriangle, Info, Users, CheckCircle2, ChevronRight } from "lucide-react";
+import { Target, Save, Copy, AlertTriangle, Info, Users, CheckCircle2, ChevronRight, Activity, ShieldCheck } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -135,62 +135,66 @@ export default function QuotaConfiguration() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+    <div className="space-y-8 max-w-[1600px] mx-auto animate-in pb-32">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 px-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase">Shift Quota Matrix</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-black tracking-tighter text-primary uppercase leading-none">Quota Configuration</h1>
             <DemoBadge />
           </div>
-          <p className="text-muted-foreground font-medium">Define EXACT staffing counts. Solver requires an exact match for execution.</p>
+          <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
+             Mathematical Optimization Engine • Live Coverage Tracking <Activity className="size-3 text-secondary" />
+          </p>
         </div>
-        <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl border shadow-sm">
-           <Label className="text-[10px] font-black uppercase text-muted-foreground px-3">Roster Week</Label>
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border-2 shadow-sm">
+           <Label className="text-[10px] font-black uppercase text-muted-foreground px-4">Target Cycle</Label>
            <Input 
-             className="w-32 h-9 font-black text-secondary border-none bg-secondary/5 focus-visible:ring-0" 
+             className="w-40 h-11 font-black text-secondary border-none bg-secondary/5 focus-visible:ring-0 text-lg rounded-xl" 
              value={weekId} 
              onChange={(e) => setWeekId(e.target.value)}
            />
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-4">
-        <Card className="lg:col-span-3 shadow-md border-t-4 border-t-primary rounded-2xl overflow-hidden">
-          <CardHeader className="bg-muted/5 border-b flex flex-row items-center justify-between py-6">
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                <Users className="size-6" />
+      <div className="grid gap-8 lg:grid-cols-4 px-4">
+        <Card className="lg:col-span-3 shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card">
+          <CardHeader className="bg-muted/10 border-b p-10 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex items-center gap-6">
+              <div className="size-16 rounded-[1.5rem] bg-primary flex items-center justify-center text-white shadow-2xl">
+                <Users className="size-8" />
               </div>
               <div>
-                <CardTitle className="text-lg uppercase font-black">Daily Assignment Hub</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-                   Total Assignments MUST match available staff for every day.
+                <CardTitle className="text-2xl uppercase font-black tracking-tight">Daily Assignment Hub</CardTitle>
+                <CardDescription className="text-[11px] font-bold uppercase tracking-widest opacity-60">
+                   Total assignments MUST match eligible clinical pool for solver execution.
                 </CardDescription>
               </div>
             </div>
             {DAYS.some(d => !dayStatus(d).ok) && (
-              <Badge variant="destructive" className="animate-pulse px-4 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest">
-                <AlertTriangle className="size-3 mr-2" /> Headcount Imbalance
+              <Badge variant="destructive" className="animate-pulse px-8 py-3 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-destructive/20">
+                <AlertTriangle className="size-4 mr-2" /> Coverage Imbalance
               </Badge>
             )}
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
-            <Table>
+            <Table className="border-collapse">
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-56 pl-8">Operational Shift</TableHead>
+                  <TableHead className="w-72 pl-10 py-6 sticky left-0 z-20 bg-white/50 backdrop-blur-sm border-r">
+                    <span className="text-[11px] font-black uppercase tracking-[0.2em]">Clinical Shift Master</span>
+                  </TableHead>
                   {DAYS.map(day => (
-                    <TableHead key={day} className="text-center px-2">
-                      <div className="flex flex-col items-center group py-2">
-                        <span className="text-[10px] uppercase font-black tracking-widest text-primary mb-1">{day.substring(0,3)}</span>
+                    <TableHead key={day} className="text-center px-4 py-6">
+                      <div className="flex flex-col items-center group">
+                        <span className="text-[10px] uppercase font-black tracking-widest text-primary mb-2 opacity-60">{day.substring(0,3)}</span>
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="icon" 
-                          className="size-7 rounded-lg opacity-20 hover:opacity-100 hover:bg-secondary/10 hover:text-secondary transition-all"
+                          className="size-10 rounded-xl border-2 hover:bg-secondary/10 hover:text-secondary hover:border-secondary/40 transition-all shadow-sm"
                           onClick={() => handleCopyDay(day)}
                           title={`Clone ${day} to all other days`}
                         >
-                          <Copy className="size-3.5" />
+                          <Copy className="size-4" />
                         </Button>
                       </div>
                     </TableHead>
@@ -200,21 +204,21 @@ export default function QuotaConfiguration() {
               <TableBody>
                 {shiftsLoading ? (
                   Array(6).fill(0).map((_, i) => (
-                    <TableRow key={i}><TableCell colSpan={8} className="py-6"><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                    <TableRow key={i}><TableCell colSpan={8} className="py-8"><Skeleton className="h-10 w-full rounded-2xl" /></TableCell></TableRow>
                   ))
                 ) : shifts?.map((shift) => (
                   <TableRow key={shift.id} className="hover:bg-muted/5 group border-b last:border-0">
-                    <TableCell className="pl-8 py-4">
+                    <TableCell className="pl-10 py-6 sticky left-0 z-10 bg-white/30 backdrop-blur-sm border-r group-hover:bg-muted/10 transition-colors shadow-sm">
                       <div className="flex flex-col">
-                        <span className="font-black text-sm text-primary tracking-tight">{shift.name}</span>
+                        <span className="font-black text-[15px] text-primary tracking-tight">{shift.name}</span>
                         <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter opacity-60">{shift.startTime}—{shift.endTime}</span>
                       </div>
                     </TableCell>
                     {DAYS.map(day => (
-                      <TableCell key={day} className="text-center px-2">
+                      <TableCell key={day} className="text-center px-4 py-6">
                         <Input 
                           type="number" 
-                          className="w-16 mx-auto h-10 text-center font-black text-lg bg-background border-2 border-primary/10 rounded-xl focus:border-secondary transition-all"
+                          className="w-20 mx-auto h-12 text-center font-black text-xl bg-white border-2 border-primary/5 rounded-2xl focus:border-secondary transition-all shadow-inner"
                           value={quotas[`${day}_${shift.id}`] || 0}
                           onChange={(e) => handleQuotaChange(day, shift.id, e.target.value)}
                         />
@@ -224,28 +228,28 @@ export default function QuotaConfiguration() {
                 ))}
                 
                 <TableRow className="bg-muted/40 font-black">
-                  <TableCell className="pl-8 py-6 text-[10px] uppercase tracking-widest text-muted-foreground">Clinical Eligibility</TableCell>
+                  <TableCell className="pl-10 py-8 text-[11px] uppercase tracking-widest text-muted-foreground border-r">Clinical Eligibility</TableCell>
                   {DAYS.map(day => (
                     <TableCell key={day} className="text-center">
                       <div className="flex flex-col items-center">
-                        <span className="text-primary text-xl font-black tracking-tighter">{dailyAvailability[day] || 0}</span>
-                        <span className="text-[8px] font-black uppercase text-primary/40 tracking-tighter">STAFF</span>
+                        <span className="text-primary text-2xl font-black tracking-tighter">{dailyAvailability[day] || 0}</span>
+                        <span className="text-[9px] font-black uppercase text-primary/40 tracking-widest">POOL</span>
                       </div>
                     </TableCell>
                   ))}
                 </TableRow>
-                <TableRow className="bg-primary/5 font-black border-t-2 border-primary/20">
-                  <TableCell className="pl-8 py-6 text-[10px] uppercase tracking-widest text-primary">Required Target</TableCell>
+                <TableRow className="bg-primary/5 font-black border-t-4 border-primary/20 shadow-2xl">
+                  <TableCell className="pl-10 py-8 text-[11px] uppercase tracking-widest text-primary border-r">Required Target</TableCell>
                   {DAYS.map(day => {
                     const status = dayStatus(day);
                     return (
                       <TableCell key={day} className="text-center">
                         <div className="flex flex-col items-center">
-                          <span className={`text-xl font-black tracking-tighter ${status.ok ? 'text-emerald-600' : 'text-destructive'}`}>
+                          <span className={`text-2xl font-black tracking-tighter ${status.ok ? 'text-emerald-600' : 'text-destructive'}`}>
                             {status.req}
                           </span>
-                          <span className={`text-[8px] font-black uppercase tracking-tighter ${status.ok ? 'text-emerald-600/60' : 'text-destructive/60'}`}>
-                            {status.ok ? 'MATCHED' : status.diff > 0 ? `SURPLUS: ${status.diff}` : `SHORT: ${Math.abs(status.diff)}`}
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${status.ok ? 'text-emerald-600/60' : 'text-destructive/60'}`}>
+                            {status.ok ? 'MATCHED' : status.diff > 0 ? `+${status.diff} SURPLUS` : `${status.diff} SHORT`}
                           </span>
                         </div>
                       </TableCell>
@@ -255,62 +259,62 @@ export default function QuotaConfiguration() {
               </TableBody>
             </Table>
           </CardContent>
-          <CardFooter className="bg-muted/5 p-6 border-t flex justify-between items-center">
-             <div className="flex items-center gap-3">
-                <div className="size-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary shadow-sm">
-                   <Info className="size-4" />
+          <CardFooter className="bg-muted/5 p-10 border-t flex flex-col md:flex-row justify-between items-center gap-8">
+             <div className="flex items-center gap-6 max-w-xl">
+                <div className="size-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary shadow-inner shrink-0">
+                   <Info className="size-6" />
                 </div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight max-w-sm tracking-tight">
-                  Pre-feasibility validation active. Solve execution is blocked until staffing shortage/surplus is zeroed out for all weekdays.
+                <p className="text-[12px] font-bold text-muted-foreground uppercase leading-relaxed tracking-tight">
+                  Validation Gate Active: Solve execution is blocked until daily coverage imbalances are neutralized. Quotas represent EXACT headcount requirements.
                 </p>
              </div>
-             <Button className="bg-primary h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 transition-all" onClick={handleSave} disabled={saving}>
-               <Save className="mr-3 h-5 w-5" /> {saving ? 'Committing...' : 'Save Matrix'}
+             <Button className="bg-primary text-white h-16 px-14 font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:scale-105 transition-all group shrink-0" onClick={handleSave} disabled={saving}>
+               <Save className="mr-4 h-6 w-6 group-hover:rotate-12 transition-transform" /> {saving ? 'Syncing...' : 'Save Matrix'}
              </Button>
           </CardFooter>
         </Card>
 
-        <div className="lg:col-span-1 space-y-6">
-          <Card className="shadow-md border-t-4 border-t-secondary rounded-2xl overflow-hidden bg-secondary/5">
-            <CardHeader className="py-6 border-b bg-white/50">
-              <div className="flex items-center gap-3">
-                <Target className="size-5 text-secondary" />
-                <CardTitle className="text-sm font-black uppercase tracking-widest">Diversity Targets</CardTitle>
+        <div className="lg:col-span-1 space-y-8">
+          <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden glass-card bg-secondary/5 border-2 border-secondary/10">
+            <CardHeader className="p-8 pb-6 border-b bg-white/50">
+              <div className="flex items-center gap-4">
+                <Target className="size-6 text-secondary" />
+                <CardTitle className="text-lg font-black uppercase tracking-tight">Diversity Targets</CardTitle>
               </div>
-              <CardDescription className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-60">Soft optimization targets for gender balance.</CardDescription>
+              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 opacity-60">Soft objectives for pod gender balance.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-8 space-y-6">
               {shifts?.map(shift => (
-                <div key={shift.id} className="space-y-3 pb-4 border-b border-secondary/10 last:border-0 last:pb-0">
-                  <p className="text-[10px] font-black uppercase tracking-tight text-primary flex items-center gap-2">
-                    <ChevronRight className="size-3 opacity-30" /> {shift.name}
+                <div key={shift.id} className="space-y-4 pb-6 border-b border-secondary/10 last:border-0 last:pb-0">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-primary flex items-center gap-3">
+                    <ChevronRight className="size-3 text-secondary opacity-40" /> {shift.name}
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest px-1">Male Band</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em] px-1">Male Band</Label>
                       <Select 
                         value={genderTargets[shift.id]?.male || "1"} 
                         onValueChange={(val) => handleGenderChange(shift.id, 'male', val)}
                       >
-                        <SelectTrigger className="h-8 text-[10px] font-black rounded-lg border-2 border-secondary/10">
+                        <SelectTrigger className="h-10 text-[11px] font-black rounded-xl border-2 border-secondary/10 shadow-sm">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          {GENDER_BANDS.map(b => <SelectItem key={b} value={b} className="text-[10px] font-bold">{b}</SelectItem>)}
+                        <SelectContent className="rounded-xl shadow-2xl border-none">
+                          {GENDER_BANDS.map(b => <SelectItem key={b} value={b} className="text-[11px] font-bold">{b}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest px-1">Female Band</Label>
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em] px-1">Female Band</Label>
                       <Select 
                         value={genderTargets[shift.id]?.female || "1"} 
                         onValueChange={(val) => handleGenderChange(shift.id, 'female', val)}
                       >
-                        <SelectTrigger className="h-8 text-[10px] font-black rounded-lg border-2 border-secondary/10">
+                        <SelectTrigger className="h-10 text-[11px] font-black rounded-xl border-2 border-secondary/10 shadow-sm">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          {GENDER_BANDS.map(b => <SelectItem key={b} value={b} className="text-[10px] font-bold">{b}</SelectItem>)}
+                        <SelectContent className="rounded-xl shadow-2xl border-none">
+                          {GENDER_BANDS.map(b => <SelectItem key={b} value={b} className="text-[11px] font-bold">{b}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -320,14 +324,17 @@ export default function QuotaConfiguration() {
             </CardContent>
           </Card>
 
-          <Card className="bg-primary text-primary-foreground rounded-2xl shadow-xl border-none overflow-hidden group">
-            <CardContent className="p-6 space-y-4">
-               <div className="size-8 rounded-lg bg-secondary flex items-center justify-center group-hover:rotate-12 transition-transform duration-500">
-                  <ShieldCheck className="size-5 text-white" />
+          <Card className="bg-primary text-primary-foreground premium-card relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 transform group-hover:scale-110 transition-transform duration-1000 opacity-5">
+               <ShieldCheck size={220} />
+            </div>
+            <CardContent className="p-8 space-y-4 relative z-10">
+               <div className="size-12 rounded-2xl bg-secondary flex items-center justify-center shadow-2xl">
+                  <ShieldCheck className="size-6 text-white" />
                </div>
-               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Solver Integrity</p>
-               <p className="text-[12px] font-medium leading-relaxed opacity-70">
-                 The CP-SAT engine prioritizes HARD staffing quotas. Gender targets are treated as soft objectives to avoid infeasible results.
+               <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Solver Integrity</p>
+               <p className="text-[13px] font-medium leading-relaxed opacity-70">
+                 The CP-SAT engine prioritizes HARD staffing quotas. Gender targets are treated as soft objectives to avoid infeasibility during clinical peaks.
                </p>
             </CardContent>
           </Card>
