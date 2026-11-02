@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw } from 'lucide-react';
+import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createOrUpdateSession } from '@/lib/session-utils';
@@ -99,13 +99,12 @@ export default function LoginPage() {
       
       logAudit(db, 'system', 'AUTH_OTP_REQUEST', phoneNumber, { source: 'web_portal' });
       
-      toast({ title: "OTP Sent", description: "Verification code sent via SMS." });
+      toast({ title: "Verification Initiated", description: "Standard security code dispatched via SMS." });
     } catch (error: any) {
-      console.error("Login OTP Error:", error);
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: error.message || "Failed to send verification code.",
+        title: "Node Access Denied",
+        description: error.message || "Failed to initiate verification sequence.",
       });
       
       if ((window as any).recaptchaVerifier) {
@@ -135,7 +134,7 @@ export default function LoginPage() {
         
         if (employee.status === 'Suspended' || employee.status === 'Inactive') {
           await signOut(auth);
-          throw new Error(`Your account status is ${employee.status.toLowerCase()}. Access denied.`);
+          throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
         }
 
         const userRef = doc(db, 'users', user.uid);
@@ -162,8 +161,8 @@ export default function LoginPage() {
         logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
 
         toast({
-          title: "Verified",
-          description: `Welcome back, ${employee.fullName.split(' ')[0]}.`,
+          title: "Identity Verified",
+          description: `Welcome to the cluster, ${employee.fullName.split(' ')[0]}.`,
         });
 
         if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
@@ -173,13 +172,13 @@ export default function LoginPage() {
         }
       } else {
         await signOut(auth);
-        throw new Error("This mobile number is not authorized for portal access. Please contact administration.");
+        throw new Error("This terminal is not authorized for portal access. Contact administrative nodes.");
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Verification Failed",
-        description: error.message || "Invalid or expired OTP.",
+        title: "Verification Failure",
+        description: error.message || "Invalid or expired OTP sequence.",
       });
     } finally {
       setLoading(false);
@@ -187,40 +186,44 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-primary p-4 relative overflow-hidden">
+    <div className="flex min-h-screen items-center justify-center bg-primary p-4 relative overflow-hidden font-body">
+      {/* Precision Background */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[120px]"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[140px]"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[140px]"></div>
       </div>
 
-      <Card className="w-full max-w-md shadow-2xl relative z-10 border-white/10 bg-card/95 backdrop-blur">
-        <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground shadow-lg shadow-secondary/20">
-            <Stethoscope className="size-8" />
+      <Card className="w-full max-w-md shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] relative z-10 border-white/5 bg-card/95 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden animate-in">
+        <CardHeader className="space-y-4 text-center p-10 pb-6">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-[1.25rem] bg-secondary text-secondary-foreground shadow-2xl shadow-secondary/20 group">
+            <Stethoscope className="size-9 group-hover:scale-110 transition-transform duration-500" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight font-headline">ROC <span className="text-accent">Workforce</span></CardTitle>
-          <CardDescription className="text-muted-foreground/80 font-medium">
-            Clinical Portal Authentication
-          </CardDescription>
+          <div className="space-y-1">
+            <CardTitle className="text-3xl font-black tracking-tight font-headline uppercase leading-none">Access <span className="text-secondary">Node</span></CardTitle>
+            <CardDescription className="text-muted-foreground/60 font-black uppercase text-[10px] tracking-[0.3em]">Institutional Workforce Pulse</CardDescription>
+          </div>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="px-10 pb-10">
           {step === 'phone' ? (
-            <div className="space-y-6">
-              <form onSubmit={handleSendOtp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Verified Mobile Number</Label>
-                  <div className="flex gap-2">
-                    <div className="flex h-11 items-center justify-center rounded-md border bg-muted/50 px-3 font-bold text-muted-foreground">
+            <div className="space-y-8">
+              <form onSubmit={handleSendOtp} className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Verified Mobile Endpoint</Label>
+                  <div className="flex gap-3">
+                    <div className="flex h-14 items-center justify-center rounded-2xl border-2 bg-muted/30 px-5 font-black text-secondary/60">
                       +91
                     </div>
                     <div className="relative flex-1">
-                      <Phone className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
+                      <Phone className="absolute left-4 top-5 h-4 w-4 text-muted-foreground/40" />
                       <Input
                         id="phone"
                         type="tel"
                         placeholder="99999 00000"
-                        className="pl-10 h-11 text-lg font-bold tracking-[0.1em]"
+                        className="pl-12 h-14 text-lg font-black tracking-[0.1em] rounded-2xl border-2 focus:border-secondary transition-all"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         required
@@ -228,58 +231,62 @@ export default function LoginPage() {
                     </div>
                   </div>
                 </div>
-                <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 text-base font-bold shadow-lg shadow-secondary/10 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
-                  Request SMS OTP
+                <Button className="w-full bg-secondary hover:bg-secondary/90 h-16 text-sm font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl shadow-secondary/20 group transition-all" type="submit" disabled={loading || phoneNumber.length < 10}>
+                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5 group-hover:translate-x-2 transition-transform" />}
+                  Request OTP Pulse
                 </Button>
               </form>
             </div>
           ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="space-y-2">
+            <form onSubmit={handleVerifyOtp} className="space-y-8">
+              <div className="space-y-4">
                 <div className="flex justify-between items-center px-1">
-                  <Label htmlFor="otp" className="text-xs font-black uppercase tracking-widest text-muted-foreground">6-Digit Code</Label>
-                  <button type="button" onClick={() => setStep('phone')} className="text-[10px] text-secondary font-black hover:underline">CHANGE NUMBER</button>
+                  <Label htmlFor="otp" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Verification Key</Label>
+                  <button type="button" onClick={() => setStep('phone')} className="text-[10px] text-secondary font-black hover:text-secondary/70 transition-colors tracking-widest uppercase">Update Number</button>
                 </div>
                 <div className="relative">
-                  <Key className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground/50" />
+                  <Key className="absolute left-4 top-5 h-4 w-4 text-muted-foreground/40" />
                   <Input
                     id="otp"
                     type="text"
                     maxLength={6}
                     placeholder="000000"
-                    className="pl-10 h-11 text-2xl text-center font-black tracking-[0.5em]"
+                    className="pl-12 h-16 text-3xl text-center font-black tracking-[0.5em] rounded-2xl border-2 focus:border-accent bg-muted/20"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     required
                   />
                 </div>
-                <div className="flex justify-between items-center px-1">
-                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Sent to +91 {phoneNumber}</p>
+                <div className="flex justify-between items-center px-2">
+                   <p className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-tighter">Target: +91 {phoneNumber}</p>
                    {resendCooldown > 0 ? (
-                     <p className="text-[10px] text-accent font-black">Resend in {resendCooldown}s</p>
+                     <p className="text-[10px] text-accent font-black uppercase tracking-widest">Resend in {resendCooldown}s</p>
                    ) : (
-                     <button type="button" onClick={handleSendOtp} className="text-[10px] text-secondary font-black hover:underline flex items-center gap-1">
-                       <RefreshCcw className="size-2.5" /> RESEND
+                     <button type="button" onClick={handleSendOtp} className="text-[10px] text-secondary font-black hover:underline flex items-center gap-1.5 uppercase tracking-widest">
+                       <RefreshCcw className="size-3" /> Resend Pulse
                      </button>
                    )}
                 </div>
               </div>
-              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-12 text-base font-bold shadow-lg shadow-accent/10" type="submit" disabled={loading || otp.length < 6}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Verify & Access Portal"}
+              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-16 text-sm font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl shadow-accent/20 transition-all" type="submit" disabled={loading || otp.length < 6}>
+                {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Node Access"}
               </Button>
             </form>
           )}
         </CardContent>
         
-        <CardFooter>
-          <Alert variant="default" className="bg-muted/30 border-none">
-            <AlertCircle className="h-4 w-4 text-secondary" />
-            <AlertTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Institutional Node</AlertTitle>
-            <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed font-medium">
-              365-day verification cycle active. Unauthorized mobile numbers cannot self-provision clinical access.
-            </AlertDescription>
-          </Alert>
+        <CardFooter className="bg-muted/30 p-8 border-t border-dashed">
+          <div className="flex gap-4 items-start">
+             <div className="size-8 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-sm border">
+                <ShieldCheck className="size-5 text-secondary" />
+             </div>
+             <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary">Zero-Trust Environment</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
+                  365-day security deadline active. Access logs are immutable and monitored for institutional compliance.
+                </p>
+             </div>
+          </div>
         </CardFooter>
       </Card>
       <div id="recaptcha-container"></div>

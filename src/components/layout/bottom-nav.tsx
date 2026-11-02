@@ -2,16 +2,16 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, User, Clock, MessageSquare, Laptop } from "lucide-react"
+import { Calendar, User, Clock, MessageSquare, Laptop, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function BottomNav() {
   const pathname = usePathname()
 
   const navItems = [
-    { title: "Shifts", icon: Clock, href: "/employee/portal" },
+    { title: "Portal", icon: LayoutDashboard, href: "/employee/portal" },
     { title: "Reservations", icon: Calendar, href: "/employee/book-off" },
-    { title: "Exchanges", icon: MessageSquare, href: "/employee/swaps" },
+    { title: "Preferences", icon: Clock, href: "/employee/preferences" },
     { title: "Security", icon: Laptop, href: "/employee/sessions" },
     { title: "Identity", icon: User, href: "/employee/profile" },
   ]
@@ -35,8 +35,8 @@ export function BottomNav() {
             )}>
               <item.icon className={cn("size-5", isActive ? "stroke-[3px]" : "stroke-[2px]")} />
             </div>
-            <span className="text-[9px] font-black uppercase tracking-widest">{item.title}</span>
-            {isActive && <div className="size-1 rounded-full bg-secondary animate-pulse" />}
+            <span className="text-[9px] font-black uppercase tracking-widest leading-none">{item.title}</span>
+            {isActive && <div className="size-1 rounded-full bg-secondary animate-pulse mt-1" />}
           </Link>
         )
       })}

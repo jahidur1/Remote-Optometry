@@ -47,8 +47,8 @@ const navGroups = [
   {
     label: "Intelligence",
     items: [
-      { title: "Dashboard", url: "/admin", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Analytics", url: "/admin/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Command Center", url: "/admin", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Analytics Hub", url: "/admin/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN"] },
     ]
   },
   {
@@ -56,16 +56,16 @@ const navGroups = [
     items: [
       { title: "Roster Solver", url: "/admin/roster", icon: Calendar, roles: ["SUPER_ADMIN", "ADMIN"] },
       { title: "Shift Quotas", url: "/admin/quotas", icon: Target, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Weekly-Off Config", url: "/admin/weekoff-config", icon: CalendarRange, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Weekly-Off Matrix", url: "/admin/weekoff-config", icon: CalendarRange, roles: ["SUPER_ADMIN", "ADMIN"] },
       { title: "Shift Master", url: "/admin/shifts", icon: Clock, roles: ["SUPER_ADMIN", "ADMIN"] },
     ]
   },
   {
     label: "Workforce",
     items: [
-      { title: "Employees", url: "/admin/employees", icon: Users, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Directory", url: "/admin/employees", icon: Users, roles: ["SUPER_ADMIN", "ADMIN"] },
       { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Leave Logs", url: "/admin/leaves", icon: PlaneTakeoff, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Clinical Leaves", url: "/admin/leaves", icon: PlaneTakeoff, roles: ["SUPER_ADMIN", "ADMIN"] },
       { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["SUPER_ADMIN", "ADMIN"] },
     ]
   },
@@ -73,7 +73,7 @@ const navGroups = [
     label: "Governance",
     items: [
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["SUPER_ADMIN"] },
-      { title: "Security Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
+      { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
       { title: "Cost Monitor", url: "/admin/auth-costs", icon: CreditCard, roles: ["SUPER_ADMIN"] },
     ]
   }
@@ -104,7 +104,7 @@ export function AdminSidebar() {
               {state === "expanded" && (
                 <div className="flex flex-col">
                   <span className="text-sm font-black uppercase tracking-tighter text-white">ROC Workforce</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-secondary/70">Institutional</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-secondary/70">Intelligence Node</span>
                 </div>
               )}
             </div>
@@ -127,27 +127,30 @@ export function AdminSidebar() {
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {filteredItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton 
-                        asChild 
-                        isActive={pathname === item.url} 
-                        tooltip={item.title}
-                        className={cn(
-                          "h-11 px-4 rounded-xl transition-all duration-200 group",
-                          pathname === item.url 
-                            ? "bg-secondary text-white shadow-lg shadow-secondary/20" 
-                            : "text-white/60 hover:text-white hover:bg-white/5"
-                        )}
-                      >
-                        <Link href={item.url} className="flex items-center gap-3">
-                          <item.icon className={cn("size-5", pathname === item.url ? "text-white" : "group-hover:scale-110 transition-transform")} />
-                          <span className="font-bold text-[13px] tracking-tight">{item.title}</span>
-                          {pathname === item.url && <ChevronRight className="ml-auto size-3" />}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {filteredItems.map((item) => {
+                    const isActive = pathname === item.url || (item.url !== '/admin' && pathname.startsWith(item.url));
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton 
+                          asChild 
+                          isActive={isActive} 
+                          tooltip={item.title}
+                          className={cn(
+                            "h-11 px-4 rounded-xl transition-all duration-200 group",
+                            isActive 
+                              ? "bg-secondary text-white shadow-lg shadow-secondary/20" 
+                              : "text-white/60 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          <Link href={item.url} className="flex items-center gap-3">
+                            <item.icon className={cn("size-5", isActive ? "text-white" : "group-hover:scale-110 transition-transform")} />
+                            <span className="font-bold text-[13px] tracking-tight">{item.title}</span>
+                            {isActive && <ChevronRight className="ml-auto size-3 animate-in fade-in slide-in-from-left-1" />}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -159,7 +162,7 @@ export function AdminSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
-              className="h-12 rounded-2xl text-white/60 hover:text-white hover:bg-white/5 px-4"
+              className="h-12 rounded-2xl text-white/60 hover:text-white hover:bg-white/5 px-4 transition-all duration-200"
               onClick={handleLogout}
             >
               <LogOut className="size-5" />
