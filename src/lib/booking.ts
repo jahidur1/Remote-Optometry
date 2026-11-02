@@ -13,11 +13,11 @@ export type BookingResult = {
 };
 
 /**
- * Performs an atomic weekly-off booking.
+ * Performs an atomic weekly-off booking using Firestore Transactions.
  * 
  * DESIGN PRINCIPLES:
  * 1. FCFS Priority: Determined strictly by Firestore transaction commit order.
- * 2. Atomics: Quota decrement and booking creation happen in one atomic unit.
+ * 2. Atomics: Quota check and booking creation happen in one atomic unit.
  * 3. Validation: Checks window status, existing bookings, and quota within the transaction.
  */
 export async function bookWeeklyOff(
@@ -27,14 +27,15 @@ export async function bookWeeklyOff(
   dayOfWeek: string,
   actorId: string
 ): Promise<BookingResult> {
-  const configRef = doc(db, 'weekoff_configs', weekId);
+  // Use a composite ID to prevent duplicate bookings for the same week/employee
   const bookingId = `${weekId}_${employeeId}`;
   const bookingRef = doc(db, 'weekoff_bookings', bookingId);
+  const configRef = doc(db, 'weekoff_configs', weekId);
   const employeeRef = doc(db, 'employees', employeeId);
 
   try {
     return await runTransaction(db, async (transaction) => {
-      // 1. Fetch all necessary data within the transaction scope
+      // 1. Fetch all necessary state within the transaction scope
       const configDoc = await transaction.get(configRef);
       const bookingDoc = await transaction.get(bookingRef);
       const employeeDoc = await transaction.get(employeeRef);
@@ -50,7 +51,7 @@ export async function bookWeeklyOff(
       const config = configDoc.data();
       const employee = employeeDoc.data();
 
-      // 3. Security Check: Is the account active?
+      // 3. Security Check: Is the account active? (Global Kill Switch)
       if (employee.status !== 'Active') {
         return { success: false, message: "Access Denied: Your account is currently suspended or inactive." };
       }
@@ -84,6 +85,7 @@ export async function bookWeeklyOff(
       }
 
       // 7. Atomic Write Operations
+      // Create the individual booking record
       transaction.set(bookingRef, {
         id: bookingId,
         weekId,
@@ -95,6 +97,7 @@ export async function bookWeeklyOff(
         source: 'employee_portal_v1'
       });
 
+      // Update the global counters on the config document
       transaction.update(configRef, {
         [`booked.${dayOfWeek}`]: increment(1),
         updatedAt: serverTimestamp()

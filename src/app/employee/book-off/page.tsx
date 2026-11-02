@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from '@/hooks/use-toast';
-import { CalendarDays, Clock, CheckCircle2, AlertTriangle, Loader2, Info, Lock, Building2 } from "lucide-react";
+import { CalendarDays, Clock, CheckCircle2, AlertTriangle, Loader2, Info, Lock } from "lucide-react";
 import { bookWeeklyOff } from '@/lib/booking';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function BookOffPage() {
   const db = useFirestore();
@@ -25,17 +25,10 @@ export default function BookOffPage() {
   const [loading, setLoading] = useState(true);
   const [bookingInProgress, setBookingInProgress] = useState(false);
 
-  // Fetch the active window for THIS SPECIFIC OFFICE only
+  // Fetch the latest active window
   useEffect(() => {
-    if (!profile?.office || !db) return;
-    
-    const q = query(
-      collection(db, 'weekoff_configs'), 
-      where('office', '==', profile.office),
-      orderBy('weekId', 'desc'), 
-      limit(1)
-    );
-    
+    if (!db) return;
+    const q = query(collection(db, 'weekoff_configs'), orderBy('weekId', 'desc'), limit(1));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         setActiveConfig(snapshot.docs[0].data());
@@ -45,13 +38,10 @@ export default function BookOffPage() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [db, profile]);
+  }, [db]);
 
-  const bookingId = useMemo(() => {
-    if (!activeConfig || !profile?.employeeId) return null;
-    return `${activeConfig.weekId}_${profile.employeeId}`;
-  }, [activeConfig, profile]);
-
+  // Check if user already has a booking for the active week
+  const bookingId = activeConfig && profile?.employeeId ? `${activeConfig.weekId}_${profile.employeeId}` : null;
   const { data: userBooking, loading: bookingLoading } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
 
   const handleBook = async (day: string) => {
@@ -60,7 +50,7 @@ export default function BookOffPage() {
     setBookingInProgress(true);
     const result = await bookWeeklyOff(
       db, 
-      activeConfig.id || activeConfig.weekId, 
+      activeConfig.weekId, 
       profile.employeeId, 
       day, 
       profile.uid
@@ -95,7 +85,7 @@ export default function BookOffPage() {
   if (loading || bookingLoading) return (
     <div className="flex h-[70vh] flex-col items-center justify-center gap-4">
       <Loader2 className="size-10 animate-spin text-secondary" />
-      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Syncing Office Gateways</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Syncing Grid Nodes</p>
     </div>
   );
 
@@ -104,10 +94,8 @@ export default function BookOffPage() {
       <CalendarDays className="size-20 mx-auto opacity-10 text-primary" />
       <div className="space-y-2">
          <h2 className="text-2xl font-black text-primary uppercase tracking-tight">No Active Windows</h2>
-         <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Target Location: {profile?.office}</p>
          <p className="text-sm text-muted-foreground leading-relaxed px-8">
-            There are currently no scheduled FCFS booking windows for the {profile?.office} cluster. 
-            Check back later for Cycle updates.
+            There are currently no scheduled FCFS booking windows. Check back later for Cycle updates.
          </p>
       </div>
       <Button variant="outline" className="h-11 px-8 rounded-xl font-bold uppercase text-[10px] tracking-widest border-2" onClick={() => window.location.reload()}>
@@ -124,14 +112,9 @@ export default function BookOffPage() {
             <h1 className="text-4xl font-black tracking-tight text-primary font-headline uppercase leading-none">Slot Reservation</h1>
             <DemoBadge />
           </div>
-          <div className="flex flex-wrap gap-4 items-center mt-3">
-             <Badge className="bg-primary text-white font-black text-[9px] uppercase tracking-[0.2em] px-3 py-1">
-                <Building2 className="size-2.5 mr-1.5" /> {profile?.office}
-             </Badge>
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-               Week Cycle: <span className="text-secondary">{activeConfig.weekId}</span>
-             </p>
-          </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-3">
+            Institutional Week Cycle: <span className="text-secondary">{activeConfig.weekId}</span>
+          </p>
         </div>
       </div>
 
@@ -161,8 +144,7 @@ export default function BookOffPage() {
           <CardFooter className="bg-emerald-500/10 p-6 flex gap-4">
             <Info className="size-5 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-[11px] font-bold text-emerald-700 uppercase leading-relaxed tracking-tight">
-              PROTECTED RECORD: This reservation is server-locked for Week {activeConfig.weekId}. 
-              Any manual modification requires Clinical Lead authorization via Audit override.
+              PROTECTED RECORD: This reservation is server-locked for Week {activeConfig.weekId}. Any manual modification requires Clinical Lead authorization via Audit override.
             </p>
           </CardFooter>
         </Card>
@@ -190,7 +172,7 @@ export default function BookOffPage() {
           <div className="p-6 rounded-[1.5rem] bg-secondary shadow-2xl shadow-secondary/20 flex flex-col md:flex-row items-center justify-between gap-6 border-none">
             <div className="flex items-center gap-5">
               <div className="size-3 rounded-full bg-white animate-ping shadow-[0_0_15px_white]" />
-              <span className="text-xs font-black text-white tracking-[0.3em] uppercase">Location FCFS Pulse: LIVE & ACTIVE</span>
+              <span className="text-xs font-black text-white tracking-[0.3em] uppercase">FCFS Pulse: LIVE & ACTIVE</span>
             </div>
             <div className="flex items-center gap-3 text-[10px] font-black text-white/70 uppercase tracking-widest bg-black/10 px-4 py-2 rounded-full">
               <Clock className="size-3.5" /> Closes in: {Math.max(0, Math.floor((new Date(activeConfig.bookingClose).getTime() - new Date().getTime()) / 60000))} Minutes

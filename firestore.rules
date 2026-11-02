@@ -13,8 +13,6 @@ service cloud.firestore {
     }
     
     function isUserActive() {
-      // Global Kill Switch: Ensures the account is not suspended/inactive
-      // This is the primary server-side enforcement for account deactivation
       return isSignedIn() && getUserData().status == 'Active';
     }
     
@@ -26,56 +24,57 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- SESSIONS COLLECTION (HARDENED) ---
+    // --- WEEKOFF CONFIGURATIONS ---
+    match /weekoff_configs/{weekId} {
+      allow read: if isUserActive();
+      // Quotas and windows can only be managed by admins
+      allow write: if isAdmin() && isUserActive();
+    }
+
+    // --- WEEKOFF BOOKINGS (The Atomic Layer) ---
+    match /weekoff_bookings/{bookingId} {
+      allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
+      
+      // Strict creation logic: user can only book for themselves
+      allow create: if isUserActive() && 
+        request.resource.data.employeeId == getUserData().employeeId &&
+        request.resource.data.status == 'confirmed';
+      
+      // Bookings are immutable once secured (locked)
+      allow update, delete: if isAdmin() && isUserActive();
+    }
+
+    // --- SESSIONS COLLECTION ---
     match /sessions/{sessionId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      
-      // Enforce server-side session policy during creation
       allow create: if isSignedIn() && 
         request.resource.data.uid == request.auth.uid &&
-        request.resource.data.status == 'active' &&
-        // verifiedAt must match the server's time
-        request.resource.data.verifiedAt == request.time &&
-        // deadlineAt must be exactly 365 days from verifiedAt (request.time)
-        // 31536000 seconds = 365 days
         request.resource.data.deadlineAt == request.time + duration.value(31536000, 's');
 
       allow update: if isSignedIn() && (
-        // 1. Admin/System Revocation Path
-        (isAdmin() && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revokedBy', 'revokedAt']) && 
-         request.resource.data.status == 'revoked') ||
-        
-        // 2. Owner Heartbeat/Label Path (Locking security fields)
+        (isAdmin() && request.resource.data.status == 'revoked') ||
         (request.auth.uid == resource.data.uid && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt', 'uid', 'employeeId']))
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt']))
       );
       
-      allow delete: if false; // Sessions are never deleted, only revoked for audit purposes
+      allow delete: if false;
     }
 
     // --- EMPLOYEES COLLECTION ---
     match /employees/{employeeId} {
-      // Access requires an ACTIVE account
       allow get: if isUserActive() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
       allow list: if isAdmin() && isUserActive();
-      
-      // Only Admins can provision or delete profiles
       allow create: if isAdmin() && isUserActive();
-      allow delete: if isAdmin() && isUserActive();
-      
       allow update: if (isAdmin() && isUserActive()) || (
         isUserActive() && 
         resource.data.whatsappNumber == request.auth.token.phone_number &&
-        // Block self-modification of clinical identity
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt'])
       );
     }
 
-    // --- USERS COLLECTION (Profiles) ---
+    // --- USERS COLLECTION ---
     match /users/{userId} {
       allow read: if isSignedIn();
-      // Only Admin or the User can write, but status/role changes are locked for users elsewhere
       allow write: if (isOwner(userId) || isAdmin()) && isSignedIn();
     }
 
@@ -83,45 +82,12 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isAdmin() && isUserActive();
       allow create: if isSignedIn(); 
-      allow update, delete: if false; // Audit logs are immutable
+      allow update, delete: if false;
     }
     
-    // --- WORKFORCE DATA (PROTECTED BY GLOBAL ACTIVE STATUS) ---
-    // All clinical and operational data is gated by isUserActive()
-    
-    match /shift_master/{shiftId} {
-      allow read: if isUserActive();
-      allow write: if isAdmin() && isUserActive();
-    }
-    
-    match /weekoff_configs/{weekId} {
-      allow read: if isUserActive();
-      allow write: if isAdmin() && isUserActive();
-    }
-    
-    match /weekoff_bookings/{bookingId} {
-      allow read: if isUserActive();
-      allow write: if isUserActive() && (request.resource.data.employeeId == getUserData().employeeId || isAdmin()); 
-    }
-    
-    match /employee_leaves/{leaveId} {
-      allow read: if isUserActive();
-      allow write: if (isAdmin() && isUserActive()) || (isUserActive() && request.resource.data.employeeId == getUserData().employeeId);
-    }
-    
-    match /published_rosters/{versionId} {
-      allow read: if isUserActive();
-      allow write: if isAdmin() && isUserActive();
-    }
-
-    match /shift_swaps/{swapId} {
-      allow read: if isUserActive();
-      allow create, update: if isUserActive();
-    }
-
-    match /employee_preferences/{prefId} {
-      allow read: if isUserActive();
-      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
-    }
+    // --- GENERIC WORKFORCE DATA ---
+    match /{path=**}/shift_master/{shiftId} { allow read: if isUserActive(); }
+    match /{path=**}/employee_leaves/{leaveId} { allow read: if isUserActive(); }
+    match /{path=**}/published_rosters/{versionId} { allow read: if isUserActive(); }
   }
 }

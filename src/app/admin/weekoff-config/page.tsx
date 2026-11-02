@@ -2,26 +2,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Save, Clock, Info, ShieldCheck, History, Building2 } from "lucide-react";
+import { CalendarDays, Save, Clock, Info, ShieldCheck, History, AlertTriangle } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const OFFICES = ["Kolkata ROC", "Gurgaon ROC", "Lucknow ROC"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function WeekOffConfiguration() {
   const [weekId, setWeekId] = useState('');
-  const [office, setOffice] = useState('Kolkata ROC');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [quotas, setQuotas] = useState<Record<string, number>>(
@@ -46,21 +43,18 @@ export default function WeekOffConfiguration() {
   }, [db]);
 
   const handleSave = async () => {
-    if (!weekId || !openTime || !closeTime || !office) {
-      toast({ title: "Validation Error", description: "Office and window timing fields are mandatory.", variant: "destructive" });
+    if (!weekId || !openTime || !closeTime) {
+      toast({ title: "Validation Error", description: "Week ID and window timings are mandatory.", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      // Configuration ID includes office to allow separate schedules for different locations
-      const configId = `${weekId}_${office.replace(/\s+/g, '_')}`;
-      const configRef = doc(db, 'weekoff_configs', configId);
+      const configRef = doc(db, 'weekoff_configs', weekId);
       
       const payload = {
-        id: configId,
+        id: weekId,
         weekId,
-        office,
         bookingOpen: openTime,
         bookingClose: closeTime,
         quotas,
@@ -72,15 +66,15 @@ export default function WeekOffConfiguration() {
 
       await setDoc(configRef, payload);
 
-      logAudit(db, profile?.uid || 'system', 'CONFIGURE_WEEKOFF', configId, {
-        office,
+      logAudit(db, profile?.uid || 'system', 'CONFIGURE_WEEKOFF', weekId, {
         weekId,
-        openTime
+        openTime,
+        quotas
       });
 
       toast({ 
-        title: "Window Published", 
-        description: `FCFS Booking for ${office} (Week ${weekId}) successfully established.` 
+        title: "Configuration Published", 
+        description: `FCFS Booking window for Week ${weekId} successfully established.` 
       });
       
       setWeekId('');
@@ -102,8 +96,8 @@ export default function WeekOffConfiguration() {
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase leading-tight">Weekly-Off Control Panel</h1>
-        <p className="text-muted-foreground font-medium">Establish office-specific FCFS booking windows and staff-off quotas (Asia/Kolkata).</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase leading-tight">Weekly-Off Pulse Control</h1>
+        <p className="text-muted-foreground font-medium">Establish atomic FCFS booking windows and clinical capacity limits (Asia/Kolkata).</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -112,21 +106,10 @@ export default function WeekOffConfiguration() {
             <CardHeader className="bg-muted/5 border-b">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-lg uppercase font-black">Schedule Window</CardTitle>
+                <CardTitle className="text-lg uppercase font-black">Window Parameters</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-5 pt-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground px-1">Target Location</Label>
-                <Select value={office} onValueChange={setOffice}>
-                   <SelectTrigger className="h-11 font-bold border-2 focus:border-secondary transition-all">
-                      <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                      {OFFICES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                   </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground px-1">Roster Cycle (YYYY-WW)</Label>
                 <Input 
@@ -159,12 +142,13 @@ export default function WeekOffConfiguration() {
 
           <Card className="bg-primary text-primary-foreground shadow-2xl rounded-[1.5rem] border-none overflow-hidden relative group transition-all hover:scale-[1.02]">
              <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform duration-500">
-                <Building2 size={80} />
+                <ShieldCheck size={80} />
              </div>
              <CardContent className="pt-8 pb-8 space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Policy: Location Isolation</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Atomic Integrity Guard</p>
                 <p className="text-[13px] font-medium leading-relaxed opacity-80">
-                   Booking windows are now **location-specific**. Only professionals assigned to the target office will see the live countdown on their dashboard.
+                   The system uses **Firestore Transactions** to enforce strict FCFS priority. 
+                   Booking order is determined by the server's commit millisecond, not the client clock.
                 </p>
              </CardContent>
           </Card>
@@ -174,12 +158,12 @@ export default function WeekOffConfiguration() {
           <CardHeader className="bg-muted/5 border-b">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-accent" />
-              <CardTitle className="text-lg uppercase font-black">Location Daily Quotas</CardTitle>
+              <CardTitle className="text-lg uppercase font-black">Daily Clinical Quotas</CardTitle>
             </div>
-            <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-60">Maximum clinical absences allowed for {office}.</CardDescription>
+            <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-60">Maximum allowed absences per operational day.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
               {DAYS.map((day) => (
                 <div key={day} className="space-y-3 p-4 rounded-2xl border-2 border-muted bg-white text-center hover:border-accent/30 transition-all shadow-sm">
                   <Label className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground block">{day.substring(0, 3)}</Label>
@@ -196,13 +180,13 @@ export default function WeekOffConfiguration() {
             <div className="mt-12 space-y-4">
               <div className="flex items-center gap-3 px-1">
                 <History className="size-4 text-muted-foreground" />
-                <h3 className="text-[11px] font-black uppercase tracking-[0.1em] text-primary">Location Schedule History</h3>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.1em] text-primary">Configuration History</h3>
               </div>
               <div className="rounded-[1.5rem] border-2 overflow-hidden bg-white shadow-inner">
                 <Table>
                   <TableHeader className="bg-muted/50 border-b">
                     <TableRow>
-                      <TableHead className="text-[10px] font-black uppercase tracking-widest pl-6">Week & Office</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest pl-6">Roster Week</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest">Window (IST)</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-right pr-6">Status</TableHead>
                     </TableRow>
@@ -215,18 +199,13 @@ export default function WeekOffConfiguration() {
                     ) : configs.map((c) => (
                       <TableRow key={c.id} className="hover:bg-muted/5 transition-colors border-b last:border-0 group">
                         <TableCell className="pl-6 py-4">
-                           <div className="flex flex-col gap-0.5">
-                              <span className="font-black text-[13px] text-primary tracking-tight">{c.weekId}</span>
-                              <span className="text-[10px] font-bold text-secondary uppercase flex items-center gap-1">
-                                 <Building2 className="size-2.5" /> {c.office}
-                              </span>
-                           </div>
+                           <span className="font-black text-[13px] text-primary tracking-tight">Week {c.weekId}</span>
                         </TableCell>
                         <TableCell className="text-[11px] font-bold text-muted-foreground">
-                          {new Date(c.bookingOpen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                          {new Date(c.bookingOpen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })} — {new Date(c.bookingClose).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                         </TableCell>
                         <TableCell className="text-right pr-6">
-                           <Badge variant="outline" className="text-[8px] font-black uppercase border-muted-foreground/20 text-muted-foreground bg-muted/10 px-3">
+                           <Badge variant="outline" className="text-[8px] font-black uppercase border-emerald-500/20 text-emerald-600 bg-emerald-500/5 px-3">
                               Active Node
                            </Badge>
                         </TableCell>
