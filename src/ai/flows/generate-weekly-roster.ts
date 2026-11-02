@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -19,6 +18,7 @@ const { firestore } = initializeFirebase();
 export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
   officeId: z.string(),
+  adminUid: z.string().describe('The UID of the administrator performing the action for permission verification.'),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
@@ -50,6 +50,30 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
   return generateWeeklyRosterFlow(input);
 }
 
+/**
+ * Independent Backend Validation
+ * Re-verifies that the solver output doesn't violate core integrity rules
+ * before returning it to the UI.
+ */
+function validateSolverOutput(assignments: any[], bookings: any[]) {
+  const issues: string[] = [];
+  
+  // Rule 1: No assignments on protected Weekly-Offs
+  assignments.forEach(a => {
+    const isOff = bookings.some(b => b.data().employeeId === a.employeeId && b.data().dayOfWeek === a.dayOfWeek);
+    if (isOff) issues.push(`INTEGRITY ALERT: Assignment for ${a.employeeId} overlaps with protected Weekly-Off on ${a.dayOfWeek}.`);
+  });
+
+  // Rule 2: Single assignment per professional per day
+  const keys = assignments.map(a => `${a.employeeId}_${a.dayOfWeek}`);
+  const uniqueKeys = new Set(keys);
+  if (keys.length !== uniqueKeys.size) {
+    issues.push(`INTEGRITY ALERT: Double-assignment detected for one or more professionals.`);
+  }
+
+  return issues;
+}
+
 const generateWeeklyRosterFlow = ai.defineFlow(
   {
     name: 'generateWeeklyRosterFlow',
@@ -58,12 +82,21 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   },
   async (input) => {
     const start = Date.now();
-    const { weekId, officeId } = input;
+    const { weekId, officeId, adminUid } = input;
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const weekDates = getDatesForWeek(weekId);
 
     try {
-      // 1. Authoritative Data Fetching (Trusted Backend context)
+      // 1. Institutional Permission Check
+      const adminSnap = await getDoc(doc(firestore, 'users', adminUid));
+      if (!adminSnap.exists() || !['ADMIN', 'SUPER_ADMIN'].includes(adminSnap.data().role)) {
+        throw new Error("Access Denied: Unauthorized administrative attempt.");
+      }
+      if (adminSnap.data().office !== officeId && adminSnap.data().role !== 'SUPER_ADMIN') {
+        throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
+      }
+
+      // 2. Authoritative Data Fetching (Trusted Backend context)
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         getDocs(query(collection(firestore, 'employees'), where('office', '==', officeId), where('status', '==', 'Active'))),
         getDocs(query(collection(firestore, 'shift_master'), orderBy('displayOrder'))),
@@ -75,21 +108,22 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       ]);
 
       if (!quotaSnap.exists()) {
-        throw new Error(`Quotas for week ${weekId} not configured.`);
+        throw new Error(`Configuration Missing: Staffing quotas for Week ${weekId} have not been defined.`);
       }
 
       const quotaData = quotaSnap.data()!;
+      
+      // SANITIZATION: Strip PII. Solver only sees IDs and Gender (for soft targets).
       const employees = empSnap.docs.map(d => ({ 
         id: d.id, 
         gender: (d.data().gender || 'Other').toLowerCase(),
-        // Historical metrics could be aggregated here from previous published_rosters
-        historicalSO: 0, 
+        historicalSO: 0, // In production, aggregate from 'published_rosters'
         historicalOP: 0 
       }));
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
 
-      // 2. Constraint Construction (Stripping PII)
+      // 3. Constraint Construction (Trusted context)
       const employeeHardConstraints = [
         ...bookingsSnap.docs.map(d => ({ 
           employeeId: d.data().employeeId, 
@@ -109,6 +143,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
           if (!rule) return [];
           const res: any[] = [];
           const idx = DAYS.indexOf(booking.dayOfWeek);
+          // Adjacency Fairness
           if (idx > 0 && rule.allowedPreOffShifts?.length > 0) {
             res.push({ employeeId: booking.employeeId, type: 'restrictedShift', dayOfWeek: DAYS[idx - 1], restrictedToShifts: rule.allowedPreOffShifts });
           }
@@ -131,7 +166,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         weight: 1.0
       }));
 
-      // 3. Mathematical Optimization (Delegating to Python Solver)
+      // 4. Mathematical Optimization (GCP IAM Secure Call)
       const solverPayload = {
         weekId,
         officeId,
@@ -145,14 +180,17 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       const result = await callSolver(solverPayload);
 
-      // 4. Output Validation & Mapping
+      // 5. Output Validation
+      const assignments = result.assignments || [];
+      const integrityIssues = validateSolverOutput(assignments, bookingsSnap.docs);
+
       return {
-        rosterAssignments: result.assignments || [],
+        rosterAssignments: assignments,
         summary: result.status === 'OPTIMAL' 
           ? `Mathematically optimal roster found for ${officeId}.` 
           : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
         status: result.status,
-        issuesEncountered: result.errors || [],
+        issuesEncountered: [...(result.errors || []), ...integrityIssues],
         solverMetadata: {
           solveTimeMs: result.metadata.solveTimeMs,
           constraintsChecked: solverPayload.employeeHardConstraints.length,
@@ -164,7 +202,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       console.error('Roster Flow Error:', e);
       return {
         rosterAssignments: [],
-        summary: `Institutional Error: ${e.message}`,
+        summary: `Institutional Pipeline Error: ${e.message}`,
         status: 'UNKNOWN',
         issuesEncountered: [e.message],
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }

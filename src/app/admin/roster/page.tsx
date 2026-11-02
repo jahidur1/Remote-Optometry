@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
 import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
-import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target } from "lucide-react";
+import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
@@ -33,22 +32,23 @@ export default function RosterSolver() {
   const { data: recentDrafts } = useCollection(draftsQuery);
 
   const handleRunSolver = async () => {
-    if (!profile?.office) {
-      toast({ variant: "destructive", title: "Missing Node", description: "Your account must be assigned to an office to run the solver." });
+    if (!profile?.office || !profile?.uid) {
+      toast({ variant: "destructive", title: "Identity Error", description: "Node authorization required." });
       return;
     }
     
     setStatus("running");
-    setProgress(10);
+    setProgress(15);
     setExplanation(null);
     setSolverResult(null);
 
     try {
-      // TRUSTED BACKEND CALL: Only pass necessary IDs. 
-      // All authoritative data fetching happens on the server.
+      // SECURE TRUSTED FLOW: Browser only sends IDs.
+      // Fetching and optimization happen on the secure backend node.
       const result = await generateWeeklyRoster({
         weekId,
-        officeId: profile.office
+        officeId: profile.office,
+        adminUid: profile.uid
       });
       
       setSolverResult(result);
@@ -56,11 +56,17 @@ export default function RosterSolver() {
 
       if (result.status === 'INFEASIBLE') {
         setStatus("conflict");
-        toast({ variant: "destructive", title: "Solver Infeasible", description: result.summary });
+        toast({ variant: "destructive", title: "Staffing Imbalance", description: result.summary });
         return;
       }
 
-      // Save Draft logic (now happens after verified backend result)
+      if (result.status === 'UNKNOWN') {
+        setStatus("conflict");
+        toast({ variant: "destructive", title: "Node Connectivity Failure", description: result.summary });
+        return;
+      }
+
+      // Save Draft logic: Only happens after validated successful result
       const draftId = `draft_${weekId}_${Date.now()}`;
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
@@ -77,19 +83,19 @@ export default function RosterSolver() {
 
       logAudit(db, profile.uid, 'RUN_ROSTER_SOLVER', draftId, { weekId, status: result.status });
       setStatus("success");
-      toast({ title: "Optimized Draft Prepared", description: "Roster cycle saved for administrative review." });
+      toast({ title: "Optimized Draft Prepared", description: "The mathematical model has been saved for review." });
     } catch (e: any) {
       setStatus("conflict");
-      toast({ variant: "destructive", title: "Critical Engine Failure", description: e.message });
+      toast({ variant: "destructive", title: "Critical Pipeline Failure", description: e.message });
     }
   };
 
   const handleExplain = async () => {
     if (!solverResult) return;
     const result = await explainSchedulingConflicts({
-      problemDescription: `Clinical Roster Optimization Cycle for Week ${weekId} in ${profile?.office}`,
-      hardConstraints: ["Atomic Daily Quotas", "Protected Weekly-Offs (FCFS)", "Clinical Leave & Training", "Adjacency Fairness Rules"],
-      softConstraints: ["Gender Target Bands", "Professional Shift Preferences", "Historical Super-Opening Fairness"],
+      problemDescription: `Roster Optimization Node: ${profile?.office} | Cycle: ${weekId}`,
+      hardConstraints: ["Atomic Headcount Quotas", "FCFS Protected Weekly-Offs", "Approved Medical/Clinical Leave", "Fairness Adjacency Matrix"],
+      softConstraints: ["Gender Pod Targets", "Professional Preferences", "Shift History Balancing"],
       solverOutcome: solverResult.status,
       detectedConflicts: solverResult.issuesEncountered
     });
@@ -108,7 +114,7 @@ export default function RosterSolver() {
             <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                Mathematical Optimization Hub • CP-SAT Execution <BrainCircuit className="size-3 text-secondary" />
             </p>
-            <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border-emerald-500/20 text-emerald-600 bg-emerald-500/5">OR-Tools Powered</Badge>
+            <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border-emerald-500/20 text-emerald-600 bg-emerald-500/5">GCP IAM Secured</Badge>
           </div>
         </div>
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border-2 shadow-sm">
@@ -139,7 +145,7 @@ export default function RosterSolver() {
                   <div>
                     <CardTitle className="text-2xl uppercase font-black tracking-tight">Solver Hub</CardTitle>
                     <CardDescription className="text-[11px] font-bold uppercase tracking-widest mt-1 opacity-60">
-                       Deterministic Clinical Orchestration Node: {profile?.office}
+                       Private Node: {profile?.office} • Secure VPC Link
                     </CardDescription>
                   </div>
                 </div>
@@ -153,7 +159,7 @@ export default function RosterSolver() {
             <CardContent className="p-10 space-y-10">
               <div className="space-y-6">
                 <div className="flex justify-between items-end">
-                  <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em]">Mathematical Coverage</span>
+                  <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em]">Pipeline Data Integrity</span>
                   <span className="text-4xl font-black text-primary italic tracking-tighter">{progress}%</span>
                 </div>
                 <div className="h-4 bg-muted/30 rounded-full overflow-hidden shadow-inner border">
@@ -173,7 +179,18 @@ export default function RosterSolver() {
                           <Badge variant="outline" className="text-[9px] font-black">{solverResult.status}</Badge>
                        </div>
                        <p className="text-lg font-bold text-foreground leading-relaxed tracking-tight">{solverResult.summary}</p>
-                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">Solve Time: {solverResult.solverMetadata?.solveTimeMs}ms</p>
+                       {solverResult.solverMetadata && (
+                         <div className="flex items-center gap-6 mt-4 pt-4 border-t">
+                            <div className="space-y-1">
+                               <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Latency</p>
+                               <p className="text-[11px] font-black">{solverResult.solverMetadata.solveTimeMs.toFixed(0)}ms</p>
+                            </div>
+                            <div className="space-y-1">
+                               <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Hard Constraints</p>
+                               <p className="text-[11px] font-black">{solverResult.solverMetadata.constraintsChecked}</p>
+                            </div>
+                         </div>
+                       )}
                     </div>
                   </div>
                 </div>
@@ -191,7 +208,7 @@ export default function RosterSolver() {
             <CardHeader className="bg-muted/10 border-b p-8">
                <div className="flex items-center gap-4">
                  <History className="size-6 text-muted-foreground opacity-40" />
-                 <CardTitle className="text-sm font-black uppercase tracking-[0.2em]">Deployment History</CardTitle>
+                 <CardTitle className="text-sm font-black uppercase tracking-[0.2em]">Deployment Audit History</CardTitle>
                </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -207,7 +224,7 @@ export default function RosterSolver() {
                     </div>
                     <Link href={`/admin/roster/review/${draft.id}`}>
                        <Button variant="outline" className="h-12 px-8 text-[11px] font-black uppercase tracking-[0.2em] border-2 rounded-xl hover:bg-primary hover:text-white hover:border-primary transition-all group">
-                          Review Node <ChevronRight className="ml-3 size-4 group-hover:translate-x-1 transition-transform" />
+                          Review Workspace <ChevronRight className="ml-3 size-4 group-hover:translate-x-1 transition-transform" />
                        </Button>
                     </Link>
                   </div>
@@ -269,20 +286,26 @@ export default function RosterSolver() {
           <Card className="bg-white shadow-xl border-none rounded-[2.5rem] overflow-hidden border-l-4 border-l-secondary">
             <CardHeader className="p-8 pb-4">
                <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-3 text-muted-foreground">
-                <ShieldCheck className="size-5 text-secondary" /> Secure Pipeline
+                <Lock className="size-5 text-secondary" /> Trusted Data Pipeline
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 pt-2 space-y-8">
               <div className="flex gap-6 items-start">
                  <div className="size-2 rounded-full bg-secondary mt-2 shrink-0 shadow-[0_0_12px_blue]" />
                  <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
-                    Trusted Backend Flow: Data is fetched from authoritative Firestore snapshots.
+                    Trusted Backend context: Authoritative clinical constraints are fetched directly from Firestore, bypassing client-side data.
                  </p>
               </div>
               <div className="flex gap-6 items-start">
                  <div className="size-2 rounded-full bg-accent mt-2 shrink-0 shadow-[0_0_12px_teal]" />
                  <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
-                    IAM Authenticated: Communication with the Python engine is secured via Google service-to-service OIDC.
+                    PII Sanitized: Professionals are identified only by Clinical Unit IDs; names and contacts are never transmitted to the solver.
+                 </p>
+              </div>
+              <div className="flex gap-6 items-start">
+                 <div className="size-2 rounded-full bg-emerald-500 mt-2 shrink-0 shadow-[0_0_12px_emerald]" />
+                 <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
+                    IAM Gateway: Secure service-to-service communication via Google Cloud OIDC identity tokens.
                  </p>
               </div>
             </CardContent>
