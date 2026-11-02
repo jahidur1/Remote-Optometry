@@ -2,79 +2,30 @@
 'use server';
 
 /**
- * @fileOverview Genkit flow for generating an optimized weekly employee roster.
- * This flow serves as the orchestration layer for the mathematical solver.
- * 
- * INTEGRATED REQUIREMENTS:
- * 1. SO/OP Shift Fairness (Historical counts).
- * 2. Adjacency Restrictions (Pre/Post Off Allowed Shifts) as Hard Constraints.
- * 3. Exact Quota Satisfaction.
+ * @fileOverview Refactored Genkit flow for generating an optimized weekly employee roster.
+ * This flow now acts as a trusted backend coordinator, fetching authoritative data 
+ * from Firestore and delegating the heavy math to the Python OR-Tools solver.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
+import { callSolver } from '@/lib/solver-client';
+import { isDateInRange, getDatesForWeek } from '@/lib/date-utils';
 
-const DayOfWeekSchema = z.enum(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
-
-const ShiftSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-});
-
-const EmployeeSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  gender: z.enum(['male', 'female', 'other']),
-  historicalSO: z.number().default(0).describe('Total Super Opening assignments to date'),
-  historicalOP: z.number().default(0).describe('Total Opening assignments to date'),
-});
-
-const WeeklyQuotaSchema = z.object({
-  dayOfWeek: DayOfWeekSchema,
-  shiftId: z.string(),
-  requiredStaff: z.number().int(),
-});
-
-const EmployeeConstraintSchema = z.object({
-  employeeId: z.string(),
-  type: z.enum(['unavailable', 'weeklyOff', 'restrictedShift']),
-  dayOfWeek: DayOfWeekSchema,
-  restrictedToShifts: z.array(z.string()).optional().describe('List of eligible shift IDs for this day'),
-});
-
-const EmployeePreferenceSchema = z.object({
-  employeeId: z.string(),
-  type: z.enum(['preferDayOff', 'preferShift']),
-  dayOfWeek: DayOfWeekSchema,
-  shiftId: z.string().optional(),
-});
-
-const GenderTargetSchema = z.object({
-  shiftId: z.string(),
-  maleTarget: z.string().describe('Target band e.g. "1-2"'),
-  femaleTarget: z.string().describe('Target band e.g. "2-3"'),
-});
+const { firestore } = initializeFirebase();
 
 export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
-  shifts: z.array(ShiftSchema),
-  employees: z.array(EmployeeSchema),
-  weeklyQuotas: z.array(WeeklyQuotaSchema),
-  employeeHardConstraints: z.array(EmployeeConstraintSchema),
-  employeeSoftPreferences: z.array(EmployeePreferenceSchema).optional(),
-  genderTargets: z.array(GenderTargetSchema).optional(),
-  softWeights: z.object({
-    preferences: z.number().default(0.5),
-    genderBalance: z.number().default(0.7),
-    fairness: z.number().default(0.8),
-  }).optional(),
+  officeId: z.string(),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
 
 const RosterAssignmentSchema = z.object({
   employeeId: z.string(),
-  dayOfWeek: DayOfWeekSchema,
+  dayOfWeek: z.string(),
   shiftId: z.string(),
 });
 
@@ -92,37 +43,12 @@ export const GenerateWeeklyRosterOutputSchema = z.object({
 
 export type GenerateWeeklyRosterOutput = z.infer<typeof GenerateWeeklyRosterOutputSchema>;
 
+/**
+ * Trusted Backend Entry Point: Fetches authoritative data and strips PII.
+ */
 export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
   return generateWeeklyRosterFlow(input);
 }
-
-const generateWeeklyRosterPrompt = ai.definePrompt({
-  name: 'generateWeeklyRosterPrompt',
-  input: { schema: GenerateWeeklyRosterInputSchema },
-  output: { schema: GenerateWeeklyRosterOutputSchema },
-  prompt: `You are a mathematical roster optimization engine simulating OR-Tools CP-SAT logic.
-
-Your objective is to find a perfect assignment of employees to shifts that satisfies all HARD CONSTRAINTS and maximizes SOFT OBJECTIVES.
-
-## HARD CONSTRAINTS (MANDATORY)
-1. EXACT STAFFING: Every shift on every day MUST have precisely the number of employees specified in 'weeklyQuotas'.
-2. SINGLE ASSIGNMENT: An employee can work at most ONE shift per day.
-3. PROTECTED OFF-TIME: No shifts can be assigned to an employee on a day where they have a 'weeklyOff' or 'unavailable' constraint.
-4. ADJACENCY ELIGIBILITY: If an employee has a 'restrictedShift' constraint (from Adjacency Rules), they can ONLY be assigned to the shifts listed in 'restrictedToShifts'. This is a NON-NEGOTIABLE hard constraint.
-
-## SOFT OBJECTIVES (PRIORITIZED BY WEIGHTS)
-1. Opening Fairness: Use 'historicalSO' and 'historicalOP' metrics. Penalize assignments of Super Opening (SO) and Opening (OP) shifts to employees who already have high historical counts. Distribute these shifts fairly across the pool.
-2. Preferences: Honor 'employeeSoftPreferences' where possible.
-3. Gender Balance: Aim for 'genderTargets' per shift instance.
-4. Fairness: Distribute Closing shifts evenly across the active pool.
-
-## INPUT DATA
-Week: {{{weekId}}}
-Available Staff: {{employees.length}}
-Shifts: {{#each shifts}}{{this.id}} ({{this.name}}), {{/each}}
-
-Analyze the constraints and generate the assignment grid in 'rosterAssignments'. If hard constraints make the roster mathematically impossible, return INFEASIBLE.`,
-});
 
 const generateWeeklyRosterFlow = ai.defineFlow(
   {
@@ -132,44 +58,117 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   },
   async (input) => {
     const start = Date.now();
-    
-    // Independent Pre-Feasibility Check
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const issues: string[] = [];
+    const { weekId, officeId } = input;
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const weekDates = getDatesForWeek(weekId);
 
-    days.forEach(day => {
-      const quotaForDay = input.weeklyQuotas
-        .filter(q => q.dayOfWeek === day)
-        .reduce((sum, q) => sum + q.requiredStaff, 0);
-      
-      const offCount = input.employeeHardConstraints
-        .filter(c => c.dayOfWeek === day && (c.type === 'weeklyOff' || c.type === 'unavailable')).length;
-      
-      const available = input.employees.length - offCount;
+    try {
+      // 1. Authoritative Data Fetching (Trusted Backend context)
+      const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
+        getDocs(query(collection(firestore, 'employees'), where('office', '==', officeId), where('status', '==', 'Active'))),
+        getDocs(query(collection(firestore, 'shift_master'), orderBy('displayOrder'))),
+        getDoc(doc(firestore, 'roster_quotas', weekId)),
+        getDocs(query(collection(firestore, 'weekoff_bookings'), where('weekId', '==', weekId), where('office', '==', officeId))),
+        getDocs(query(collection(firestore, 'employee_leaves'), where('status', '==', 'approved'))),
+        getDocs(query(collection(firestore, 'shift_adjacency_rules'), where('weekId', '==', weekId))),
+        getDocs(query(collection(firestore, 'employee_preferences'), where('weekId', '==', weekId)))
+      ]);
 
-      if (quotaForDay !== available) {
-        issues.push(`${day}: Quota shortfall/surplus. Available (${available}) != Required (${quotaForDay}).`);
+      if (!quotaSnap.exists()) {
+        throw new Error(`Quotas for week ${weekId} not configured.`);
       }
-    });
 
-    if (issues.length > 0) {
+      const quotaData = quotaSnap.data()!;
+      const employees = empSnap.docs.map(d => ({ 
+        id: d.id, 
+        gender: (d.data().gender || 'Other').toLowerCase(),
+        // Historical metrics could be aggregated here from previous published_rosters
+        historicalSO: 0, 
+        historicalOP: 0 
+      }));
+
+      const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
+
+      // 2. Constraint Construction (Stripping PII)
+      const employeeHardConstraints = [
+        ...bookingsSnap.docs.map(d => ({ 
+          employeeId: d.data().employeeId, 
+          type: 'weeklyOff', 
+          dayOfWeek: d.data().dayOfWeek 
+        })),
+        ...leavesSnap.docs.flatMap(d => {
+          const leaf = d.data();
+          const emp = employees.find(e => e.id === leaf.employeeId);
+          if (!emp) return [];
+          return DAYS.filter((day, idx) => isDateInRange(weekDates[idx], leaf.startDate, leaf.endDate))
+            .map(day => ({ employeeId: leaf.employeeId, type: 'unavailable', dayOfWeek: day }));
+        }),
+        ...bookingsSnap.docs.flatMap(d => {
+          const booking = d.data();
+          const rule = rulesSnap.docs.find(r => r.data().employeeId === booking.employeeId)?.data();
+          if (!rule) return [];
+          const res: any[] = [];
+          const idx = DAYS.indexOf(booking.dayOfWeek);
+          if (idx > 0 && rule.allowedPreOffShifts?.length > 0) {
+            res.push({ employeeId: booking.employeeId, type: 'restrictedShift', dayOfWeek: DAYS[idx - 1], restrictedToShifts: rule.allowedPreOffShifts });
+          }
+          if (idx < 6 && rule.allowedPostOffShifts?.length > 0) {
+            res.push({ employeeId: booking.employeeId, type: 'restrictedShift', dayOfWeek: DAYS[idx + 1], restrictedToShifts: rule.allowedPostOffShifts });
+          }
+          return res;
+        })
+      ];
+
+      const weeklyQuotas = Object.entries(quotaData.quotas || {}).map(([key, val]) => {
+        const [day, shiftId] = key.split('_');
+        return { dayOfWeek: day, shiftId, requiredStaff: val as number };
+      });
+
+      const employeeSoftPreferences = prefsSnap.docs.map(d => ({
+        employeeId: d.data().employeeId,
+        dayOfWeek: d.data().dayOfWeek,
+        shiftId: d.data().shiftId,
+        weight: 1.0
+      }));
+
+      // 3. Mathematical Optimization (Delegating to Python Solver)
+      const solverPayload = {
+        weekId,
+        officeId,
+        shifts,
+        employees,
+        weeklyQuotas,
+        employeeHardConstraints,
+        employeeSoftPreferences,
+        timeLimitSeconds: 60
+      };
+
+      const result = await callSolver(solverPayload);
+
+      // 4. Output Validation & Mapping
+      return {
+        rosterAssignments: result.assignments || [],
+        summary: result.status === 'OPTIMAL' 
+          ? `Mathematically optimal roster found for ${officeId}.` 
+          : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
+        status: result.status,
+        issuesEncountered: result.errors || [],
+        solverMetadata: {
+          solveTimeMs: result.metadata.solveTimeMs,
+          constraintsChecked: solverPayload.employeeHardConstraints.length,
+          objectiveValue: result.metadata.objectiveValue
+        }
+      };
+
+    } catch (e: any) {
+      console.error('Roster Flow Error:', e);
       return {
         rosterAssignments: [],
-        summary: "Mathematical pre-feasibility failed. Staffing imbalance detected across ROC cluster.",
-        status: 'INFEASIBLE',
-        issuesEncountered: issues,
-        solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: issues.length }
+        summary: `Institutional Error: ${e.message}`,
+        status: 'UNKNOWN',
+        issuesEncountered: [e.message],
+        solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }
       };
     }
-
-    const { output } = await generateWeeklyRosterPrompt(input);
-    
-    return {
-      ...output!,
-      solverMetadata: {
-        solveTimeMs: Date.now() - start,
-        constraintsChecked: input.employees.length * 7 * input.shifts.length,
-      }
-    };
   }
 );
