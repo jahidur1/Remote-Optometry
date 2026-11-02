@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '../provider';
 import { getLocalSessionId } from '@/lib/session-utils';
 
@@ -46,14 +46,19 @@ export function useUser() {
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
+        const data = docSnap.data() as UserProfile;
+        setProfile(data);
+        
+        // Immediate lockout if status is not Active
+        if (data.status !== 'Active') {
+           setSessionValid(false);
+        }
       } else {
         setProfile(null);
       }
     });
 
     // 2. Session Integrity Subscription
-    // Verifies that the current device session has not been revoked or expired.
     const sessionId = getLocalSessionId();
     const sessionDocRef = doc(firestore, 'sessions', `${user.uid}_${sessionId}`);
     
@@ -61,20 +66,23 @@ export function useUser() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const now = new Date();
-        const deadline = new Date(data.deadlineAt);
         
-        // Session is valid ONLY IF status is active AND deadline has not passed.
+        // Handle both Timestamp and String deadlines for migration safety
+        const deadline = data.deadlineAt instanceof Timestamp 
+          ? data.deadlineAt.toDate() 
+          : new Date(data.deadlineAt);
+        
         const isActive = data.status === 'active' && now < deadline;
         
         setSessionData(data);
-        setSessionValid(isActive);
+        // Only set valid if both session AND profile status are correct
+        setSessionValid(isActive && profile?.status === 'Active');
       } else {
-        // If no session record exists for this ID, it is considered invalid/anonymous.
         setSessionValid(false);
       }
       setLoading(false);
     }, (error) => {
-      console.error("Session lookup error:", error);
+      console.error("Session integrity check failed:", error);
       setSessionValid(false);
       setLoading(false);
     });
@@ -83,7 +91,7 @@ export function useUser() {
       unsubscribeProfile();
       unsubscribeSession();
     };
-  }, [user, firestore]);
+  }, [user, firestore, profile?.status]);
 
   return { 
     user, 

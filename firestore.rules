@@ -2,13 +2,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
+    // --- HELPER FUNCTIONS ---
+    
     function isSignedIn() {
       return request.auth != null;
     }
     
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isUserActive() {
+      // Global Kill Switch: Ensures the account is not suspended/inactive
+      return isSignedIn() && getUserData().status == 'Active';
     }
     
     function isAdmin() {
@@ -19,95 +25,108 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isOwnerRecord(employeeId) {
-       return isSignedIn() && get(/databases/$(database)/documents/employees/$(employeeId)).data.whatsappNumber == request.auth.token.phone_number;
+    // --- SESSIONS COLLECTION (HARDENED) ---
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      
+      // Enforce server-side session policy during creation
+      allow create: if isSignedIn() && 
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == 'active' &&
+        // verifiedAt must match the server's time
+        request.resource.data.verifiedAt == request.time &&
+        // deadlineAt must be exactly 365 days from verifiedAt
+        request.resource.data.deadlineAt == request.resource.data.verifiedAt + duration.value(31536000, 's');
+
+      allow update: if isSignedIn() && (
+        // 1. Admin Revocation Path
+        (isAdmin() && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revokedBy', 'revokedAt']) && 
+         request.resource.data.status == 'revoked') ||
+        
+        // 2. Owner Heartbeat/Label Path (Locking security fields)
+        (request.auth.uid == resource.data.uid && 
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt', 'uid', 'employeeId']))
+      );
+      
+      allow delete: if false; // Sessions are never deleted, only revoked
     }
 
-    // Employees Collection - SECURED
+    // --- EMPLOYEES COLLECTION ---
     match /employees/{employeeId} {
-      // Admins can manage all records. 
-      // Employees can only 'get' their own record to verify identity post-login.
-      allow get: if isSignedIn() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
-      allow list: if isAdmin();
-      allow create: if isAdmin();
+      allow get: if isUserActive() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
+      allow list: if isAdmin() && isUserActive();
+      allow create: if isAdmin() && isUserActive();
       
-      // Employees can only update self-managed fields (Age, Email).
-      // Block modification of Role, Status, Phone, and ID.
-      allow update: if isAdmin() || (
-        isSignedIn() && 
+      allow update: if (isAdmin() && isUserActive()) || (
+        isUserActive() && 
         resource.data.whatsappNumber == request.auth.token.phone_number &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt'])
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() && isUserActive();
     }
 
-    // Users Collection (Auth Mapping)
+    // --- USERS COLLECTION ---
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isAdmin();
+      allow write: if (isOwner(userId) || isAdmin()) && isSignedIn();
     }
 
-    // Sessions Collection
-    match /sessions/{sessionId} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow write: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
-    }
-
-    // Audit Logs
+    // --- AUDIT LOGS ---
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() && isUserActive();
       allow create: if isSignedIn(); 
     }
     
-    // Workforce Collections
+    // --- WORKFORCE DATA (PROTECTED BY SESSION STATUS) ---
     match /shift_master/{shiftId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read: if isUserActive();
+      allow write: if isAdmin() && isUserActive();
     }
     
     match /weekoff_configs/{weekId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read: if isUserActive();
+      allow write: if isAdmin() && isUserActive();
     }
     
     match /weekoff_bookings/{bookingId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && (request.resource.data.employeeId == getUserData().employeeId || isAdmin()); 
+      allow read: if isUserActive();
+      allow write: if isUserActive() && (request.resource.data.employeeId == getUserData().employeeId || isAdmin()); 
     }
     
     match /employee_leaves/{leaveId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && request.resource.data.employeeId == getUserData().employeeId);
+      allow read: if isUserActive();
+      allow write: if (isAdmin() && isUserActive()) || (isUserActive() && request.resource.data.employeeId == getUserData().employeeId);
     }
     
     match /roster_quotas/{weekId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read: if isUserActive();
+      allow write: if isAdmin() && isUserActive();
     }
     
     match /roster_drafts/{draftId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() && isUserActive();
     }
     
     match /published_rosters/{versionId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read: if isUserActive();
+      allow write: if isAdmin() && isUserActive();
     }
     
     match /whatsapp_logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() && isUserActive();
       allow create: if true;
     }
     
     match /employee_preferences/{prefId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.resource.data.employeeId == getUserData().employeeId;
+      allow read: if isUserActive();
+      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
     }
 
     match /shift_swaps/{swapId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow read: if isUserActive();
+      allow create: if isUserActive();
+      allow update: if isUserActive();
     }
   }
 }

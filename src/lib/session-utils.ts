@@ -1,12 +1,11 @@
 
-import { doc, setDoc, Firestore } from 'firebase/firestore';
+import { doc, setDoc, Firestore, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { addDays } from 'date-fns';
 
 const SESSION_KEY = 'roc_workforce_session_v1';
 
 /**
  * Retrieves or generates a persistent unique ID for the current browser instance.
- * This ID links the local browser to a server-side session record.
  */
 export function getLocalSessionId(): string {
   if (typeof window === 'undefined') return '';
@@ -20,7 +19,7 @@ export function getLocalSessionId(): string {
 
 /**
  * Creates or refreshes a session record in Firestore.
- * Sets the 365-day re-verification deadline.
+ * Now strictly adheres to the 365-day security rules.
  */
 export async function createOrUpdateSession(
   db: Firestore, 
@@ -32,24 +31,39 @@ export async function createOrUpdateSession(
   const sessionRef = doc(db, 'sessions', `${uid}_${sessionId}`);
   
   const now = new Date();
+  // Calculate exactly 365 days later for the security rule check
   const deadline = addDays(now, 365);
 
   const derivedLabel = label || (typeof navigator !== 'undefined' ? 
     `${navigator.platform} (${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'})` : 
     'Unknown Device');
 
+  // CRITICAL: verifiedAt uses serverTimestamp() to satisfy Firestore Rules
+  // deadlineAt uses a JS Date which Firestore converts to a Timestamp
   const sessionData = {
     id: sessionId,
     uid,
     employeeId,
     label: derivedLabel,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Server',
-    verifiedAt: now.toISOString(),
-    deadlineAt: deadline.toISOString(),
-    lastActive: now.toISOString(),
+    verifiedAt: serverTimestamp(),
+    deadlineAt: deadline,
+    lastActive: serverTimestamp(),
     status: 'active'
   };
 
-  await setDoc(sessionRef, sessionData, { merge: true });
+  await setDoc(sessionRef, sessionData);
   return sessionData;
+}
+
+/**
+ * Sends a heartbeat to keep the session active without modifying security fields.
+ */
+export async function sessionHeartbeat(db: Firestore, uid: string) {
+  const sessionId = getLocalSessionId();
+  const sessionRef = doc(db, 'sessions', `${uid}_${sessionId}`);
+  
+  await setDoc(sessionRef, {
+    lastActive: serverTimestamp()
+  }, { merge: true });
 }
