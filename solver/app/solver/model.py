@@ -7,8 +7,11 @@ class RosterSolver:
     """
     Deterministic Roster Optimization Engine using Google OR-Tools CP-SAT.
     
-    This model finds an assignment between employees and shifts for a 7-day period
-    that satisfies all Hard Constraints and optimizes for Soft Objectives.
+    Integrated Business Rules:
+    1. Exact Quotas: No flexibility in headcount.
+    2. Weekly-Off: Absolute protection of FCFS bookings.
+    3. Adjacency: Enforced pre/post-off shift restrictions.
+    4. Leave: Zero assignment during unavailability.
     """
     def __init__(self, request: SolveRosterRequest):
         self.request = request
@@ -16,25 +19,50 @@ class RosterSolver:
         self.days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         self.employees = request.employees
         self.shifts = request.shifts
-        
-        # Mapping for easy lookup
         self.shift_ids = [s.id for s in self.shifts]
         
         # Decision Variables: x[employee, day, shift]
-        # x = 1 if employee works shift s on day d, else 0.
         self.x = {}
         for e in self.employees:
             for d in self.days:
                 for s in self.shift_ids:
                     self.x[e.id, d, s] = self.model.NewBoolVar(f'x_{e.id}_{d}_{s}')
 
+    def perform_pre_check(self) -> list[str]:
+        """Identifies immediate mathematical impossibilities before solving."""
+        errors = []
+        for d in self.days:
+            day_total_quota = sum(q.requiredStaff for q in self.request.weeklyQuotas if q.dayOfWeek == d)
+            
+            # Count unavailable emps (Weekly Off + Leave)
+            unavailable_count = len({
+                c.employeeId for c in self.request.employeeHardConstraints 
+                if c.dayOfWeek == d and c.type in ['weeklyOff', 'unavailable']
+            })
+            
+            available_pool = len(self.employees) - unavailable_count
+            
+            if day_total_quota > available_pool:
+                errors.append(f"{d}: Quota surplus. Required={day_total_quota}, Available={available_pool} for office {self.request.officeId}")
+        
+        return errors
+
     def solve(self) -> SolveRosterResponse:
         start_time = time.time()
         
+        # 0. Pre-Feasibility Check
+        pre_errors = self.perform_pre_check()
+        if pre_errors:
+            return SolveRosterResponse(
+                status='INFEASIBLE',
+                assignments=[],
+                metadata=SolverMetadata(solveTimeMs=0, status='INFEASIBLE'),
+                errors=pre_errors
+            )
+
         # --- HARD CONSTRAINTS ---
 
-        # 1. Exact Staffing Quotas
-        # Every shift on every day MUST have exactly the required headcount.
+        # 1. Exact Staffing Quotas (Mandatory per Audit)
         for d in self.days:
             for s in self.shift_ids:
                 quota = next((q.requiredStaff for q in self.request.weeklyQuotas 
@@ -42,22 +70,18 @@ class RosterSolver:
                 self.model.Add(sum(self.x[e.id, d, s] for e in self.employees) == quota)
 
         # 2. Single Assignment Per Day
-        # An employee can work at most one shift per day.
         for e in self.employees:
             for d in self.days:
                 self.model.Add(sum(self.x[e.id, d, s] for s in self.shift_ids) <= 1)
 
         # 3. Protected Off-Time (Weekly Off & Leaves)
-        # Prevent any shift assignment on days where the employee is unavailable.
         for c in self.request.employeeHardConstraints:
             if c.type in ['weeklyOff', 'unavailable']:
                 if c.dayOfWeek in self.days:
                     for s in self.shift_ids:
                         self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
 
-        # 4. Adjacency Eligibility (Restricted Shifts)
-        # Enforce "Allowed Shifts" based on pre/post off rules.
-        # If an employee has a restrictedShift constraint, they can ONLY work the shifts listed.
+        # 4. Adjacency Eligibility (Shift Restrictions)
         for c in self.request.employeeHardConstraints:
             if c.type == 'restrictedShift' and c.restrictedToShifts is not None:
                 if c.dayOfWeek in self.days:
@@ -66,18 +90,14 @@ class RosterSolver:
                         if s not in allowed:
                             self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
 
-        # --- SOFT OBJECTIVES (Optimization) ---
+        # --- SOFT OBJECTIVES ---
 
-        # 5. Opening Fairness
-        # We minimize the penalty of assigning SO/OP shifts to professionals who have 
-        # already worked them frequently in the past.
+        # 5. Opening Fairness (SO/OP Penalties)
         penalties = []
         for e in self.employees:
             for d in self.days:
-                # Penalty for Super Opening (SO)
                 if (e.id, d, "SO") in self.x:
                     penalties.append(self.x[e.id, d, "SO"] * (e.historicalSO + 1))
-                # Penalty for Opening (OP)
                 if (e.id, d, "OP") in self.x:
                     penalties.append(self.x[e.id, d, "OP"] * (e.historicalOP + 1))
         
@@ -87,11 +107,9 @@ class RosterSolver:
         # --- EXECUTION ---
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = float(self.request.timeLimitSeconds)
-        # Use parallel workers for better performance in clinical scale rosters
         solver.parameters.num_search_workers = 8
         
         status = solver.Solve(self.model)
-        
         solve_duration_ms = (time.time() - start_time) * 1000
         
         status_map = {
@@ -117,6 +135,7 @@ class RosterSolver:
                 solveTimeMs=solve_duration_ms,
                 status=status_map.get(status, 'UNKNOWN'),
                 objectiveValue=solver.ObjectiveValue() if status in [cp_model.OPTIMAL, cp_model.FEASIBLE] else None,
-                workerName="OR-Tools-CP-SAT-Engine-v1"
-            )
+                workerName="ROC-CP-SAT-Engine-v2"
+            ),
+            errors=pre_errors if status == cp_model.INFEASIBLE else []
         )

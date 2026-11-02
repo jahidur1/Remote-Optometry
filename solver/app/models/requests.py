@@ -29,6 +29,7 @@ class SolverWeights(BaseModel):
 
 class SolveRosterRequest(BaseModel):
     weekId: str
+    officeId: str # KOLKATA_ROC, GURGAON_ROC, LUCKNOW_ROC
     shifts: List[Shift]
     employees: List[Employee]
     weeklyQuotas: List[DailyQuota]
