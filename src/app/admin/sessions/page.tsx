@@ -20,7 +20,10 @@ export default function AdminSessionManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [revokingAll, setRevokingAll] = useState(false);
 
-  const { data: sessions, loading } = useCollection(query(collection(db, 'sessions'), orderBy('deadlineAt', 'asc'), limit(100)));
+  const { data: sessions, loading } = useCollection(
+    query(collection(db, 'sessions'), orderBy('deadlineAt', 'asc'), limit(100))
+  );
+  
   const { data: employees } = useCollection(collection(db, 'employees'));
 
   const handleRevoke = async (uid: string, sessionId: string, employeeId: string) => {
@@ -108,7 +111,7 @@ export default function AdminSessionManager() {
             <TableHeader className="bg-muted/30">
               <TableRow className="uppercase text-[10px] font-black tracking-widest">
                 <TableHead>Professional</TableHead>
-                <TableHead>Device intelligence</TableHead>
+                <TableHead>Device Intelligence</TableHead>
                 <TableHead>Verification Pulse</TableHead>
                 <TableHead>365-Day Deadline</TableHead>
                 <TableHead>Status</TableHead>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -84,6 +85,7 @@ export default function LoginPage() {
     try {
       const formattedPhone = `+91${phoneNumber}`;
       
+      // 1. Verify number is in the authorized clinical directory
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
       const snap = await getDocs(q);
 
@@ -96,6 +98,7 @@ export default function LoginPage() {
         throw new Error(`Access restricted: Status is ${employee.status.toLowerCase()}.`);
       }
 
+      // 2. Clear old verifier and trigger new OTP
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.clear();
         (window as any).recaptchaVerifier = null;
@@ -109,6 +112,7 @@ export default function LoginPage() {
       setStep('otp');
       setResendCooldown(60);
       
+      // 3. Log attempt for cost audit
       logAudit(db, 'system', 'AUTH_OTP_REQUEST', phoneNumber, { source: 'web_portal' });
       
       toast({ title: "OTP Sent", description: "Verification code sent to your registered mobile." });
@@ -135,10 +139,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Force local persistence for the 365-day cycle
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
+      // 1. Final verification of profile and role
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
@@ -157,6 +163,7 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         };
 
+        // Update user profile with explicit error handling
         setDoc(userRef, userData, { merge: true }).catch(async (error) => {
           const permissionError = new FirestorePermissionError({
             path: userRef.path,
@@ -166,6 +173,7 @@ export default function LoginPage() {
           errorEmitter.emit('permission-error', permissionError);
         });
 
+        // 2. Register this device session for the 365-day cycle
         await createOrUpdateSession(db, user.uid, employee.id);
         
         logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
@@ -175,6 +183,7 @@ export default function LoginPage() {
           description: `Welcome back, ${employee.fullName.split(' ')[0]}.`,
         });
 
+        // 3. Dispatch to appropriate dashboard
         if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
           router.push('/admin');
         } else {

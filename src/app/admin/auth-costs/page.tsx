@@ -17,7 +17,9 @@ export default function AuthCostDashboard() {
   const db = useFirestore();
   const [daysBack] = useState(30);
 
-  const { data: logs, loading } = useCollection(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(500)));
+  const { data: logs, loading } = useCollection(
+    query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(500))
+  );
 
   const stats = useMemo(() => {
     if (!logs) return null;
@@ -35,6 +37,7 @@ export default function AuthCostDashboard() {
   }, [logs]);
 
   const chartData = useMemo(() => {
+    // Generate dummy historical data for the bar chart
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days.map(d => ({
       name: d,

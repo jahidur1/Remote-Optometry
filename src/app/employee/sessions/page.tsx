@@ -23,7 +23,12 @@ export default function SessionManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
 
-  const sessionsQuery = user ? query(collection(db, 'sessions'), where('uid', '==', user.uid), where('status', '==', 'active')) : null;
+  const sessionsQuery = user ? query(
+    collection(db, 'sessions'), 
+    where('uid', '==', user.uid), 
+    where('status', '==', 'active')
+  ) : null;
+
   const { data: sessions, loading } = useCollection(sessionsQuery);
 
   const handleRevoke = async (sessionId: string, fullId: string) => {
@@ -53,7 +58,12 @@ export default function SessionManagement() {
     }
   };
 
-  if (loading) return <div className="flex h-[70vh] flex-col items-center justify-center gap-4"><Loader2 className="animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Syncing Device Cloud</p></div>;
+  if (loading) return (
+    <div className="flex h-[70vh] flex-col items-center justify-center gap-4">
+      <Loader2 className="animate-spin text-secondary" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Syncing Device Cloud</p>
+    </div>
+  );
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-24 pt-4 px-4">

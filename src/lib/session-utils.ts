@@ -4,6 +4,10 @@ import { addDays } from 'date-fns';
 
 const SESSION_KEY = 'roc_workforce_session_v1';
 
+/**
+ * Retrieves or generates a persistent unique ID for the current browser instance.
+ * This ID links the local browser to a server-side session record.
+ */
 export function getLocalSessionId(): string {
   if (typeof window === 'undefined') return '';
   let id = localStorage.getItem(SESSION_KEY);
@@ -14,6 +18,10 @@ export function getLocalSessionId(): string {
   return id;
 }
 
+/**
+ * Creates or refreshes a session record in Firestore.
+ * Sets the 365-day re-verification deadline.
+ */
 export async function createOrUpdateSession(
   db: Firestore, 
   uid: string, 

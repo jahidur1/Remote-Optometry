@@ -15,6 +15,7 @@ export type UserProfile = {
   status?: 'Active' | 'Inactive' | 'Suspended';
   employeeId?: string;
   phoneNumber?: string;
+  office?: string;
 };
 
 export function useUser() {
@@ -41,6 +42,7 @@ export function useUser() {
   useEffect(() => {
     if (!user || !firestore) return;
 
+    // 1. Profile Subscription
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -50,6 +52,8 @@ export function useUser() {
       }
     });
 
+    // 2. Session Integrity Subscription
+    // Verifies that the current device session has not been revoked or expired.
     const sessionId = getLocalSessionId();
     const sessionDocRef = doc(firestore, 'sessions', `${user.uid}_${sessionId}`);
     
@@ -58,11 +62,14 @@ export function useUser() {
         const data = docSnap.data();
         const now = new Date();
         const deadline = new Date(data.deadlineAt);
+        
+        // Session is valid ONLY IF status is active AND deadline has not passed.
         const isActive = data.status === 'active' && now < deadline;
         
         setSessionData(data);
         setSessionValid(isActive);
       } else {
+        // If no session record exists for this ID, it is considered invalid/anonymous.
         setSessionValid(false);
       }
       setLoading(false);

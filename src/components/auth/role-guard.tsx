@@ -23,16 +23,19 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
   useEffect(() => {
     if (loading) return;
 
+    // 1. Authentication Check
     if (!user) {
       if (pathname !== '/login') router.push('/login');
       return;
     }
 
+    // 2. Account Status Check (Deactivation)
     if (profile?.status === 'Suspended') {
       router.push('/account-disabled');
       return;
     }
 
+    // 3. Authorization Check (Roles)
     if (profile && !allowedRoles.includes(profile.role)) {
       router.push('/unauthorized');
       return;
@@ -48,6 +51,7 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
+  // 4. Session Integrity Check (Server Revocation or 365-day Expired)
   if (user && !sessionValid && pathname !== '/login') {
     return (
       <div className="flex h-screen items-center justify-center bg-primary p-4">
