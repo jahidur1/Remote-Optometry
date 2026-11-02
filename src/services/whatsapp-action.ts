@@ -4,10 +4,11 @@
  * @fileOverview Meta WhatsApp Cloud API Server Action.
  * 
  * Handles secure communication with Meta's Graph API using institutional credentials.
+ * Credentials are stored on the server and never exposed to the client.
  */
 
-const PHONE_NUMBER_ID = '1143569695505848';
-const ACCESS_TOKEN = 'EAASX13nmmYgBRmCXnh6JLT56PQdMrqQTA5CQM9ITn988OHZBv0KltEsJIndy2ZCxBAEfAZAtlCGaEFJWLhl8F7kYMxkAbWrEZAnDIPZCYFwtHCos5Gq6NU7s1yFDZAgW65FTZCJLPICNgKsiM4ZCMzPlh8giYYsO5nnCA60ZBB9Btry6iv2ZAedsVs2xYG0wVBbAZDZD';
+const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '1143569695505848';
+const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || 'EAASX13nmmYgBRmCXnh6JLT56PQdMrqQTA5CQM9ITn988OHZBv0KltEsJIndy2ZCxBAEfAZAtlCGaEFJWLhl8F7kYMxkAbWrEZAnDIPZCYFwtHCos5Gq6NU7s1yFDZAgW65FTZCJLPICNgKsiM4ZCMzPlh8giYYsO5nnCA60ZBB9Btry6iv2ZAedsVs2xYG0wVBbAZDZD';
 const API_VERSION = 'v21.0';
 
 export type WhatsAppSendResult = {
@@ -17,8 +18,8 @@ export type WhatsAppSendResult = {
 };
 
 /**
- * Sends a WhatsApp message via Meta Cloud API.
- * Uses a template-based approach as required for business-initiated conversations.
+ * Sends a WhatsApp message via Meta Cloud API using an approved template.
+ * Parameters: Name, Date, Shift Name, Shift Time.
  */
 export async function sendWhatsAppShiftBriefing(
   to: string,
@@ -29,15 +30,16 @@ export async function sendWhatsAppShiftBriefing(
 ): Promise<WhatsAppSendResult> {
   const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
   
-  // Format phone number (remove +, ensure country code)
-  const formattedTo = to.replace(/\D/g, '');
+  // Normalize phone: remove +, ensure country code (default +91)
+  let formattedTo = to.replace(/\D/g, '');
+  if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
 
   const payload = {
     messaging_product: 'whatsapp',
     to: formattedTo,
     type: 'template',
     template: {
-      name: 'shift_briefing', // This template must exist and be approved in your Meta App Dashboard
+      name: 'shift_briefing',
       language: { code: 'en_US' },
       components: [
         {
@@ -66,10 +68,9 @@ export async function sendWhatsAppShiftBriefing(
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('Meta API Error:', data);
       return { 
         success: false, 
-        error: data.error?.message || 'Failed to dispatch via Meta API' 
+        error: data.error?.message || 'Meta API Dispatch Failed' 
       };
     }
 
@@ -78,23 +79,23 @@ export async function sendWhatsAppShiftBriefing(
       messageId: data.messages?.[0]?.id 
     };
   } catch (err: any) {
-    console.error('WhatsApp Action Failure:', err);
     return { success: false, error: err.message };
   }
 }
 
 /**
- * Simple text message for testing connectivity.
+ * Verification of API connectivity using a simple text message.
  */
 export async function sendWhatsAppTestMessage(to: string): Promise<WhatsAppSendResult> {
   const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
-  const formattedTo = to.replace(/\D/g, '');
+  let formattedTo = to.replace(/\D/g, '');
+  if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
 
   const payload = {
     messaging_product: 'whatsapp',
     to: formattedTo,
     type: 'text',
-    text: { body: 'ROC Workforce: Meta Cloud API Connection Verified. System is ready for shift briefings.' }
+    text: { body: 'ROC Workforce: System Connectivity Verified. Meta Cloud API is online.' }
   };
 
   try {

@@ -1,17 +1,17 @@
 'use client';
 
-import { collection, addDoc, serverTimestamp, Firestore, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, Firestore, query, where, getDocs, limit } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { sendWhatsAppShiftBriefing } from '@/services/whatsapp-action';
 
 /**
- * Orchestrates the sending and logging of a shift briefing.
+ * Orchestrates shift briefing notifications with strict idempotency and masked logging.
  * 
  * DESIGN:
- * 1. Check for previous successful notification (idempotency).
- * 2. Invoke Secure Server Action for Meta API.
- * 3. Log the outcome to Firestore for audit.
+ * 1. Verify previous successful notification for the same date/version.
+ * 2. Dispatch via Secure Server Action (Meta API).
+ * 3. Mask PII before writing to the public audit log.
  */
 export async function dispatchAndLogNotification(
   db: Firestore,
@@ -25,7 +25,7 @@ export async function dispatchAndLogNotification(
 ) {
   const logRef = collection(db, 'whatsapp_logs');
   
-  // 1. Idempotency Check
+  // 1. Idempotency Check: Don't double-send if already successful for this specific roster version
   const q = query(
     logRef,
     where('employeeId', '==', employeeId),
@@ -38,11 +38,10 @@ export async function dispatchAndLogNotification(
   try {
     const snap = await getDocs(q);
     if (!snap.empty) {
-        console.log(`Notification already sent for ${employeeId} on ${date}. Skipping.`);
-        return { success: true, message: 'Already sent' };
+        return { success: true, message: 'IDEMPOTENT_SKIP' };
     }
 
-    // 2. Dispatch via Meta Cloud API (Server Action)
+    // 2. Dispatch via Meta Cloud API
     const result = await sendWhatsAppShiftBriefing(
       phone,
       employeeName,
@@ -51,7 +50,7 @@ export async function dispatchAndLogNotification(
       date
     );
 
-    // 3. Log to Audit Trail
+    // 3. Mask Phone for Privacy (PII Protection)
     const maskedPhone = phone.replace(/(\d{2})(\d{6})(\d{2})/, '$1******$3');
 
     await addDoc(logRef, {
@@ -63,7 +62,7 @@ export async function dispatchAndLogNotification(
         messageId: result.messageId || null,
         failureReason: result.error || null,
         timestamp: new Date().toISOString(),
-        source: 'automated_scheduler_v1'
+        source: 'roster_publisher_v1'
     });
 
     return result;
