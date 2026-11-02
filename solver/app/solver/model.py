@@ -7,7 +7,7 @@ class RosterSolver:
     """
     Deterministic Roster Optimization Engine using Google OR-Tools CP-SAT.
     
-    This model finds a mapping between employees and shifts for a 7-day period
+    This model finds an assignment between employees and shifts for a 7-day period
     that satisfies all Hard Constraints and optimizes for Soft Objectives.
     """
     def __init__(self, request: SolveRosterRequest):
@@ -57,12 +57,14 @@ class RosterSolver:
 
         # 4. Adjacency Eligibility (Restricted Shifts)
         # Enforce "Allowed Shifts" based on pre/post off rules.
+        # If an employee has a restrictedShift constraint, they can ONLY work the shifts listed.
         for c in self.request.employeeHardConstraints:
             if c.type == 'restrictedShift' and c.restrictedToShifts is not None:
-                allowed = set(c.restrictedToShifts)
-                for s in self.shift_ids:
-                    if s not in allowed:
-                        self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
+                if c.dayOfWeek in self.days:
+                    allowed = set(c.restrictedToShifts)
+                    for s in self.shift_ids:
+                        if s not in allowed:
+                            self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
 
         # --- SOFT OBJECTIVES (Optimization) ---
 

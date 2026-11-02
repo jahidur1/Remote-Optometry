@@ -99,3 +99,26 @@ def test_solver_bilateral_shift_distinction():
     shifts_assigned = {a.shiftId for a in result.assignments}
     assert "C1" in shifts_assigned
     assert "C2" in shifts_assigned
+
+def test_solver_respects_adjacency_restrictions():
+    """Verify that restrictedShift constraints are honored."""
+    request = SolveRosterRequest(
+        weekId="2024-52",
+        shifts=[
+            Shift(id="SO", name="SO"),
+            Shift(id="C1", name="C1")
+        ],
+        employees=[Employee(id="EMP1", gender="male")],
+        weeklyQuotas=[
+            DailyQuota(dayOfWeek="Monday", shiftId="C1", requiredStaff=1)
+        ],
+        employeeHardConstraints=[
+            # Employee can ONLY work SO, but the quota requires C1
+            EmployeeConstraint(employeeId="EMP1", type="restrictedShift", dayOfWeek="Monday", restrictedToShifts=["SO"])
+        ]
+    )
+    
+    solver = RosterSolver(request)
+    result = solver.solve()
+    
+    assert result.status == 'INFEASIBLE'
