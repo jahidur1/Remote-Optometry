@@ -1,21 +1,25 @@
-
 'use client';
 
 import { useState } from 'react';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, BellRing, AlertCircle, RefreshCcw, CheckCircle2, XCircle, Search, Filter, Loader2, ArrowRight } from "lucide-react";
+import { MessageCircle, BellRing, AlertCircle, RefreshCcw, CheckCircle2, XCircle, Search, Filter, Info, Send, Terminal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { DemoBadge } from '@/components/ui/demo-badge';
+import { useToast } from '@/hooks/use-toast';
+import { sendWhatsAppTestMessage } from '@/services/whatsapp-action';
+import { dispatchAndLogNotification } from '@/lib/whatsapp';
 
 export default function NotificationDashboard() {
   const db = useFirestore();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [testing, setTesting] = useState(false);
 
   const logsQuery = query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(50));
   const { data: logs, loading } = useCollection(logsQuery);
@@ -26,6 +30,29 @@ export default function NotificationDashboard() {
     return emp?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
            log.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
   });
+
+  const handleTestConnection = async () => {
+    // For demo/test purposes, we'll try to send a test message to the first employee with a number
+    const targetEmp = employees?.find(e => e.whatsappNumber);
+    if (!targetEmp) {
+      toast({ title: "No Test Target", description: "Register an employee with a WhatsApp number first.", variant: "destructive" });
+      return;
+    }
+
+    setTesting(true);
+    try {
+      const result = await sendWhatsAppTestMessage(targetEmp.whatsappNumber);
+      if (result.success) {
+        toast({ title: "API Success", description: `Test message dispatched to ${targetEmp.fullName}.` });
+      } else {
+        toast({ title: "API Rejected", description: result.error, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Connection Failed", description: e.message, variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -38,11 +65,17 @@ export default function NotificationDashboard() {
           <p className="text-muted-foreground font-medium">Monitoring automated WhatsApp shift briefings via Meta Cloud API.</p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" className="bg-white border-secondary/20 text-secondary font-black uppercase text-[10px] tracking-widest">
-                <RefreshCcw className="size-4 mr-2" /> Sync Delivery
+            <Button 
+              variant="outline" 
+              className="bg-white border-secondary/20 text-secondary font-black uppercase text-[10px] tracking-widest"
+              onClick={handleTestConnection}
+              disabled={testing}
+            >
+                {testing ? <Terminal className="size-4 mr-2 animate-pulse" /> : <Send className="size-4 mr-2" />}
+                Run API Test
             </Button>
             <Button className="bg-secondary shadow-lg shadow-secondary/10 font-black uppercase text-[10px] tracking-widest">
-                <BellRing className="size-4 mr-2" /> Manual Broadcast
+                <BellRing className="size-4 mr-2" /> Broadcast All
             </Button>
         </div>
       </div>
@@ -79,9 +112,9 @@ export default function NotificationDashboard() {
                     <div className="space-y-1">
                         <p className="text-[10px] font-black uppercase text-primary tracking-widest">Dispatch Logic: 22:00 Asia/Kolkata</p>
                         <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
-                            System fetches tomorrow's shift from the **latest authorized roster**. 
-                            If a newer version is published after 22:00, manual sync is recommended.
-                            Duplicates are prevented via unique idempotency keys.
+                            The system is now connected to Meta Cloud API (ID: ...5848). 
+                            Templates: <strong>shift_briefing</strong>. 
+                            Ensure your template includes placeholders for Name, Date, Shift, and Time.
                         </p>
                     </div>
                 </div>
@@ -117,7 +150,7 @@ export default function NotificationDashboard() {
                 <TableHead>Professional</TableHead>
                 <TableHead>Masked Endpoint</TableHead>
                 <TableHead>Shift Target</TableHead>
-                <TableHead>Ver.</TableHead>
+                <TableHead>Message ID</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Dispatch (IST)</TableHead>
               </TableRow>
@@ -149,8 +182,8 @@ export default function NotificationDashboard() {
                       <TableCell className="font-mono text-[11px] font-bold text-muted-foreground">{log.maskedPhone}</TableCell>
                       <TableCell className="text-[11px] font-black uppercase text-secondary">{log.date}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[8px] font-black uppercase tracking-tighter border-secondary/20 text-secondary">
-                            V{log.rosterVersion.slice(-4)}
+                        <Badge variant="outline" className="text-[8px] font-mono font-black uppercase tracking-tighter border-secondary/20 text-secondary">
+                            {log.messageId ? log.messageId.slice(-8) : '---'}
                         </Badge>
                       </TableCell>
                       <TableCell>
