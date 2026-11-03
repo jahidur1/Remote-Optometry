@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { 
+  getAuth,
   createUserWithEmailAndPassword,
   updateProfile,
   sendEmailVerification,
   signOut
 } from 'firebase/auth';
 import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, firebaseConfig } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -42,26 +44,22 @@ export default function RegisterPage() {
     office: 'KOLKATA_ROC'
   });
   
-  const auth = useAuth();
-  const db = useFirestore();
+  const mainDb = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
   const validateInput = async () => {
-    // 1. Employee ID Unique Check
-    const idQ = query(collection(db, 'employees'), where('id', '==', formData.employeeId.toUpperCase()));
+    const idQ = query(collection(mainDb, 'employees'), where('id', '==', formData.employeeId.toUpperCase()));
     const idSnap = await getDocs(idQ);
     if (!idSnap.empty) throw new Error("Employee ID is already registered in the institutional registry.");
 
-    // 2. Email Unique Check
-    const emailQ = query(collection(db, 'employees'), where('email', '==', formData.email.toLowerCase()));
+    const emailQ = query(collection(mainDb, 'employees'), where('email', '==', formData.email.toLowerCase()));
     const emailSnap = await getDocs(emailQ);
     if (!emailSnap.empty) throw new Error("This email is already bound to an active identity node.");
 
-    // 3. Mobile Unique Check
     if (formData.whatsappNumber.length < 10) throw new Error("A valid 10-digit mobile number is required.");
     const phoneFormatted = `+91${formData.whatsappNumber}`;
-    const phoneQ = query(collection(db, 'employees'), where('whatsappNumber', '==', phoneFormatted));
+    const phoneQ = query(collection(mainDb, 'employees'), where('whatsappNumber', '==', phoneFormatted));
     const phoneSnap = await getDocs(phoneQ);
     if (!phoneSnap.empty) throw new Error("This mobile number is already bound to another professional.");
   };
@@ -74,39 +72,63 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
+    
+    // SECURITY NODE: To prevent the Admin from being logged out, we use a temporary secondary Firebase instance.
+    // This allows creating a user without affecting the current session.
+    const tempAppName = `temp-provision-${Date.now()}`;
+    let tempApp;
+    
     try {
       await validateInput();
       
-      // 1. Initialize Auth Node
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, password);
-      const user = userCredential.user;
+      tempApp = initializeApp(firebaseConfig, tempAppName);
+      const tempAuth = getAuth(tempApp);
+
+      // 1. Initialize Auth Node via Secondary Instance
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, formData.email, password);
+      const newUser = userCredential.user;
       
       // 2. Secure Metadata
-      await updateProfile(user, { displayName: formData.fullName });
+      await updateProfile(newUser, { displayName: formData.fullName });
       
       // 3. Dispatch Verification Pulse
-      await sendEmailVerification(user);
+      await sendEmailVerification(newUser);
 
-      // 4. Atomic Multi-Commit to Registry
-      await commitRecords(user.uid);
+      // 4. Atomic Multi-Commit to main Registry (Users and Employees)
+      await commitRecords(newUser.uid);
+
+      // 5. Cleanup temporary auth session
+      await signOut(tempAuth);
 
       toast({ 
         title: "Enrollment Successful", 
-        description: "Authentication node initialized. Verification pulse dispatched to user." 
+        description: "Authentication node initialized. Verification pulse dispatched." 
       });
       
-      // Mandatory sign-out to clear admin session and prevent collision
-      await signOut(auth);
-      router.push('/login');
+      // Reset form instead of redirecting so Admin stays in the flow
+      setFormData({
+        fullName: '',
+        email: '',
+        employeeId: '',
+        whatsappNumber: '',
+        role: 'EMPLOYEE',
+        gender: 'Male',
+        department: 'Remote Optometry',
+        designation: 'Staff Professional',
+        office: 'KOLKATA_ROC'
+      });
+      setPassword('');
+      
     } catch (error: any) {
       toast({ variant: "destructive", title: "Enrollment Failed", description: error.message });
+    } finally {
       setLoading(false);
     }
   };
 
   const commitRecords = async (uid: string) => {
-    const empRef = doc(db, 'employees', formData.employeeId.toUpperCase());
-    const userRef = doc(db, 'users', uid);
+    const empRef = doc(mainDb, 'employees', formData.employeeId.toUpperCase());
+    const userRef = doc(mainDb, 'users', uid);
     const phoneFormatted = `+91${formData.whatsappNumber}`;
 
     const commonData = {
@@ -119,7 +141,7 @@ export default function RegisterPage() {
       updatedAt: new Date().toISOString()
     };
 
-    // Master Employee Record
+    // Master Employee Record commitment
     await setDoc(empRef, {
       ...commonData,
       id: formData.employeeId.toUpperCase(),
@@ -131,7 +153,7 @@ export default function RegisterPage() {
       authUid: uid
     });
 
-    // Auth Profile Record
+    // Auth Profile Record commitment (Crucial for resolving permission errors)
     await setDoc(userRef, {
       ...commonData,
       uid,
@@ -141,7 +163,7 @@ export default function RegisterPage() {
       lastLogin: new Date().toISOString()
     });
 
-    logAudit(db, uid, 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { email: formData.email, phone: phoneFormatted });
+    logAudit(mainDb, 'ADMIN', 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { email: formData.email, phone: phoneFormatted });
   };
 
   return (
@@ -158,7 +180,7 @@ export default function RegisterPage() {
                 </div>
              </div>
              <CardTitle className="text-4xl font-black uppercase tracking-tight leading-none relative z-10">Enroll Professional</CardTitle>
-             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Email & Password Auth Hub — Sync v3.0</CardDescription>
+             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Institutional Authentication Deployment — v3.1</CardDescription>
              <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none"><Zap size={240} /></div>
           </CardHeader>
           
@@ -167,9 +189,9 @@ export default function RegisterPage() {
               <div className="p-6 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex gap-6 items-start">
                   <ShieldAlert className="size-6 text-secondary shrink-0 mt-1" />
                   <div className="space-y-1">
-                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Protocol Notice</p>
+                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Administrative Guard</p>
                     <p className="text-[12px] font-bold text-black/60 uppercase leading-relaxed tracking-tight">
-                        Creating an identity node will automatically cycle the current administrative session. Ensure all registry tasks are saved before initiating.
+                        Enrollment provisions both the clinical registry and authentication node. Verification pulses are dispatched automatically.
                     </p>
                   </div>
               </div>
@@ -221,7 +243,7 @@ export default function RegisterPage() {
                  <div className="space-y-3">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Institutional Password</Label>
                     <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
                         <Input 
                           type={showPassword ? "text" : "password"} 
                           placeholder="MIN 8 CHARACTERS" 
@@ -294,7 +316,7 @@ export default function RegisterPage() {
                 <ShieldCheck className="size-8" />
              </div>
              <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight">
-                Institutional protocol: Enrollment initializes a unified authentication node. Professionals can login via Email or verified Mobile OTP. 
+                Institutional protocol: Enrollment provisions both the clinical registry and authentication node. Professionals can login via Email or verified Mobile OTP. 
                 All identities are immutably linked to the clinical registry for institutional compliance.
              </p>
           </CardFooter>
