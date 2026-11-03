@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -10,19 +11,19 @@ import {
   browserLocalPersistence,
   signOut
 } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Loader2, Phone, Key, AlertCircle, ArrowRight, RefreshCcw, ShieldCheck } from 'lucide-react';
+import { Stethoscope, Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { addDays } from 'date-fns';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -93,6 +94,18 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
+      // GENERATE BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 24h)
+      const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpRef = doc(db, 'otp_registry', formattedPhone);
+      
+      // Note: This pulse is a secondary reference for Super Admins
+      setDoc(otpRef, {
+        phone: formattedPhone,
+        otp: backupCode,
+        expiresAt: addDays(new Date(), 1).toISOString(),
+        createdAt: serverTimestamp()
+      }, { merge: true });
+
       setConfirmationResult(result);
       setStep('otp');
       setResendCooldown(60);
@@ -187,7 +200,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-4 relative overflow-hidden font-body">
-      {/* Institutional Pattern */}
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, black 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 

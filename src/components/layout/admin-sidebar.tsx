@@ -12,19 +12,15 @@ import {
   Clock,
   ShieldCheck,
   Activity,
-  MessageSquare,
-  Settings,
   LogOut,
   Stethoscope,
   CalendarRange,
-  PlaneTakeoff,
   UserCheck,
   Target,
   BarChart3,
   ShieldAlert,
-  CreditCard,
   ArrowRightLeft,
-  ChevronRight
+  Key
 } from "lucide-react"
 
 import {
@@ -72,6 +68,7 @@ const navGroups = [
   {
     label: "Governance",
     items: [
+      { title: "OTP Monitor", url: "/admin/otp-monitor", icon: Key, roles: ["SUPER_ADMIN"] },
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["SUPER_ADMIN"] },
       { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
     ]

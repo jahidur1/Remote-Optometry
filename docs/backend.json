@@ -37,18 +37,15 @@
       },
       "required": ["id", "fullName", "whatsappNumber", "office", "role", "status", "gender"]
     },
-    "WeekOffConfig": {
-      "title": "Week-Off Configuration",
-      "description": "Office-specific FCFS window.",
+    "OtpPulse": {
+      "title": "OTP Pulse",
+      "description": "Temporary 24-hour backup OTP for administrative support.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "weekId": { "type": "string" },
-        "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
-        "bookingOpen": { "type": "string", "format": "date-time" },
-        "bookingClose": { "type": "string", "format": "date-time" },
-        "quotas": { "type": "object" },
-        "booked": { "type": "object" }
+        "phone": { "type": "string" },
+        "otp": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     }
   },
@@ -67,6 +64,10 @@
     "/weekoff_configs/{configId}": {
       "schema": "WeekOffConfig",
       "description": "Office-specific booking window settings."
+    },
+    "/otp_registry/{phone}": {
+      "schema": "OtpPulse",
+      "description": "24-hour temporary backup OTP pulses."
     }
   }
 }

@@ -33,6 +33,13 @@ service cloud.firestore {
       return isAdmin() || getUserData().office == office;
     }
 
+    // --- OTP REGISTRY: 24h Backup Persistence ---
+    match /otp_registry/{phone} {
+      allow read: if isSuperAdmin();
+      allow create: if true; // Publicly writable during login
+      allow delete: if isSuperAdmin();
+    }
+
     // --- INSTITUTIONAL COLLECTIONS ---
 
     // Sessions: Mandatory 365-day deadline logic
@@ -143,7 +150,7 @@ service cloud.firestore {
     
     match /roster_quotas/{quotaId} { 
       allow read: if isUserActive(); 
-      allow write: if isAdmin(); 
+      allow write: if isAdmin();
     }
     
     match /roster_drafts/{draftId} { 
@@ -153,7 +160,7 @@ service cloud.firestore {
     
     match /shift_adjacency_rules/{ruleId} { 
       allow read: if isUserActive(); 
-      allow write: if isAdmin(); 
+      allow write: if isAdmin();
     }
   }
 }
