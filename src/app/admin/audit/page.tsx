@@ -16,9 +16,9 @@ import {
   Zap, 
   Terminal, 
   Database, 
-  ArrowUpRight,
   Clock,
-  Filter
+  Filter,
+  Server
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,17 +43,16 @@ export default function AuditLogs() {
   const stats = useMemo(() => {
     if (!logs) return { total: 0, actors: 0, actions: 0 };
     const uniqueActors = new Set(logs.map(l => l.actorId)).size;
-    const uniqueActions = new Set(logs.map(l => l.action)).size;
     return {
       total: logs.length,
       actors: uniqueActors,
-      actions: uniqueActions
     };
   }, [logs]);
 
   return (
-    <div className="space-y-8 pb-40 max-w-[1600px] mx-auto animate-in px-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
+    <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4">
+      {/* Precision Header Node */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
@@ -72,69 +71,55 @@ export default function AuditLogs() {
         </div>
 
         <div className="flex items-center gap-4 bg-white/[0.03] p-2 rounded-2xl border border-white/10 backdrop-blur-md shadow-2xl">
-           <div className="px-6 py-1.5 space-y-0.5">
+           <div className="px-6 py-1.5 border-r border-white/5 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Protocol Status</label>
               <div className="flex items-center gap-3">
-                 <span className="font-black text-secondary uppercase tracking-widest text-lg">ENFORCED</span>
-                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
+                 <span className="font-black text-white uppercase tracking-widest text-[11px]">ENFORCED</span>
               </div>
            </div>
-           <div className="w-px h-10 bg-white/10" />
+           <div className="px-6 py-1.5 space-y-0.5 mr-2">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Registry Sync</label>
+              <div className="flex items-center gap-2">
+                 <Database className="size-3 text-secondary" />
+                 <span className="font-black text-white uppercase tracking-widest text-[11px]">ACTIVE PULSE</span>
+              </div>
+           </div>
            <Button 
              variant="outline"
-             className="bg-white/5 border-white/10 text-white font-black uppercase text-[10px] tracking-widest h-12 px-8 rounded-xl transition-all hover:bg-secondary/20 hover:border-secondary" 
+             className="bg-white/5 border-white/10 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl transition-all hover:bg-secondary/20 hover:border-secondary" 
            >
-            <Download className="size-4 mr-3" /> EXPORT JSON
+            <Download className="size-4 mr-2" /> EXPORT JSON
            </Button>
         </div>
       </div>
 
+      {/* Laboratory-Grade KPI Ledger */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Trace Volume</CardTitle>
-            <Database className="h-5 w-5 text-secondary opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">{stats.total}</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Cached Transactions</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">Active Actors</CardTitle>
-            <User className="h-5 w-5 text-accent opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-accent tracking-tighter">{stats.actors}</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Unique Identities</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Sync Integrity</CardTitle>
-            <ShieldCheck className="h-5 w-5 text-emerald-500 opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">100%</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Compliance Verified</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Protocol Version</CardTitle>
-            <Zap className="h-5 w-5 text-secondary opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">V2.0</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Enterprise Standard</p>
-          </CardContent>
-        </Card>
+        {[
+          { label: 'Trace Volume', value: stats.total, sub: 'Cached Events', icon: Database, color: 'text-primary' },
+          { label: 'Active Actors', value: stats.actors, sub: 'Authorized IDs', icon: User, color: 'text-secondary' },
+          { label: 'Sync Integrity', value: '100%', sub: 'Compliance Verified', icon: ShieldCheck, color: 'text-accent' },
+          { label: 'Protocol Node', value: 'V2.0', sub: 'Enterprise Standard', icon: Zap, color: 'text-white' }
+        ].map((kpi, i) => (
+          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
+              <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
+            </CardHeader>
+            <CardContent>
+              {loading ? <Skeleton className="h-10 w-full rounded-xl opacity-10 bg-white" /> : (
+                <>
+                  <div className="text-5xl font-black text-white tracking-tighter">{kpi.value}</div>
+                  <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
+      {/* Main Ledger Matrix */}
       <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary">
         <CardHeader className="bg-white/[0.03] border-b border-white/5 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex items-center gap-6">
@@ -153,7 +138,7 @@ export default function AuditLogs() {
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-white/20 group-focus-within:text-secondary transition-colors" />
               <Input 
                 placeholder="Search Identity or Event Pulse..." 
-                className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white/[0.02] border-2 border-white/10 rounded-2xl focus:border-secondary focus:bg-secondary/5 transition-all shadow-inner text-white placeholder:text-white/10"
+                className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white/[0.02] border-2 border-white/10 rounded-2xl focus:border-secondary transition-all shadow-inner text-white placeholder:text-white/10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -207,7 +192,7 @@ export default function AuditLogs() {
                     </td>
                     <td className="px-8 border-r border-white/5">
                        <div className="flex items-center gap-3">
-                          <code className="text-[11px] font-black text-white/60 bg-white/5 px-3 py-1 rounded-md border border-white/5 tracking-tighter">
+                          <code className="text-secondary font-black text-[11px] bg-secondary/10 px-3 py-1 rounded-md border border-secondary/20 tracking-tighter">
                              {log.targetId}
                           </code>
                           <Zap className="size-3 text-accent opacity-30" />
@@ -234,14 +219,15 @@ export default function AuditLogs() {
         </CardContent>
       </Card>
 
+      {/* Institutional Protocol Footnote */}
       <div className="grid md:grid-cols-2 gap-8">
-          <Card className="bg-primary text-primary-foreground shadow-2xl border border-white/5 rounded-[2.5rem] overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2s] opacity-[0.03]">
+          <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary relative group">
+            <div className="absolute top-0 right-0 p-10 transform group-hover:scale-110 transition-transform duration-[2s] opacity-[0.03] pointer-events-none">
                <ShieldCheck size={280} />
             </div>
             <CardContent className="p-12 space-y-8 relative z-10">
-                <div className="size-16 rounded-[1.5rem] bg-secondary flex items-center justify-center shadow-2xl shadow-secondary/50">
-                    <ShieldCheck className="size-8 text-white" />
+                <div className="size-16 rounded-[1.5rem] bg-secondary/10 flex items-center justify-center border border-secondary/20 shadow-inner">
+                    <ShieldCheck className="size-8 text-secondary" />
                 </div>
                 <div className="space-y-4">
                   <p className="text-[11px] font-black uppercase tracking-[0.4em] text-secondary">Registry Protocol</p>
@@ -253,10 +239,13 @@ export default function AuditLogs() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card border-none rounded-[2.5rem] overflow-hidden p-12 space-y-10 group border-l-4 border-l-secondary shadow-2xl">
+          <Card className="glass-card border-none rounded-[2.5rem] overflow-hidden p-12 space-y-10 group border-l-4 border-l-secondary shadow-2xl relative">
+             <div className="absolute top-0 right-0 p-10 opacity-[0.02] pointer-events-none">
+                <Info size={200} />
+             </div>
              <div className="space-y-4">
                 <div className="size-16 rounded-[1.5rem] bg-secondary/10 flex items-center justify-center text-secondary shadow-inner group-hover:scale-110 transition-transform">
-                   <Info className="size-8" />
+                   <Zap className="size-8" />
                 </div>
                 <div className="space-y-1">
                    <p className="text-[11px] font-black uppercase tracking-[0.4em] text-secondary">Compliance Mode</p>
