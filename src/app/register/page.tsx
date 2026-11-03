@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, deleteApp, getApp } from 'firebase/app';
 import { 
   getAuth,
   createUserWithEmailAndPassword,
@@ -11,7 +12,7 @@ import {
   signOut
 } from 'firebase/auth';
 import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
-import { useFirestore, firebaseConfig } from '@/firebase';
+import { useFirestore, firebaseConfig, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -45,6 +46,7 @@ export default function RegisterPage() {
   });
   
   const mainDb = useFirestore();
+  const { profile: adminProfile } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -58,10 +60,6 @@ export default function RegisterPage() {
     if (!emailSnap.empty) throw new Error("This email is already bound to an active identity node.");
 
     if (formData.whatsappNumber.length < 10) throw new Error("A valid 10-digit mobile number is required.");
-    const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
-    const phoneQ = query(collection(mainDb, 'employees'), where('whatsappNumber', '==', phoneFormatted));
-    const phoneSnap = await getDocs(phoneQ);
-    if (!phoneSnap.empty) throw new Error("This mobile number is already bound to another professional.");
   };
 
   const handleProvisionIdentity = async (e: React.FormEvent) => {
@@ -86,12 +84,13 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(tempAuth, formData.email, password);
       const newUser = userCredential.user;
       
-      await updateProfile(newUser, { displayName: formData.fullName });
+      await updateProfile(newUser, { displayName: formData.fullName.toUpperCase() });
       await sendEmailVerification(newUser);
 
       // Final identity synchronization
       await commitRecords(newUser.uid);
       await signOut(tempAuth);
+      await deleteApp(tempApp);
 
       toast({ 
         title: "Enrollment Successful", 
@@ -112,6 +111,7 @@ export default function RegisterPage() {
       setPassword('');
       
     } catch (error: any) {
+      if (tempApp) await deleteApp(tempApp);
       toast({ variant: "destructive", title: "Enrollment Failed", description: error.message });
     } finally {
       setLoading(false);
@@ -155,7 +155,7 @@ export default function RegisterPage() {
       lastLogin: new Date().toISOString()
     });
 
-    logAudit(mainDb, 'ADMIN', 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { role: formData.role, email: formData.email });
+    logAudit(mainDb, adminProfile?.uid || 'ADMIN', 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { role: formData.role, email: formData.email });
   };
 
   return (

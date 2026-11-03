@@ -10,24 +10,23 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(path) ? get(path).data : null;
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     
     // Safety check for user activity status
     function isUserActive() {
-      let data = getUserData();
-      return isSignedIn() && data != null && data.status == 'Active';
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && exists(path) && get(path).data.status == 'Active';
     }
     
     function isAdmin() {
-      let data = getUserData();
-      return isSignedIn() && data != null && data.role in ['ADMIN', 'SUPER_ADMIN'];
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && exists(path) && get(path).data.role in ['ADMIN', 'SUPER_ADMIN'];
     }
 
     function isSuperAdmin() {
-      let data = getUserData();
-      return isSignedIn() && data != null && data.role == 'SUPER_ADMIN';
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && exists(path) && get(path).data.role == 'SUPER_ADMIN';
     }
 
     function isOwner(userId) {
@@ -36,8 +35,8 @@ service cloud.firestore {
 
     // Cluster Isolation: Validates if user belongs to the specific ROC node
     function matchesOffice(office) {
-      let data = getUserData();
-      return isAdmin() || (data != null && data.office == office);
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isAdmin() || (exists(path) && get(path).data.office == office);
     }
 
     // --- GOVERNANCE: OTP REGISTRY (12h Backup Failsafe) ---
@@ -68,28 +67,24 @@ service cloud.firestore {
 
     // --- WORKFORCE: EMPLOYEES (Identity Registry) ---
     match /employees/{employeeId} {
-      // Handshake: Allow identity verification if phone matches auth token
+      // Handshake: Allow identity verification if phone/email matches auth token
       allow get: if isSignedIn() && (
         isAdmin() || 
-        resource.data.whatsappNumber == request.auth.token.phone_number
+        resource.data.whatsappNumber == request.auth.token.phone_number ||
+        resource.data.email == request.auth.token.email
       );
       allow list: if isSignedIn() && (
         isAdmin() || 
         request.query.limit <= 5 // Restricted listing for self-identification
       );
-      allow create: if isAdmin() && isUserActive();
-      
-      allow update: if (isAdmin() && isUserActive()) || (
-        isUserActive() && 
-        resource.data.whatsappNumber == request.auth.token.phone_number &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt', 'fullName', 'office', 'gender', 'department', 'designation'])
-      );
+      allow create, update: if isAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // --- USERS: AUTH PROFILES ---
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if (isOwner(userId) || isAdmin()) && isSignedIn();
+      allow write: if isAdmin() || isOwner(userId);
     }
 
     // --- OPERATIONS: WEEK-OFFS ---
@@ -99,12 +94,13 @@ service cloud.firestore {
     }
 
     match /weekoff_bookings/{bookingId} {
-      allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
+      // Use the profile role from users collection to check access
+      allow read: if isUserActive() && (resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || isAdmin());
       
       allow create: if isUserActive() && 
-        request.resource.data.employeeId == getUserData().employeeId &&
+        request.resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId &&
         request.resource.data.status == 'confirmed' &&
-        request.resource.data.office == getUserData().office;
+        request.resource.data.office == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.office;
       
       allow update: if (isSuperAdmin() || isAdmin()) && isUserActive();
       allow delete: if isAdmin() && isUserActive();
@@ -113,13 +109,13 @@ service cloud.firestore {
     // --- OPERATIONS: EXCHANGES (Shift Swaps) ---
     match /shift_swaps/{swapId} {
       allow read: if isUserActive() && (
-        resource.data.requesterId == getUserData().employeeId || 
-        resource.data.targetEmployeeId == getUserData().employeeId || 
+        resource.data.requesterId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || 
+        resource.data.targetEmployeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || 
         isAdmin()
       );
-      allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId;
+      allow create: if isUserActive() && request.resource.data.requesterId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId;
       allow update: if isUserActive() && (
-        request.resource.data.targetEmployeeId == getUserData().employeeId || 
+        resource.data.targetEmployeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || 
         isAdmin()
       );
       allow delete: if isAdmin();
@@ -128,7 +124,7 @@ service cloud.firestore {
     // --- OPERATIONS: PREFERENCES ---
     match /employee_preferences/{prefId} {
       allow read: if isUserActive();
-      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
+      allow write: if isUserActive() && request.resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId;
     }
 
     // --- AUDIT & MESSAGING ---

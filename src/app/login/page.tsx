@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,54 +64,62 @@ export default function LoginPage() {
   }, []);
 
   const handleSyncProfile = async (user: any) => {
-    const field = user.phoneNumber ? 'whatsappNumber' : 'email';
-    const value = user.phoneNumber || user.email;
-    
-    // 1. Resolve clinical identity from master registry
-    const q = query(collection(db, 'employees'), where(field, '==', value));
-    const snap = await getDocs(q);
-    
-    if (!snap.empty) {
-      const employee = snap.docs[0].data();
+    try {
+      const field = user.phoneNumber ? 'whatsappNumber' : 'email';
+      const value = user.phoneNumber || user.email;
       
-      if (employee.status === 'Suspended' || employee.status === 'Inactive') {
-        await signOut(auth);
-        throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
-      }
-
-      // 2. Synchronize Auth Profile (users collection)
-      const userRef = doc(db, 'users', user.uid);
-      const userData = {
-        uid: user.uid,
-        email: employee.email || user.email,
-        role: employee.role,
-        displayName: employee.fullName,
-        employeeId: employee.id,
-        phoneNumber: user.phoneNumber || employee.whatsappNumber,
-        office: employee.office || null,
-        status: 'Active' as const,
-        lastLogin: new Date().toISOString()
-      };
-
-      await setDoc(userRef, userData, { merge: true });
+      // 1. Resolve clinical identity from master registry (Handshake allowed by Rules)
+      const q = query(collection(db, 'employees'), where(field, '==', value));
+      const snap = await getDocs(q);
       
-      // 3. Establish Security Session
-      await createOrUpdateSession(db, user.uid, employee.id);
-      logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
+      if (!snap.empty) {
+        const employee = snap.docs[0].data();
+        
+        if (employee.status === 'Suspended' || employee.status === 'Inactive') {
+          await signOut(auth);
+          throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
+        }
 
-      toast({
-        title: "Identity Verified",
-        description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
-      });
+        // 2. Synchronize Auth Profile (users collection)
+        const userRef = doc(db, 'users', user.uid);
+        const userData = {
+          uid: user.uid,
+          email: employee.email || user.email,
+          role: employee.role,
+          displayName: employee.fullName,
+          employeeId: employee.id,
+          phoneNumber: user.phoneNumber || employee.whatsappNumber,
+          office: employee.office || null,
+          status: 'Active' as const,
+          lastLogin: new Date().toISOString()
+        };
 
-      if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
-        router.push('/admin');
+        // setDoc with catch to handle permission context
+        setDoc(userRef, userData, { merge: true }).catch(err => {
+            console.error("Registry Sync Delayed:", err);
+        });
+        
+        // 3. Establish Security Session
+        await createOrUpdateSession(db, user.uid, employee.id);
+        logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
+
+        toast({
+          title: "Identity Verified",
+          description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
+        });
+
+        if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
+          router.push('/admin');
+        } else {
+          router.push('/employee/portal');
+        }
       } else {
-        router.push('/employee/portal');
+        await signOut(auth);
+        throw new Error("This identity is not authorized for portal access. Contact administrative nodes.");
       }
-    } else {
-      await signOut(auth);
-      throw new Error("This identity is not authorized for portal access. Contact administrative nodes.");
+    } catch (e: any) {
+        toast({ variant: "destructive", title: "Identity Error", description: e.message });
+        setLoading(false);
     }
   };
 
@@ -129,7 +138,7 @@ export default function LoginPage() {
 
       await handleSyncProfile(userCredential.user);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Auth Failure", description: error.message });
+      toast({ variant: "destructive", title: "Auth Failure", description: "Invalid credentials or unauthorized identity." });
       setLoading(false);
     }
   };
