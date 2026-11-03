@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -96,7 +95,7 @@ export function AdminSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0 bg-primary/95 dark:bg-black/95">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="h-24 flex justify-center px-6">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -104,13 +103,13 @@ export function AdminSidebar() {
               "flex items-center gap-3 transition-all duration-300",
               state === "collapsed" ? "justify-center" : "justify-start"
             )}>
-              <div className="flex aspect-square size-12 items-center justify-center rounded-2xl bg-secondary text-white shadow-xl shadow-secondary/20">
+              <div className="flex aspect-square size-12 items-center justify-center rounded-xl bg-white text-primary shadow-xl">
                 <Stethoscope className="size-7" />
               </div>
               {state === "expanded" && (
                 <div className="flex flex-col">
                   <span className="text-base font-black uppercase tracking-tighter text-white leading-none">ROC Workforce</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-secondary/80 mt-1">Intelligence Node</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40 mt-1">Institutional Node</span>
                 </div>
               )}
             </div>
@@ -128,7 +127,7 @@ export function AdminSidebar() {
 
           return (
             <SidebarGroup key={group.label} className="mt-6">
-              <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 px-4 mb-3">
+              <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-4 mb-3">
                 {group.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>
@@ -142,16 +141,16 @@ export function AdminSidebar() {
                           isActive={isActive} 
                           tooltip={item.title}
                           className={cn(
-                            "h-12 px-4 rounded-2xl transition-all duration-300 group",
+                            "h-12 px-4 rounded-xl transition-all duration-300 group",
                             isActive 
-                              ? "bg-secondary text-white shadow-2xl shadow-secondary/50" 
-                              : "text-white/60 hover:text-white hover:bg-white/10"
+                              ? "bg-white text-primary shadow-lg" 
+                              : "text-white/60 hover:text-white hover:bg-white/5"
                           )}
                         >
                           <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-4">
-                            <item.icon className={cn("size-5", isActive ? "text-white stroke-[2.5px]" : "group-hover:scale-110 group-hover:text-secondary transition-all")} />
+                            <item.icon className={cn("size-5", isActive ? "text-primary stroke-[2.5px]" : "group-hover:text-white transition-all")} />
                             <span className="font-bold text-[13px] tracking-tight uppercase">{item.title}</span>
-                            {isActive && <div className="ml-auto size-1.5 rounded-full bg-white shadow-[0_0_10px_white] animate-pulse" />}
+                            {isActive && <div className="ml-auto size-1.5 rounded-full bg-primary animate-pulse" />}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -168,7 +167,7 @@ export function AdminSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
-              className="h-14 rounded-2xl text-white/40 hover:text-white hover:bg-destructive/10 hover:text-destructive px-5 transition-all duration-300 group"
+              className="h-14 rounded-xl text-white/40 hover:text-white hover:bg-destructive/10 hover:text-destructive px-5 transition-all duration-300 group"
               onClick={handleLogout}
             >
               <LogOut className="size-5 group-hover:rotate-12 transition-transform" />

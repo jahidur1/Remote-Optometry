@@ -4,59 +4,57 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    --background: 0 0% 100%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 222 47% 11%;
+    --primary: 222 47% 11%; /* Institutional Navy Blue */
     --primary-foreground: 210 40% 98%;
-    --secondary: 221 83% 53%;
+    --secondary: 221 83% 53%; /* Precision Blue */
     --secondary-foreground: 210 40% 98%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 173 80% 40%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 53%;
-    --radius: 1.25rem;
-    --sidebar-background: 222 47% 11%;
+    --ring: 222 47% 11%;
+    --radius: 0.75rem;
+    --sidebar-background: 222 47% 11%; /* Navy Sidebar */
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 221 83% 53%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 15%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 222 47% 15%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222 47% 2%; 
-    --foreground: 0 0% 100%; 
-    --card: 222 47% 4%;
-    --card-foreground: 0 0% 100%;
-    --popover: 222 47% 4%;
-    --popover-foreground: 0 0% 100%;
-    --primary: 0 0% 100%;
+    /* Maintained for fallback, but styled professionally */
+    --background: 222 47% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 6%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 221 83% 58%; 
-    --secondary-foreground: 0 0% 100%;
-    --muted: 222 47% 10%;
-    --muted-foreground: 215 20% 75%;
-    --accent: 173 80% 45%; 
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 100%;
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 47% 12%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 222 47% 12%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
     --border: 222 47% 12%;
     --input: 222 47% 12%;
-    --ring: 221 83% 58%;
-    --sidebar-background: 222 47% 3%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-border: 222 47% 8%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
 
@@ -68,7 +66,7 @@
     @apply bg-background text-foreground font-body antialiased selection:bg-secondary/20 selection:text-secondary overflow-x-hidden;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-headline tracking-tight;
+    @apply font-headline tracking-tight font-extrabold text-black;
   }
 }
 
@@ -82,39 +80,22 @@
 }
 
 .glass-card {
-  @apply bg-card/60 backdrop-blur-2xl border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)];
+  @apply bg-card border border-border shadow-sm;
 }
 
 .premium-card {
-  @apply rounded-[2.5rem] border-none shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.2)] hover:translate-y-[-2px];
+  @apply rounded-xl border border-border shadow-sm transition-all duration-300 hover:shadow-md;
 }
 
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  @apply bg-muted;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
-}
-
-.shadow-premium {
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-}
-
-.shadow-pulse-secondary {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-}
-
-@media (max-width: 768px) {
-  .container {
-    @apply px-4 !important;
-  }
-  .card {
-    @apply rounded-[2rem] !important;
-  }
+  @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50 transition-colors;
 }
 
 .no-scrollbar::-webkit-scrollbar {
