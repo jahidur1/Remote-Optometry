@@ -2,7 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // --- HELPER FUNCTIONS ---
+    
+    // --- CORE HELPERS ---
     
     function isSignedIn() {
       return request.auth != null;
@@ -20,33 +21,24 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role in ['ADMIN', 'SUPER_ADMIN'];
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && getUserData().role == 'SUPER_ADMIN';
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- WEEKOFF CONFIGURATIONS ---
-    match /weekoff_configs/{configId} {
-      // Employees can only see configurations for their specific office ID
-      allow read: if isUserActive() && (isAdmin() || resource.data.office == getUserData().office);
-      allow write: if isAdmin() && isUserActive();
+    function matchesOffice(office) {
+      return isAdmin() || getUserData().office == office;
     }
 
-    // --- WEEKOFF BOOKINGS ---
-    match /weekoff_bookings/{bookingId} {
-      allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
-      
-      // Creation logic: user can only book for themselves and must match their office schedule
-      allow create: if isUserActive() && 
-        request.resource.data.employeeId == getUserData().employeeId &&
-        request.resource.data.status == 'confirmed' &&
-        request.resource.data.office == getUserData().office;
-      
-      allow update, delete: if isAdmin() && isUserActive();
-    }
+    // --- INSTITUTIONAL COLLECTIONS ---
 
-    // --- SESSIONS COLLECTION ---
+    // Sessions: Mandatory 365-day deadline logic
     match /sessions/{sessionId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      
       allow create: if isSignedIn() && 
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.deadlineAt == request.time + duration.value(31536000, 's');
@@ -60,41 +52,108 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // --- EMPLOYEES COLLECTION ---
+    // Employees: Field-level locking and self-update restrictions
     match /employees/{employeeId} {
       allow get: if isUserActive() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
       allow list: if isAdmin() && isUserActive();
       allow create: if isAdmin() && isUserActive();
       
-      // Field level locking: Employees cannot change Name, ID, Office, Gender, Mobile, Role, Status
       allow update: if (isAdmin() && isUserActive()) || (
         isUserActive() && 
         resource.data.whatsappNumber == request.auth.token.phone_number &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt', 'fullName', 'office', 'gender'])
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'whatsappNumber', 'id', 'joinedAt', 'fullName', 'office', 'gender', 'department', 'designation'])
       );
     }
 
-    // --- USERS COLLECTION ---
+    // Users: Profile synchronization
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if (isOwner(userId) || isAdmin()) && isSignedIn();
     }
 
-    // --- AUDIT LOGS ---
+    // Week-Off Configs: Cluster-based visibility
+    match /weekoff_configs/{configId} {
+      allow read: if isUserActive() && matchesOffice(resource.data.office);
+      allow write: if isAdmin() && isUserActive();
+    }
+
+    // Week-Off Bookings: Atomic reservation logic
+    match /weekoff_bookings/{bookingId} {
+      allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
+      
+      allow create: if isUserActive() && 
+        request.resource.data.employeeId == getUserData().employeeId &&
+        request.resource.data.status == 'confirmed' &&
+        request.resource.data.office == getUserData().office;
+      
+      // Super Admin override allowed for manual roster tweaks
+      allow update: if (isSuperAdmin() || isAdmin()) && isUserActive();
+      allow delete: if isAdmin() && isUserActive();
+    }
+
+    // Shift Swaps: Bilateral agreement and Admin authorization
+    match /shift_swaps/{swapId} {
+      allow read: if isUserActive() && (
+        resource.data.requesterId == getUserData().employeeId || 
+        resource.data.targetEmployeeId == getUserData().employeeId || 
+        isAdmin()
+      );
+      allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId;
+      allow update: if isUserActive() && (
+        request.resource.data.targetEmployeeId == getUserData().employeeId || 
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Preferences: Soft optimization constraints
+    match /employee_preferences/{prefId} {
+      allow read: if isUserActive();
+      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
+    }
+
+    // --- GOVERNANCE & LOGGING ---
+
     match /audit_logs/{logId} {
       allow read: if isAdmin() && isUserActive();
       allow create: if isSignedIn(); 
-      allow update, delete: if false;
+    }
+
+    match /whatsapp_logs/{logId} {
+      allow read: if isAdmin() && isUserActive();
+      allow create: if isSignedIn(); 
+    }
+
+    // --- MASTER DATA & INTELLIGENCE ---
+
+    match /shift_master/{shiftId} { 
+      allow read: if isUserActive(); 
+      allow write: if isAdmin();
     }
     
-    // --- GENERIC WORKFORCE DATA ---
-    match /{path=**}/shift_master/{shiftId} { allow read: if isUserActive(); }
-    match /{path=**}/employee_leaves/{leaveId} { allow read: if isUserActive(); }
-    match /{path=**}/published_rosters/{versionId} { allow read: if isUserActive(); }
-    match /{path=**}/shift_adjacency_rules/{ruleId} { allow read: if isUserActive(); allow write: if isAdmin(); }
-    match /{path=**}/employee_preferences/{prefId} { allow read: if isUserActive(); allow write: if isUserActive(); }
-    match /{path=**}/roster_quotas/{quotaId} { allow read: if isUserActive(); allow write: if isAdmin(); }
-    match /{path=**}/roster_drafts/{draftId} { allow read: if isAdmin(); allow write: if isAdmin(); }
-    match /{path=**}/shift_swaps/{swapId} { allow read: if isUserActive(); allow write: if isUserActive(); }
+    match /employee_leaves/{leaveId} { 
+      allow read: if isUserActive(); 
+      allow write: if isAdmin();
+    }
+    
+    match /published_rosters/{versionId} { 
+      allow read: if isUserActive() && matchesOffice(resource.data.office); 
+      allow write: if isAdmin();
+    }
+    
+    match /roster_quotas/{quotaId} { 
+      allow read: if isUserActive(); 
+      allow write: if isAdmin(); 
+    }
+    
+    match /roster_drafts/{draftId} { 
+      allow read: if isAdmin() && isUserActive(); 
+      allow write: if isAdmin() && isUserActive(); 
+    }
+    
+    match /shift_adjacency_rules/{ruleId} { 
+      allow read: if isUserActive(); 
+      allow write: if isAdmin(); 
+    }
   }
 }
