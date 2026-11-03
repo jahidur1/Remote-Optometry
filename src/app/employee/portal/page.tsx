@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
-import { collection, query, orderBy, limit, onSnapshot, doc, where, getDocs } from "firebase/firestore"
+import { collection, query, orderBy, limit, onSnapshot, doc, where } from "firebase/firestore"
 import { useFirestore, useUser, useDoc, useCollection } from "@/firebase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -21,17 +22,16 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
-  History
+  History,
+  TrendingUp
 } from "lucide-react"
-import Link from "next/link"
+import Link from "next/next/link"
 import { DemoBadge } from "@/components/ui/demo-badge"
 import { cn } from "@/lib/utils"
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
   type CarouselApi
 } from "@/components/ui/carousel"
 
@@ -62,8 +62,8 @@ function Countdown({ targetDate, onComplete, label }: { targetDate: string, onCo
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[9px] font-black uppercase text-accent-foreground/50 tracking-widest">{label}</span>
-      <span className="font-black tabular-nums text-2xl tracking-tighter text-accent-foreground">{timeLeft}</span>
+      <span className="text-[9px] font-black uppercase text-secondary/50 tracking-widest">{label}</span>
+      <span className="font-black tabular-nums text-2xl tracking-tighter text-black">{timeLeft}</span>
     </div>
   );
 }
@@ -75,21 +75,23 @@ export default function EmployeePortal() {
   const [loading, setLoading] = useState(true);
   const [api, setApi] = useState<CarouselApi>();
 
+  const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
   const previousWeek = '2024-51';
+  const weeks = [upcomingWeek, currentWeek, previousWeek];
 
-  // Published Rosters for History Swipe
+  // Published Rosters for History/Upcoming Swipe
   const rosterQuery = useMemo(() => {
     return query(
       collection(db, 'published_rosters'),
-      where('weekId', 'in', [currentWeek, previousWeek]),
+      where('weekId', 'in', weeks),
       where('status', '==', 'active'),
       orderBy('publishedAt', 'desc')
     );
-  }, [currentWeek, previousWeek]);
+  }, [db]);
 
   const { data: publishedRosters, loading: rosterLoading } = useCollection(rosterQuery);
-  const { data: shifts } = useCollection(query(collection(db, 'shift_master')));
+  const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
   
   const bookingId = profile?.employeeId ? `${currentWeek}_${profile.employeeId}` : null;
   const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
@@ -154,8 +156,8 @@ export default function EmployeePortal() {
           </div>
         </div>
         <Link href="/employee/profile">
-            <Button variant="outline" className="rounded-2xl h-14 px-8 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest bg-white hover:bg-slate-50 shadow-sm transition-all group">
-                <Settings className="size-4 mr-3 group-hover:rotate-90 transition-transform duration-500" /> Account Settings
+            <Button variant="outline" className="rounded-2xl h-14 px-8 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest bg-white hover:bg-slate-50 shadow-sm transition-all group text-black">
+                <Settings className="size-4 mr-3 group-hover:rotate-90 transition-transform duration-500 text-secondary" /> Account Settings
             </Button>
         </Link>
       </div>
@@ -182,7 +184,7 @@ export default function EmployeePortal() {
                </CardContent>
             </Card>
           ) : activeConfig && (
-            <Card className="border-none bg-accent/5 shadow-2xl rounded-[3rem] overflow-hidden border-2 border-accent/10 transition-all hover:bg-accent/[0.08] relative group">
+            <Card className="border-none bg-white shadow-2xl rounded-[3rem] overflow-hidden border-2 border-slate-100 transition-all hover:border-secondary/20 relative group">
               <div className="absolute top-0 right-0 p-10 opacity-5"><Zap size={180} /></div>
               <CardContent className="p-12">
                   <div className="flex flex-col md:flex-row items-center gap-14">
@@ -194,7 +196,7 @@ export default function EmployeePortal() {
                            <p className="text-[11px] font-black uppercase tracking-[0.5em] text-secondary">Live Pulse Matrix</p>
                            <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-none">Slot Reservation Open</h2>
                         </div>
-                        <div className="flex flex-wrap gap-8 justify-center md:justify-start bg-white p-8 rounded-[2rem] shadow-inner border-2 border-slate-100">
+                        <div className="flex flex-wrap gap-8 justify-center md:justify-start bg-slate-50 p-8 rounded-[2rem] shadow-inner border-2 border-slate-100">
                           {isWindowUpcoming && <Countdown targetDate={activeConfig.bookingOpen} label="Pulse Initiates In" />}
                           {isWindowOpen && <Countdown targetDate={activeConfig.bookingClose} label="Pulse Terminates In" />}
                         </div>
@@ -228,29 +230,41 @@ export default function EmployeePortal() {
 
             <Carousel setApi={setApi} className="w-full">
               <CarouselContent>
-                {[currentWeek, previousWeek].map((week) => {
+                {weeks.map((week) => {
                   const weekAssignments = getAssignmentsForWeek(week);
+                  const isUpcoming = week === upcomingWeek;
                   const isCurrent = week === currentWeek;
+                  const isPrevious = week === previousWeek;
                   
                   return (
                     <CarouselItem key={week}>
                       <Card className={cn(
-                        "border-none shadow-2xl overflow-hidden rounded-[3rem]",
-                        isCurrent ? "bg-white" : "bg-slate-50 opacity-80"
+                        "border-none shadow-2xl overflow-hidden rounded-[3rem] bg-white",
+                        !isCurrent && "opacity-90"
                       )}>
                         <CardHeader className={cn(
                           "p-10 border-none relative overflow-hidden",
-                          isCurrent ? "bg-primary text-white" : "bg-slate-200 text-black"
+                          isUpcoming ? "bg-[#0F172A]" : isCurrent ? "bg-[#0F172A]" : "bg-slate-100"
                         )}>
-                           <div className="absolute top-0 right-0 p-10 opacity-5"><CalendarDays size={200} /></div>
+                           <div className="absolute top-0 right-0 p-10 opacity-5"><CalendarDays size={200} className={isPrevious ? "text-black" : "text-white"} /></div>
                            <div className="flex items-center justify-between relative z-10">
                               <div className="space-y-1">
-                                  <CardTitle className="text-2xl flex items-center gap-5 font-black uppercase tracking-tight leading-none">
-                                     <Clock className={cn("size-8", isCurrent ? "text-secondary" : "text-black/40")} /> {isCurrent ? 'Current Deployment' : 'Previous Cycle'}
+                                  <CardTitle className={cn(
+                                    "text-2xl flex items-center gap-5 font-black uppercase tracking-tight leading-none",
+                                    isPrevious ? "text-black" : "text-white"
+                                  )}>
+                                     {isUpcoming ? <TrendingUp className="size-8 text-secondary" /> : isCurrent ? <Clock className="size-8 text-secondary" /> : <History className="size-8 text-black/40" />}
+                                     {isUpcoming ? 'Upcoming Cycle' : isCurrent ? 'Active Deployment' : 'Previous Cycle'}
                                   </CardTitle>
-                                  <CardDescription className={cn("text-[11px] uppercase font-black tracking-[0.2em] mt-3", isCurrent ? "text-white/40" : "text-black/40")}>Week {week}</CardDescription>
+                                  <CardDescription className={cn(
+                                    "text-[11px] uppercase font-black tracking-[0.2em] mt-3",
+                                    isPrevious ? "text-black/40" : "text-white/40"
+                                  )}>Cycle {week}</CardDescription>
                               </div>
-                              <Badge className={cn("border-none font-black text-[9px] uppercase px-5 py-2 rounded-full", isCurrent ? "bg-white/10 text-white" : "bg-black/10 text-black")}>
+                              <Badge className={cn(
+                                "border-none font-black text-[9px] uppercase px-5 py-2 rounded-full",
+                                isPrevious ? "bg-black/10 text-black" : "bg-white/10 text-white"
+                              )}>
                                  Node_{profile?.office?.substring(0,3)}
                               </Badge>
                            </div>
@@ -263,29 +277,31 @@ export default function EmployeePortal() {
                              }).map((a: any, i: number) => {
                                const shift = shifts?.find(s => s.id === a.shiftId);
                                return (
-                                 <div key={i} className="flex items-center justify-between p-8 rounded-[2rem] bg-white border-2 border-slate-100 hover:border-secondary/20 shadow-sm transition-all group">
+                                 <div key={i} className="flex items-center justify-between p-8 rounded-[2rem] bg-white border-2 border-slate-50 hover:border-secondary/20 shadow-sm transition-all group">
                                    <div className="flex flex-col gap-1.5">
                                      <span className="font-black text-3xl uppercase tracking-tighter text-black group-hover:translate-x-2 transition-transform">{a.dayOfWeek}</span>
                                      <div className="flex items-center gap-4">
                                         <Badge variant="outline" className="text-[10px] font-black text-secondary border-secondary/20 uppercase px-4 py-1 rounded-lg">
                                            {shift?.name || a.shiftId}
                                         </Badge>
-                                        <span className="text-[11px] text-black/40 font-black tracking-widest uppercase flex items-center gap-2">
-                                           <Clock className="size-3" /> {shift?.startTime} — {shift?.endTime} IST
+                                        <span className="text-[11px] text-black font-black tracking-widest uppercase flex items-center gap-2">
+                                           <Clock className="size-3 text-secondary" /> {shift?.startTime} — {shift?.endTime} IST
                                         </span>
                                      </div>
                                    </div>
                                    <div className="size-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-secondary/10 group-hover:rotate-12 transition-all">
-                                      <Zap className="size-5 text-secondary/40 group-hover:text-secondary transition-colors" />
+                                      <Zap className="size-5 text-secondary group-hover:text-secondary transition-colors" />
                                    </div>
                                  </div>
                                )
                              })
                            ) : (
-                             <div className="text-center py-24 bg-slate-100/50 rounded-[3rem] border-4 border-dashed border-slate-200">
+                             <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
                                 <CalendarDays className="size-24 text-black/5 mx-auto mb-8" />
                                 <p className="text-xl font-black text-black/20 uppercase tracking-tight">Roster Node Pending</p>
-                                <p className="text-[10px] text-black/40 uppercase mt-3 max-w-[280px] mx-auto leading-relaxed font-black tracking-[0.2em]">Administrative audit in progress for your clinical cluster.</p>
+                                <p className="text-[10px] text-black/40 uppercase mt-3 max-w-[280px] mx-auto leading-relaxed font-black tracking-[0.2em]">
+                                  {isUpcoming ? 'Upcoming week roster is currently in review by administrative nodes.' : 'Audit in progress for your clinical cluster.'}
+                                </p>
                              </div>
                            )}
                         </CardContent>
@@ -300,7 +316,7 @@ export default function EmployeePortal() {
 
         {/* Intelligence Sidebar */}
         <div className="lg:col-span-4 space-y-10">
-          <Card className="bg-primary text-white shadow-2xl border-none overflow-hidden rounded-[3rem] relative group">
+          <Card className="bg-[#0F172A] text-white shadow-2xl border-none overflow-hidden rounded-[3rem] relative group">
             <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000"><Activity size={240} /></div>
             <CardHeader className="p-10 pb-6 border-b border-white/5">
               <CardTitle className="text-[12px] font-black uppercase tracking-[0.5em] flex items-center gap-4 text-secondary">
