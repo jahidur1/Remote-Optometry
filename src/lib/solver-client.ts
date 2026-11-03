@@ -36,6 +36,7 @@ async function getAuthHeaders(targetAudience: string) {
   if (typeof window === 'undefined' && process.env.ENABLE_IAM_AUTH === 'true') {
     try {
       const auth = getAuth();
+      // The audience for the ID token is the Service URL
       const client = await auth.getIdTokenClient(targetAudience);
       const authHeaders = await client.getRequestHeaders();
       if (authHeaders['Authorization']) {
