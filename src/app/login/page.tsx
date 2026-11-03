@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -14,7 +13,6 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
-  sendEmailVerification
 } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
@@ -23,12 +21,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Phone, Key, ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { addHours } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
@@ -40,7 +36,6 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   
   const auth = useAuth();
@@ -67,18 +62,11 @@ export default function LoginPage() {
     };
   }, []);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (resendCooldown > 0) {
-      timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
-    }
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
   const handleSyncProfile = async (user: any) => {
     const field = user.phoneNumber ? 'whatsappNumber' : 'email';
     const value = user.phoneNumber || user.email;
     
+    // 1. Resolve clinical identity from master registry
     const q = query(collection(db, 'employees'), where(field, '==', value));
     const snap = await getDocs(q);
     
@@ -90,6 +78,7 @@ export default function LoginPage() {
         throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
       }
 
+      // 2. Synchronize Auth Profile (users collection)
       const userRef = doc(db, 'users', user.uid);
       const userData = {
         uid: user.uid,
@@ -104,6 +93,8 @@ export default function LoginPage() {
       };
 
       await setDoc(userRef, userData, { merge: true });
+      
+      // 3. Establish Security Session
       await createOrUpdateSession(db, user.uid, employee.id);
       logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
 
@@ -132,7 +123,7 @@ export default function LoginPage() {
       
       if (!userCredential.user.emailVerified) {
         toast({ title: "Email Unverified", description: "Please check your inbox for the verification pulse." });
-        router.push('/verify-email');
+        setLoading(false);
         return;
       }
 
@@ -169,6 +160,7 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
+      // Generate unique pulse for admin monitor
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
       await setDoc(doc(db, 'otp_registry', formattedPhone), {
         phone: formattedPhone,
@@ -179,7 +171,6 @@ export default function LoginPage() {
 
       setConfirmationResult(result);
       setStep('otp');
-      setResendCooldown(60);
       toast({ title: "Verification Initiated", description: "Security code dispatched." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Node Access Denied", description: error.message });
@@ -298,9 +289,9 @@ export default function LoginPage() {
                         type={showPassword ? "text" : "password"} 
                         placeholder="••••••••" 
                         className="pl-12 pr-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary transition-all" 
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        required
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        required 
                       />
                       <button 
                         type="button" 

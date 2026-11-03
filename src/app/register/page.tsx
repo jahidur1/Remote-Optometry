@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -16,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { RoleGuard } from '@/components/auth/role-guard';
@@ -35,6 +34,7 @@ export default function RegisterPage() {
     fullName: '',
     email: '',
     employeeId: '',
+    whatsappNumber: '',
     role: 'EMPLOYEE',
     gender: 'Male',
     department: 'Remote Optometry',
@@ -57,6 +57,13 @@ export default function RegisterPage() {
     const emailQ = query(collection(db, 'employees'), where('email', '==', formData.email.toLowerCase()));
     const emailSnap = await getDocs(emailQ);
     if (!emailSnap.empty) throw new Error("This email is already bound to an active identity node.");
+
+    // 3. Mobile Unique Check
+    if (formData.whatsappNumber.length < 10) throw new Error("A valid 10-digit mobile number is required.");
+    const phoneFormatted = `+91${formData.whatsappNumber}`;
+    const phoneQ = query(collection(db, 'employees'), where('whatsappNumber', '==', phoneFormatted));
+    const phoneSnap = await getDocs(phoneQ);
+    if (!phoneSnap.empty) throw new Error("This mobile number is already bound to another professional.");
   };
 
   const handleProvisionIdentity = async (e: React.FormEvent) => {
@@ -80,7 +87,7 @@ export default function RegisterPage() {
       // 3. Dispatch Verification Pulse
       await sendEmailVerification(user);
 
-      // 4. Atomic Dual-Commit to Registry
+      // 4. Atomic Multi-Commit to Registry
       await commitRecords(user.uid);
 
       toast({ 
@@ -100,10 +107,12 @@ export default function RegisterPage() {
   const commitRecords = async (uid: string) => {
     const empRef = doc(db, 'employees', formData.employeeId.toUpperCase());
     const userRef = doc(db, 'users', uid);
+    const phoneFormatted = `+91${formData.whatsappNumber}`;
 
     const commonData = {
       fullName: formData.fullName,
       email: formData.email.toLowerCase(),
+      whatsappNumber: phoneFormatted,
       role: formData.role,
       office: formData.office,
       status: 'Active',
@@ -128,16 +137,17 @@ export default function RegisterPage() {
       uid,
       displayName: formData.fullName,
       employeeId: formData.employeeId.toUpperCase(),
+      phoneNumber: phoneFormatted,
       lastLogin: new Date().toISOString()
     });
 
-    logAudit(db, uid, 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { email: formData.email });
+    logAudit(db, uid, 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { email: formData.email, phone: phoneFormatted });
   };
 
   return (
     <RoleGuard allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6 font-body text-black">
-        <Card className="w-full max-w-2xl shadow-3xl bg-white border-none rounded-[3.5rem] overflow-hidden border-4 border-white shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)]">
+        <Card className="w-full max-w-3xl shadow-3xl bg-white border-none rounded-[3.5rem] overflow-hidden border-4 border-white shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)]">
           <CardHeader className="p-12 bg-primary text-white relative">
              <div className="flex items-center justify-between mb-8 relative z-10">
                 <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 rounded-xl px-6">
@@ -190,6 +200,25 @@ export default function RegisterPage() {
                     </div>
                  </div>
                  <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Mobile (OTP Auth)</Label>
+                    <div className="flex gap-3">
+                      <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-primary text-lg">+91</div>
+                      <div className="relative flex-1 group">
+                        <Phone className="absolute left-4 top-5 h-4 w-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                        <Input
+                          placeholder="99999 00000"
+                          className="pl-12 h-14 text-lg font-black rounded-2xl border-2 border-slate-100 bg-white text-black focus:border-primary transition-all"
+                          value={formData.whatsappNumber}
+                          onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                          required
+                        />
+                      </div>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8">
+                 <div className="space-y-3">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Institutional Password</Label>
                     <div className="relative group">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
@@ -211,9 +240,6 @@ export default function RegisterPage() {
                         </button>
                     </div>
                  </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">ROC Cluster Node</Label>
                     <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
@@ -225,6 +251,9 @@ export default function RegisterPage() {
                       </SelectContent>
                     </Select>
                  </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Gender Node</Label>
                     <Select value={formData.gender} onValueChange={v => setFormData({...formData, gender: v})}>
@@ -235,6 +264,19 @@ export default function RegisterPage() {
                         <SelectItem value="Male" className="font-bold py-3 uppercase text-[11px]">Male</SelectItem>
                         <SelectItem value="Female" className="font-bold py-3 uppercase text-[11px]">Female</SelectItem>
                         <SelectItem value="Other" className="font-bold py-3 uppercase text-[11px]">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                 </div>
+                 <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Authorization Role</Label>
+                    <Select value={formData.role} onValueChange={v => setFormData({...formData, role: v as any})}>
+                      <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
+                        <SelectItem value="EMPLOYEE" className="font-bold py-3 uppercase text-[11px]">Staff Professional</SelectItem>
+                        <SelectItem value="ADMIN" className="font-bold py-3 uppercase text-[11px]">Cluster Admin</SelectItem>
+                        <SelectItem value="SUPER_ADMIN" className="font-bold py-3 uppercase text-[11px]">System Super Admin</SelectItem>
                       </SelectContent>
                     </Select>
                  </div>
@@ -252,8 +294,8 @@ export default function RegisterPage() {
                 <ShieldCheck className="size-8" />
              </div>
              <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight">
-                Institutional protocol: Enrollment initializes the authentication node and dispatches a verification pulse. 
-                All identities are synchronized across the master employee registry and auth profiles for institutional compliance.
+                Institutional protocol: Enrollment initializes a unified authentication node. Professionals can login via Email or verified Mobile OTP. 
+                All identities are immutably linked to the clinical registry for institutional compliance.
              </p>
           </CardFooter>
         </Card>
