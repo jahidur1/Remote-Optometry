@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -146,10 +145,10 @@ export default function QuotaConfiguration() {
              Mathematical Optimization Engine • Live Coverage Tracking <Activity className="size-3 text-secondary" />
           </p>
         </div>
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border-2 shadow-sm">
+        <div className="flex items-center gap-4 bg-card p-2 rounded-2xl border-2 shadow-sm">
            <Label className="text-[10px] font-black uppercase text-muted-foreground px-4">Target Cycle</Label>
            <Input 
-             className="w-40 h-11 font-black text-secondary border-none bg-secondary/5 focus-visible:ring-0 text-lg rounded-xl" 
+             className="w-40 h-11 font-black text-secondary border-none bg-background focus-visible:ring-0 text-lg rounded-xl" 
              value={weekId} 
              onChange={(e) => setWeekId(e.target.value)}
            />
@@ -160,18 +159,18 @@ export default function QuotaConfiguration() {
         <Card className="lg:col-span-3 shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card">
           <CardHeader className="bg-muted/10 border-b p-10 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="flex items-center gap-6">
-              <div className="size-16 rounded-[1.5rem] bg-primary flex items-center justify-center text-white shadow-2xl">
+              <div className="size-16 rounded-[1.5rem] bg-primary flex items-center justify-center text-primary-foreground shadow-2xl">
                 <Users className="size-8" />
               </div>
               <div>
                 <CardTitle className="text-2xl uppercase font-black tracking-tight">Daily Assignment Hub</CardTitle>
-                <CardDescription className="text-[11px] font-bold uppercase tracking-widest opacity-60">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-widest opacity-80">
                    Total assignments MUST match eligible clinical pool for solver execution.
                 </CardDescription>
               </div>
             </div>
             {DAYS.some(d => !dayStatus(d).ok) && (
-              <Badge variant="destructive" className="animate-pulse px-8 py-3 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-destructive/20">
+              <Badge variant="destructive" className="animate-pulse px-8 py-3 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-destructive/20 border-none">
                 <AlertTriangle className="size-4 mr-2" /> Coverage Imbalance
               </Badge>
             )}
@@ -180,17 +179,17 @@ export default function QuotaConfiguration() {
             <Table className="border-collapse">
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-72 pl-10 py-6 sticky left-0 z-20 bg-white/50 backdrop-blur-sm border-r">
+                  <TableHead className="w-72 pl-10 py-6 sticky left-0 z-20 bg-background border-r">
                     <span className="text-[11px] font-black uppercase tracking-[0.2em]">Clinical Shift Master</span>
                   </TableHead>
                   {DAYS.map(day => (
                     <TableHead key={day} className="text-center px-4 py-6">
                       <div className="flex flex-col items-center group">
-                        <span className="text-[10px] uppercase font-black tracking-widest text-primary mb-2 opacity-60">{day.substring(0,3)}</span>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-primary mb-2 opacity-80">{day.substring(0,3)}</span>
                         <Button 
                           variant="outline" 
                           size="icon" 
-                          className="size-10 rounded-xl border-2 hover:bg-secondary/10 hover:text-secondary hover:border-secondary/40 transition-all shadow-sm"
+                          className="size-10 rounded-xl border-2 hover:bg-secondary/20 hover:text-secondary hover:border-secondary transition-all shadow-sm"
                           onClick={() => handleCopyDay(day)}
                           title={`Clone ${day} to all other days`}
                         >
@@ -207,18 +206,18 @@ export default function QuotaConfiguration() {
                     <TableRow key={i}><TableCell colSpan={8} className="py-8"><Skeleton className="h-10 w-full rounded-2xl" /></TableCell></TableRow>
                   ))
                 ) : shifts?.map((shift) => (
-                  <TableRow key={shift.id} className="hover:bg-muted/5 group border-b last:border-0">
-                    <TableCell className="pl-10 py-6 sticky left-0 z-10 bg-white/30 backdrop-blur-sm border-r group-hover:bg-muted/10 transition-colors shadow-sm">
+                  <TableRow key={shift.id} className="hover:bg-muted/10 group border-b border-border/50">
+                    <TableCell className="pl-10 py-6 sticky left-0 z-10 bg-background border-r group-hover:bg-muted/20 transition-colors shadow-sm">
                       <div className="flex flex-col">
                         <span className="font-black text-[15px] text-primary tracking-tight">{shift.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter opacity-60">{shift.startTime}—{shift.endTime}</span>
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter opacity-80">{shift.startTime}—{shift.endTime}</span>
                       </div>
                     </TableCell>
                     {DAYS.map(day => (
                       <TableCell key={day} className="text-center px-4 py-6">
                         <Input 
                           type="number" 
-                          className="w-20 mx-auto h-12 text-center font-black text-xl bg-white border-2 border-primary/5 rounded-2xl focus:border-secondary transition-all shadow-inner"
+                          className="w-20 mx-auto h-12 text-center font-black text-xl bg-card border-2 border-primary/10 rounded-2xl focus:border-secondary transition-all shadow-inner"
                           value={quotas[`${day}_${shift.id}`] || 0}
                           onChange={(e) => handleQuotaChange(day, shift.id, e.target.value)}
                         />
@@ -227,28 +226,28 @@ export default function QuotaConfiguration() {
                   </TableRow>
                 ))}
                 
-                <TableRow className="bg-muted/40 font-black">
+                <TableRow className="bg-muted/50 font-black">
                   <TableCell className="pl-10 py-8 text-[11px] uppercase tracking-widest text-muted-foreground border-r">Clinical Eligibility</TableCell>
                   {DAYS.map(day => (
                     <TableCell key={day} className="text-center">
                       <div className="flex flex-col items-center">
                         <span className="text-primary text-2xl font-black tracking-tighter">{dailyAvailability[day] || 0}</span>
-                        <span className="text-[9px] font-black uppercase text-primary/40 tracking-widest">POOL</span>
+                        <span className="text-[9px] font-black uppercase text-primary/60 tracking-widest">POOL</span>
                       </div>
                     </TableCell>
                   ))}
                 </TableRow>
-                <TableRow className="bg-primary/5 font-black border-t-4 border-primary/20 shadow-2xl">
+                <TableRow className="bg-primary/10 font-black border-t-4 border-primary/40 shadow-2xl">
                   <TableCell className="pl-10 py-8 text-[11px] uppercase tracking-widest text-primary border-r">Required Target</TableCell>
                   {DAYS.map(day => {
                     const status = dayStatus(day);
                     return (
                       <TableCell key={day} className="text-center">
                         <div className="flex flex-col items-center">
-                          <span className={`text-2xl font-black tracking-tighter ${status.ok ? 'text-emerald-600' : 'text-destructive'}`}>
+                          <span className={`text-2xl font-black tracking-tighter ${status.ok ? 'text-emerald-500' : 'text-destructive'}`}>
                             {status.req}
                           </span>
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${status.ok ? 'text-emerald-600/60' : 'text-destructive/60'}`}>
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${status.ok ? 'text-emerald-400' : 'text-destructive/80'}`}>
                             {status.ok ? 'MATCHED' : status.diff > 0 ? `+${status.diff} SURPLUS` : `${status.diff} SHORT`}
                           </span>
                         </div>
@@ -268,26 +267,26 @@ export default function QuotaConfiguration() {
                   Validation Gate Active: Solve execution is blocked until daily coverage imbalances are neutralized. Quotas represent EXACT headcount requirements.
                 </p>
              </div>
-             <Button className="bg-primary text-white h-16 px-14 font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:scale-105 transition-all group shrink-0" onClick={handleSave} disabled={saving}>
+             <Button className="bg-primary text-primary-foreground h-16 px-14 font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:scale-105 transition-all group shrink-0" onClick={handleSave} disabled={saving}>
                <Save className="mr-4 h-6 w-6 group-hover:rotate-12 transition-transform" /> {saving ? 'Syncing...' : 'Save Matrix'}
              </Button>
           </CardFooter>
         </Card>
 
         <div className="lg:col-span-1 space-y-8">
-          <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden glass-card bg-secondary/5 border-2 border-secondary/10">
-            <CardHeader className="p-8 pb-6 border-b bg-white/50">
+          <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden glass-card border-2 border-secondary/20">
+            <CardHeader className="p-8 pb-6 border-b bg-muted/5">
               <div className="flex items-center gap-4">
                 <Target className="size-6 text-secondary" />
                 <CardTitle className="text-lg font-black uppercase tracking-tight">Diversity Targets</CardTitle>
               </div>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 opacity-60">Soft objectives for pod gender balance.</CardDescription>
+              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 opacity-80">Soft objectives for pod gender balance.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
               {shifts?.map(shift => (
                 <div key={shift.id} className="space-y-4 pb-6 border-b border-secondary/10 last:border-0 last:pb-0">
                   <p className="text-[11px] font-black uppercase tracking-widest text-primary flex items-center gap-3">
-                    <ChevronRight className="size-3 text-secondary opacity-40" /> {shift.name}
+                    <ChevronRight className="size-3 text-secondary opacity-60" /> {shift.name}
                   </p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -296,7 +295,7 @@ export default function QuotaConfiguration() {
                         value={genderTargets[shift.id]?.male || "1"} 
                         onValueChange={(val) => handleGenderChange(shift.id, 'male', val)}
                       >
-                        <SelectTrigger className="h-10 text-[11px] font-black rounded-xl border-2 border-secondary/10 shadow-sm">
+                        <SelectTrigger className="h-10 text-[11px] font-black rounded-xl border-2 border-secondary/20 shadow-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl shadow-2xl border-none">
@@ -310,7 +309,7 @@ export default function QuotaConfiguration() {
                         value={genderTargets[shift.id]?.female || "1"} 
                         onValueChange={(val) => handleGenderChange(shift.id, 'female', val)}
                       >
-                        <SelectTrigger className="h-10 text-[11px] font-black rounded-xl border-2 border-secondary/10 shadow-sm">
+                        <SelectTrigger className="h-10 text-[11px] font-black rounded-xl border-2 border-secondary/20 shadow-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl shadow-2xl border-none">
@@ -325,7 +324,7 @@ export default function QuotaConfiguration() {
           </Card>
 
           <Card className="bg-primary text-primary-foreground premium-card relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 transform group-hover:scale-110 transition-transform duration-1000 opacity-5">
+            <div className="absolute top-0 right-0 p-8 transform group-hover:scale-110 transition-transform duration-1000 opacity-10">
                <ShieldCheck size={220} />
             </div>
             <CardContent className="p-8 space-y-4 relative z-10">
@@ -333,7 +332,7 @@ export default function QuotaConfiguration() {
                   <ShieldCheck className="size-6 text-white" />
                </div>
                <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Solver Integrity</p>
-               <p className="text-[13px] font-medium leading-relaxed opacity-70">
+               <p className="text-[13px] font-medium leading-relaxed opacity-90">
                  The CP-SAT engine prioritizes HARD staffing quotas. Gender targets are treated as soft objectives to avoid infeasibility during clinical peaks.
                </p>
             </CardContent>
