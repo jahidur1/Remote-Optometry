@@ -61,7 +61,7 @@ export default function OtpMonitor() {
   }, [pulses, searchTerm]);
 
   return (
-    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -101,11 +101,11 @@ export default function OtpMonitor() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Active Pulses', value: pulses?.length || 0, sub: 'Total Registry', icon: Zap, color: 'text-primary' },
-          { label: 'Security Cycle', value: '24h', sub: 'Temporary Node', icon: Clock, color: 'text-secondary' },
+          { label: 'Security Cycle', value: '12h', sub: 'Temporary Node', icon: Clock, color: 'text-secondary' },
           { label: 'Sync Integrity', value: '100%', sub: 'Compliance Verified', icon: ShieldCheck, color: 'text-secondary' },
           { label: 'Access Mode', value: 'S-ADMIN', sub: 'Privileged View', icon: Lock, color: 'text-black' }
         ].map((kpi, i) => (
-          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
+          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all bg-white shadow-sm border border-slate-100">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
               <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
@@ -140,7 +140,7 @@ export default function OtpMonitor() {
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-secondary transition-colors" />
               <Input 
                 placeholder="Search Phone or Pulse Code..." 
-                className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:border-secondary transition-all text-black placeholder:text-slate-300"
+                className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:border-secondary transition-all text-black placeholder:text-slate-300 shadow-inner"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -151,7 +151,7 @@ export default function OtpMonitor() {
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-b border-slate-100">
-                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Mobile Endpoint</TableHead>
+                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left">Mobile Endpoint</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center px-8">Backup Pulse Code</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center px-8">Initiated (IST)</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center px-8">Status deadline</TableHead>
@@ -249,7 +249,7 @@ export default function OtpMonitor() {
             <div className="space-y-4">
                <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Governance node</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "Backup pulses are architected for administrative fallback. Codes are immutably deleted after the 24-hour security window 
+                  "Backup pulses are architected for administrative fallback. Codes are immutably deleted after the 12-hour security window 
                   to maintain registry hygiene. Access to this ledger is strictly restricted to Super Admin identities for identity node verification."
                </p>
             </div>

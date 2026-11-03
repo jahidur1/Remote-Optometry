@@ -39,7 +39,7 @@
     },
     "OtpPulse": {
       "title": "OTP Pulse",
-      "description": "Temporary 24-hour backup OTP for administrative support.",
+      "description": "Temporary 12-hour backup OTP for administrative support.",
       "type": "object",
       "properties": {
         "phone": { "type": "string" },
@@ -67,7 +67,7 @@
     },
     "/otp_registry/{phone}": {
       "schema": "OtpPulse",
-      "description": "24-hour temporary backup OTP pulses."
+      "description": "12-hour temporary backup OTP pulses."
     }
   }
 }

@@ -23,7 +23,7 @@ import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { addDays } from 'date-fns';
+import { addHours } from 'date-fns';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -94,7 +94,7 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
-      // GENERATE BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 24h)
+      // GENERATE BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 12h)
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpRef = doc(db, 'otp_registry', formattedPhone);
       
@@ -102,7 +102,7 @@ export default function LoginPage() {
       setDoc(otpRef, {
         phone: formattedPhone,
         otp: backupCode,
-        expiresAt: addDays(new Date(), 1).toISOString(),
+        expiresAt: addHours(new Date(), 12).toISOString(),
         createdAt: serverTimestamp()
       }, { merge: true });
 
@@ -199,7 +199,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-4 relative overflow-hidden font-body">
+    <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-4 relative overflow-hidden font-body text-black">
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, black 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 
