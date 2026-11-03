@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -89,7 +90,6 @@ export function AdminSidebar() {
     await signOut(auth)
   }
 
-  // Ensure navigation always closes mobile sidebar and clears interaction state
   const handleNavClick = () => {
     if (isMobile) {
       setOpenMobile(false)
@@ -110,8 +110,8 @@ export function AdminSidebar() {
               </div>
               {state === "expanded" && (
                 <div className="flex flex-col">
-                  <span className="text-base font-black uppercase tracking-tighter text-white">ROC Workforce</span>
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary/80">Intelligence Node</span>
+                  <span className="text-base font-black uppercase tracking-tighter text-white leading-none">ROC Workforce</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-secondary/80 mt-1">Intelligence Node</span>
                 </div>
               )}
             </div>
@@ -151,7 +151,7 @@ export function AdminSidebar() {
                         >
                           <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-4">
                             <item.icon className={cn("size-5", isActive ? "text-white stroke-[2.5px]" : "group-hover:scale-110 group-hover:text-secondary transition-all")} />
-                            <span className="font-bold text-[14px] tracking-tight uppercase">{item.title}</span>
+                            <span className="font-bold text-[13px] tracking-tight uppercase">{item.title}</span>
                             {isActive && <div className="ml-auto size-1.5 rounded-full bg-white shadow-[0_0_10px_white] animate-pulse" />}
                           </Link>
                         </SidebarMenuButton>
@@ -173,7 +173,7 @@ export function AdminSidebar() {
               onClick={handleLogout}
             >
               <LogOut className="size-5 group-hover:rotate-12 transition-transform" />
-              <span className="font-black uppercase text-[12px] tracking-widest">De-authorize</span>
+              <span className="font-black uppercase text-[11px] tracking-widest">De-authorize</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, orderBy, where } from 'firebase/firestore';
-import { useFirestore, useCollection } from '@/firebase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { collection, query, orderBy, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useUser } from '@/firebase';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,11 @@ import {
   Activity, 
   Zap, 
   ShieldCheck, 
-  Database
+  Database,
+  Trash2,
+  CheckCircle2,
+  XCircle,
+  Loader2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmployeeDialog } from '@/components/admin/employee-dialog';
@@ -33,13 +38,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { logAudit } from '@/lib/audit';
 
 export default function EmployeeManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   
   const firestore = useFirestore();
+  const { profile } = useUser();
+  const { toast } = useToast();
 
   const employeesQuery = useMemo(() => query(
     collection(firestore, 'employees'),
@@ -57,8 +67,10 @@ export default function EmployeeManagement() {
     )
   , [employees, searchTerm]);
 
-  const activeCount = useMemo(() => employees?.filter(e => e.status === 'Active').length || 0, [employees]);
-  const officeCount = useMemo(() => new Set(employees?.map(e => e.office)).size || 0, [employees]);
+  const stats = useMemo(() => ({
+    active: employees?.filter(e => e.status === 'Active').length || 0,
+    offices: new Set(employees?.map(e => e.office)).size || 0,
+  }), [employees]);
 
   const handleEdit = (employee: any) => {
     setSelectedEmployee(employee);
@@ -70,8 +82,33 @@ export default function EmployeeManagement() {
     setIsDialogOpen(true);
   };
 
+  const toggleStatus = async (employee: any) => {
+    if (!profile) return;
+    const newStatus = employee.status === 'Active' ? 'Suspended' : 'Active';
+    
+    setProcessingId(employee.id);
+    try {
+      const empRef = doc(firestore, 'employees', employee.id);
+      await updateDoc(empRef, { 
+        status: newStatus,
+        updatedAt: serverTimestamp() 
+      });
+      
+      logAudit(firestore, profile.uid, `ADMIN_${newStatus.toUpperCase()}_EMPLOYEE`, employee.id);
+      toast({ 
+        title: `Protocol Updated`, 
+        description: `${employee.fullName} status set to ${newStatus} in registry.` 
+      });
+    } catch (e: any) {
+      toast({ title: "Registry Error", description: e.message, variant: "destructive" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+      {/* Institutional Header Matrix */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -79,10 +116,10 @@ export default function EmployeeManagement() {
               <Users className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-white uppercase leading-none">Directory</h1>
+              <h1 className="text-4xl font-black tracking-tight text-white uppercase leading-none">Registry Node</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Institutional Registry <Activity className="size-3 text-secondary animate-pulse" />
+                  Institutional Directory <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -94,7 +131,7 @@ export default function EmployeeManagement() {
            <div className="px-6 py-1.5 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Protocol Status</label>
               <div className="flex items-center gap-3">
-                 <span className="font-black text-secondary uppercase tracking-widest text-lg">SECURE NODE</span>
+                 <span className="font-black text-secondary uppercase tracking-widest text-lg">AUTHORIZED ACCESS</span>
                  <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
               </div>
            </div>
@@ -109,6 +146,7 @@ export default function EmployeeManagement() {
         </div>
       </div>
 
+      {/* KPI Ledger */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -116,25 +154,25 @@ export default function EmployeeManagement() {
             <Zap className="h-5 w-5 text-secondary opacity-30 group-hover:opacity-100 transition-all" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">{activeCount}</div>
+            <div className="text-5xl font-black text-white tracking-tighter">{stats.active}</div>
             <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Active Personnel</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">Cluster Nodes</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">Cluster Distribution</CardTitle>
             <Building2 className="h-5 w-5 text-accent opacity-30 group-hover:opacity-100 transition-all" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-black text-accent tracking-tighter">{officeCount}</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">ROC Units Connected</p>
+            <div className="text-5xl font-black text-accent tracking-tighter">{stats.offices}</div>
+            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">ROC Units Engaged</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Sync Efficiency</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Sync Pulse</CardTitle>
             <Database className="h-5 w-5 text-secondary opacity-30 group-hover:opacity-100 transition-all" />
           </CardHeader>
           <CardContent>
@@ -145,16 +183,17 @@ export default function EmployeeManagement() {
 
         <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Security Cycle</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Security Mode</CardTitle>
             <ShieldCheck className="h-5 w-5 text-emerald-500 opacity-30 group-hover:opacity-100 transition-all" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">365D</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Standard Session</p>
+            <div className="text-5xl font-black text-white tracking-tighter">Z-TRUST</div>
+            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">IAM OIDC Policy</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Main Staff Ledger */}
       <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary">
         <CardHeader className="bg-white/[0.03] border-b border-white/5 p-10">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
@@ -165,7 +204,7 @@ export default function EmployeeManagement() {
                <div className="space-y-1">
                   <CardTitle className="text-2xl uppercase font-black tracking-tight text-white leading-none">Clinical Staff Ledger</CardTitle>
                   <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mt-2">
-                     Verified professional identities within the ROC cluster network.
+                     Verified professional identities within the institutional cloud.
                   </CardDescription>
                </div>
             </div>
@@ -189,11 +228,11 @@ export default function EmployeeManagement() {
           <Table className="border-collapse">
             <TableHeader className="bg-white/[0.02]">
               <TableRow className="border-b border-white/5">
-                <TableHead className="w-[200px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">Professional ID</TableHead>
+                <TableHead className="w-[200px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">ID Node</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">Clinical Identity</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">ROC Cluster Node</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">Vitals</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5 text-center">Status</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">ROC Cluster</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5">Metadata</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-white/5 text-center">Status Pulse</TableHead>
                 <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
               </TableRow>
             </TableHeader>
@@ -210,7 +249,10 @@ export default function EmployeeManagement() {
                 </TableRow>
               ) : (
                 filteredEmployees?.map((employee) => (
-                  <TableRow key={employee.id} className="hover:bg-white/[0.04] transition-all duration-300 group border-b border-white/5 last:border-0">
+                  <TableRow key={employee.id} className={cn(
+                    "hover:bg-white/[0.04] transition-all duration-300 group border-b border-white/5 last:border-0",
+                    employee.status !== 'Active' && "opacity-40 grayscale"
+                  )}>
                     <TableCell className="pl-10 py-8 border-r border-white/5">
                       <code className="text-secondary font-black text-[13px] bg-secondary/10 px-4 py-1.5 rounded-lg border border-secondary/20 shadow-inner group-hover:scale-105 inline-block transition-transform">
                         {employee.id}
@@ -218,12 +260,12 @@ export default function EmployeeManagement() {
                     </TableCell>
                     <TableCell className="py-8 border-r border-white/5">
                       <div className="flex flex-col gap-1">
-                        <span className="font-black text-[16px] text-white tracking-tight group-hover:translate-x-1 transition-transform leading-none">{employee.fullName}</span>
+                        <span className="font-black text-[16px] text-white tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{employee.fullName}</span>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-white/10 text-white/40 bg-white/5 px-2 py-0.5 rounded-md">
                             {employee.designation || 'STAFF'}
                           </Badge>
-                          <span className="text-[9px] text-white/20 font-bold uppercase tracking-widest">{employee.department}</span>
+                          <span className="text-[9px] text-white/20 font-bold uppercase tracking-widest">{employee.role}</span>
                         </div>
                       </div>
                     </TableCell>
@@ -238,25 +280,31 @@ export default function EmployeeManagement() {
                     <TableCell className="py-8 border-r border-white/5">
                        <div className="flex items-center gap-4">
                           <div className="flex flex-col">
-                             <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Gender</span>
-                             <span className="text-[11px] font-black text-white/70">{employee.gender}</span>
+                             <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Node</span>
+                             <span className="text-[11px] font-black text-white/70">{employee.gender?.substring(0,1)} / {employee.age || '--'}</span>
                           </div>
                           <div className="w-px h-6 bg-white/5" />
                           <div className="flex flex-col">
-                             <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Age</span>
-                             <span className="text-[11px] font-black text-white/70">{employee.age || '—'}</span>
+                             <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Contact</span>
+                             <span className="text-[11px] font-black text-white/70 tabular-nums">+{employee.whatsappNumber?.replace(/\D/g, '').slice(-10)}</span>
                           </div>
                        </div>
                     </TableCell>
                     <TableCell className="py-8 border-r border-white/5 text-center">
-                      <Badge 
-                        className={cn(
-                          "font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full border-none shadow-2xl",
-                          employee.status === 'Active' ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-destructive text-white shadow-destructive/20'
+                      <div className="flex flex-col items-center gap-2">
+                        {processingId === employee.id ? (
+                           <Loader2 className="size-4 animate-spin text-secondary" />
+                        ) : (
+                          <Badge 
+                            className={cn(
+                              "font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full border-none shadow-2xl",
+                              employee.status === 'Active' ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-destructive text-white shadow-destructive/20'
+                            )}
+                          >
+                            {employee.status}
+                          </Badge>
                         )}
-                      >
-                        {employee.status}
-                      </Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right pr-10 py-8">
                       <DropdownMenu>
@@ -270,8 +318,18 @@ export default function EmployeeManagement() {
                             <Edit2 className="mr-3 h-4 w-4" /> Edit Audit Trail
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-white/5" />
-                          <DropdownMenuItem className="h-12 font-black uppercase text-[10px] tracking-[0.2em] rounded-xl text-destructive focus:bg-destructive focus:text-white">
-                            <ShieldAlert className="mr-3 h-4 w-4" /> Revoke Authorized Access
+                          <DropdownMenuItem 
+                            className={cn(
+                              "h-12 font-black uppercase text-[10px] tracking-[0.2em] rounded-xl focus:text-white",
+                              employee.status === 'Active' ? "text-destructive focus:bg-destructive" : "text-emerald-500 focus:bg-emerald-500"
+                            )}
+                            onClick={() => toggleStatus(employee)}
+                          >
+                            {employee.status === 'Active' ? (
+                              <><ShieldAlert className="mr-3 h-4 w-4" /> Suspend Auth Node</>
+                            ) : (
+                              <><CheckCircle2 className="mr-3 h-4 w-4" /> Reactivate Profile</>
+                            )}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -284,6 +342,7 @@ export default function EmployeeManagement() {
         </CardContent>
       </Card>
 
+      {/* Institutional Protocol Policy */}
       <div className="grid md:grid-cols-2 gap-8">
           <Card className="bg-primary text-primary-foreground shadow-2xl border border-white/5 rounded-[2.5rem] overflow-hidden relative group">
             <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2s] opacity-[0.03]">
