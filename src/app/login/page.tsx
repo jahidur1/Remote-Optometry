@@ -10,7 +10,11 @@ import {
   ConfirmationResult,
   setPersistence,
   browserLocalPersistence,
-  signOut
+  signOut,
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  sendEmailVerification
 } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
@@ -18,7 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck, Mail, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
@@ -29,8 +34,10 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [step, setStep] = useState<'phone' | 'otp' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
@@ -67,69 +74,116 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  const validatePhone = (num: string) => {
-    const regex = /^[6-9]\d{9}$/;
-    return regex.test(num);
+  const handleSyncProfile = async (user: any) => {
+    // HANDSHAKE: Find the employee record matching the verified identity
+    const field = user.phoneNumber ? 'whatsappNumber' : 'email';
+    const value = user.phoneNumber || user.email;
+    
+    const q = query(collection(db, 'employees'), where(field, '==', value));
+    const snap = await getDocs(q);
+    
+    if (!snap.empty) {
+      const employee = snap.docs[0].data();
+      
+      if (employee.status === 'Suspended' || employee.status === 'Inactive') {
+        await signOut(auth);
+        throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
+      }
+
+      const userRef = doc(db, 'users', user.uid);
+      const userData = {
+        uid: user.uid,
+        email: employee.email || user.email,
+        role: employee.role,
+        displayName: employee.fullName,
+        employeeId: employee.id,
+        phoneNumber: user.phoneNumber || employee.whatsappNumber,
+        office: employee.office || null,
+        status: 'Active' as const,
+        lastLogin: new Date().toISOString()
+      };
+
+      await setDoc(userRef, userData, { merge: true });
+      await createOrUpdateSession(db, user.uid, employee.id);
+      logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
+
+      toast({
+        title: "Identity Verified",
+        description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
+      });
+
+      if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
+        router.push('/admin');
+      } else {
+        router.push('/employee/portal');
+      }
+    } else {
+      await signOut(auth);
+      throw new Error("This identity is not authorized for portal access. Contact administrative nodes.");
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      if (!userCredential.user.emailVerified) {
+        toast({ title: "Email Unverified", description: "Please check your inbox for the verification pulse." });
+        router.push('/verify-email');
+        return;
+      }
+
+      await handleSyncProfile(userCredential.user);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Auth Failure", description: error.message });
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      await handleSyncProfile(userCredential.user);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Google Auth Failed", description: error.message });
+      setLoading(false);
+    }
   };
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!validatePhone(phoneNumber)) {
-      toast({
-        variant: "destructive",
-        title: "Invalid Number",
-        description: "Please enter a valid 10-digit Indian mobile number.",
-      });
+    if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
+      toast({ variant: "destructive", title: "Invalid Number", description: "10-digit Indian mobile number required." });
       return;
     }
 
     setLoading(true);
-
     try {
       const formattedPhone = `+91${phoneNumber}`;
-      
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.clear();
-        (window as any).recaptchaVerifier = null;
-      }
       initializeRecaptcha();
-
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
-      // GENERATE FRESH BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 12h)
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpRef = doc(db, 'otp_registry', formattedPhone);
-      
-      setDoc(otpRef, {
+      await setDoc(doc(db, 'otp_registry', formattedPhone), {
         phone: formattedPhone,
         otp: backupCode,
         expiresAt: addHours(new Date(), 12).toISOString(),
         createdAt: serverTimestamp()
-      }, { merge: true }).catch(async (error) => {
-         // Silently handle backup OTP permission failures for non-superadmins
-      });
+      }, { merge: true });
 
       setConfirmationResult(result);
       setStep('otp');
       setResendCooldown(60);
-      
-      logAudit(db, 'system', 'AUTH_OTP_REQUEST', phoneNumber, { source: 'web_portal' });
-      
-      toast({ title: "Verification Initiated", description: "Standard security code dispatched via SMS." });
+      toast({ title: "Verification Initiated", description: "Security code dispatched." });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Node Access Denied",
-        description: error.message || "Failed to initiate verification sequence.",
-      });
-      
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.clear();
-        (window as any).recaptchaVerifier = null;
-      }
-    } finally {
-      setTimeout(() => setLoading(false), 500);
+      toast({ variant: "destructive", title: "Node Access Denied", description: error.message });
+      setLoading(false);
     }
   };
 
@@ -137,70 +191,12 @@ export default function LoginPage() {
     e.preventDefault();
     if (!confirmationResult || otp.length < 6) return;
     setLoading(true);
-
     try {
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await confirmationResult.confirm(otp);
-      const user = userCredential.user;
-
-      // HANDSHAKE: Find the employee record matching the verified phone number
-      const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
-      const snap = await getDocs(q);
-      
-      if (!snap.empty) {
-        const employee = snap.docs[0].data();
-        
-        if (employee.status === 'Suspended' || employee.status === 'Inactive') {
-          await signOut(auth);
-          throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
-        }
-
-        const userRef = doc(db, 'users', user.uid);
-        const userData = {
-          uid: user.uid,
-          email: employee.email || null,
-          role: employee.role,
-          displayName: employee.fullName,
-          employeeId: employee.id,
-          phoneNumber: user.phoneNumber,
-          office: employee.office || null,
-          status: 'Active' as const,
-          lastLogin: new Date().toISOString()
-        };
-
-        // Non-blocking profile synchronization
-        setDoc(userRef, userData, { merge: true }).catch(async (error) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'write',
-            requestResourceData: userData,
-          } satisfies SecurityRuleContext));
-        });
-
-        // Initialize secure device session
-        createOrUpdateSession(db, user.uid, employee.id);
-        logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
-
-        toast({
-          title: "Identity Verified",
-          description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
-        });
-
-        if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
-          router.push('/admin');
-        } else {
-          router.push('/employee/portal');
-        }
-      } else {
-        await signOut(auth);
-        throw new Error("This terminal is not authorized for portal access. Contact administrative nodes.");
-      }
+      await handleSyncProfile(userCredential.user);
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Verification Failure",
-        description: error.message || "Invalid or expired OTP sequence.",
-      });
+      toast({ variant: "destructive", title: "Verification Failure", description: error.message });
       setLoading(false);
     }
   };
@@ -210,95 +206,126 @@ export default function LoginPage() {
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, black 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 
-      <Card className="w-full max-w-md shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative z-10 border-white bg-white/95 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden animate-in border-4">
+      <Card className="w-full max-w-md shadow-[0_30px_60px_rgba(0,0,0,0.1)] relative z-10 border-white bg-white/95 backdrop-blur-2xl rounded-[3rem] overflow-hidden animate-in border-4">
         <CardHeader className="space-y-6 text-center p-12 pb-8">
           {logo && (
-            <div className="mx-auto relative size-20 transform rotate-3 hover:rotate-0 transition-transform">
-              <Image 
-                src={logo.imageUrl} 
-                alt="Remote Optometry" 
-                fill 
-                className="object-contain"
-                data-ai-hint="remote optometry"
-              />
+            <div className="mx-auto relative size-20 transform hover:rotate-3 transition-transform duration-500">
+              <Image src={logo.imageUrl} alt="Remote Optometry" fill className="object-contain" />
             </div>
           )}
           <div className="space-y-1">
-            <CardTitle className="text-4xl font-black tracking-tight font-headline uppercase leading-none text-black">Access <span className="text-primary">Node</span></CardTitle>
+            <CardTitle className="text-3xl font-black tracking-tight font-headline uppercase leading-none text-black">Institutional <span className="text-secondary">Authentication</span></CardTitle>
             <CardDescription className="text-black/30 font-black uppercase text-[10px] tracking-[0.4em]">Remote Optometry Identity Pulse</CardDescription>
           </div>
         </CardHeader>
         
-        <CardContent className="px-12 pb-12">
-          {step === 'phone' ? (
-            <div className="space-y-8">
-              <form onSubmit={handleSendOtp} className="space-y-8">
-                <div className="space-y-4">
-                  <Label htmlFor="phone" className="text-[11px] font-black uppercase tracking-widest text-black/40 ml-1">Verified Mobile Endpoint</Label>
-                  <div className="flex gap-4">
-                    <div className="flex h-14 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-primary text-lg">
-                      +91
+        <CardContent className="px-10 pb-10">
+          <Tabs defaultValue="phone" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100 rounded-2xl p-1.5 mb-8">
+              <TabsTrigger value="phone" className="rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg transition-all">Mobile OTP</TabsTrigger>
+              <TabsTrigger value="email" className="rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg transition-all">Email Auth</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="phone">
+              {step !== 'otp' ? (
+                <form onSubmit={handleSendOtp} className="space-y-8">
+                  <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Mobile Endpoint</Label>
+                    <div className="flex gap-3">
+                      <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-primary text-lg">+91</div>
+                      <div className="relative flex-1 group">
+                        <Phone className="absolute left-4 top-5 h-4 w-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                        <Input
+                          placeholder="99999 00000"
+                          className="pl-12 h-14 text-xl font-bold rounded-2xl border-2 border-slate-100 bg-white text-black focus:border-primary transition-all shadow-inner"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          required
+                        />
+                      </div>
                     </div>
-                    <div className="relative flex-1 group">
-                      <Phone className="absolute left-4 top-5 h-4 w-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                  </div>
+                  <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group" type="submit" disabled={loading || phoneNumber.length < 10}>
+                    {loading ? <Loader2 className="mr-3 size-6 animate-spin" /> : <>Request OTP <ArrowRight className="ml-3 size-6 group-hover:translate-x-2 transition-transform" /></>}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} className="space-y-10">
+                  <div className="space-y-6 text-center">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40">Verification Key</Label>
+                    <div className="relative">
+                      <Key className="absolute left-4 top-7 h-5 w-5 text-black/20" />
                       <Input
-                        id="phone"
-                        type="tel"
-                        placeholder="99999 00000"
-                        className="pl-12 h-14 text-xl font-bold rounded-2xl border-2 border-slate-100 bg-white text-black focus:border-primary transition-all shadow-sm"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        maxLength={6}
+                        placeholder="000000"
+                        className="pl-12 h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-white text-black shadow-inner"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                        required
+                      />
+                    </div>
+                    <button type="button" onClick={() => setStep('phone')} className="text-[10px] font-black uppercase text-primary hover:underline">Edit Number</button>
+                  </div>
+                  <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all" type="submit" disabled={loading || otp.length < 6}>
+                    {loading ? <Loader2 className="mr-3 size-6 animate-spin" /> : "Verify Identity"}
+                  </Button>
+                </form>
+              )}
+            </TabsContent>
+
+            <TabsContent value="email" className="space-y-8">
+              <form onSubmit={handleEmailLogin} className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Official Email</Label>
+                    <div className="relative group">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                      <Input 
+                        type="email" 
+                        placeholder="professional@roc.internal" 
+                        className="pl-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary transition-all" 
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Password</Label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                      <Input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        className="pl-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary transition-all" 
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
                         required
                       />
                     </div>
                   </div>
                 </div>
-                <Button className="w-full bg-primary text-white hover:bg-black h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all border-none group" type="submit" disabled={loading || phoneNumber.length < 10}>
-                  {loading ? <Loader2 className="mr-3 size-6 animate-spin" /> : (
-                    <>
-                      Request OTP Pulse
-                      <ArrowRight className="ml-3 size-6 group-hover:translate-x-2 transition-transform" />
-                    </>
-                  )}
+                <Button className="w-full bg-primary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all" type="submit" disabled={loading}>
+                  {loading ? <Loader2 className="mr-3 size-5 animate-spin" /> : "Authorize Access"}
                 </Button>
               </form>
-            </div>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-10">
-              <div className="space-y-6">
-                <div className="flex justify-between items-center px-1">
-                  <Label htmlFor="otp" className="text-[11px] font-black uppercase tracking-widest text-black/40">Verification Key</Label>
-                  <button type="button" onClick={() => setStep('phone')} className="text-[10px] text-primary font-black hover:underline tracking-widest uppercase">Edit Number</button>
-                </div>
-                <div className="relative">
-                  <Key className="absolute left-4 top-7 h-5 w-5 text-black/20" />
-                  <Input
-                    id="otp"
-                    type="text"
-                    maxLength={6}
-                    placeholder="000000"
-                    className="pl-12 h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-white text-black focus:border-primary shadow-inner"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    required
-                  />
-                </div>
-                <div className="flex justify-between items-center px-4 bg-slate-50 py-3 rounded-xl border border-slate-100">
-                   <p className="text-[10px] text-black/60 uppercase font-black tabular-nums">+91 {phoneNumber}</p>
-                   {resendCooldown > 0 ? (
-                     <p className="text-[10px] text-primary font-black uppercase tracking-widest">Resend: {resendCooldown}s</p>
-                   ) : (
-                     <button type="button" onClick={handleSendOtp} className="text-[10px] text-primary font-black hover:underline flex items-center gap-1.5 uppercase tracking-widest">
-                       <RefreshCcw className="size-3" /> Resend Pulse
-                     </button>
-                   )}
-                </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100" /></div>
+                <div className="relative flex justify-center text-[9px] uppercase font-black"><span className="bg-white px-4 text-black/20 tracking-widest">Or Cloud Integration</span></div>
               </div>
-              <Button className="w-full bg-primary text-white hover:bg-black h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all border-none" type="submit" disabled={loading || otp.length < 6}>
-                {loading ? <Loader2 className="mr-3 size-6 animate-spin" /> : "Authorize Node Access"}
+
+              <Button 
+                variant="outline" 
+                className="w-full h-16 border-2 border-slate-100 hover:bg-slate-50 font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all shadow-sm"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
+                <Image src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" width={18} height={18} className="mr-3" />
+                Sign in with Google Account
               </Button>
-            </form>
-          )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
         
         <CardFooter className="bg-slate-50 p-10 border-t border-slate-100">
@@ -307,9 +334,9 @@ export default function LoginPage() {
                 <ShieldCheck className="size-6 text-primary" />
              </div>
              <div className="space-y-1">
-                <p className="text-[11px] font-black uppercase tracking-widest text-black">Zero-Trust Environment</p>
+                <p className="text-[11px] font-black uppercase tracking-widest text-black">Zero-Trust Protocol</p>
                 <p className="text-[12px] text-black/40 leading-relaxed font-bold uppercase tracking-tight">
-                  12-hour backup pulse valid. Access logs are immutable and monitored for institutional compliance.
+                  Authorized personnel only. Access pulses are ledgered for institutional compliance.
                 </p>
              </div>
           </div>

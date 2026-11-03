@@ -7,8 +7,10 @@ import {
   RecaptchaVerifier, 
   signInWithPhoneNumber, 
   ConfirmationResult,
-  setPersistence,
-  browserLocalPersistence
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendEmailVerification,
+  signOut
 } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
@@ -17,21 +19,21 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, ShieldCheck, Mail, Phone, Loader2, Key, RefreshCcw, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserPlus, ShieldCheck, Mail, Phone, Loader2, Key, RefreshCcw, ArrowLeft, ShieldAlert, Lock, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { RoleGuard } from '@/components/auth/role-guard';
 
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
+  const [method, setMethod] = useState<'phone' | 'email'>('phone');
   const [step, setStep] = useState<'details' | 'otp'>('details');
   const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -48,14 +50,6 @@ export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (resendCooldown > 0) {
-      timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
-    }
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
   const initializeRecaptcha = () => {
     if (!auth) return;
     if (!(window as any).recaptchaVerifier) {
@@ -65,241 +59,259 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const validateInput = async () => {
+    // 1. Phone Unique Check
+    const phoneQ = query(collection(db, 'employees'), where('whatsappNumber', '==', `+91${formData.phone}`));
+    const phoneSnap = await getDocs(phoneQ);
+    if (!phoneSnap.empty) throw new Error("Phone number already registered.");
+
+    // 2. Email Unique Check
+    const emailQ = query(collection(db, 'employees'), where('email', '==', formData.email.toLowerCase()));
+    const emailSnap = await getDocs(emailQ);
+    if (!emailSnap.empty) throw new Error("Email already registered.");
+  };
+
+  const handleRegisterEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!/^[6-9]\d{9}$/.test(formData.phone)) {
-      toast({ variant: "destructive", title: "Invalid Phone", description: "10-digit number required." });
-      return;
-    }
-
     setLoading(true);
-
     try {
-      const formattedPhone = `+91${formData.phone}`;
+      await validateInput();
       
-      // Check for duplicates
-      const phoneQuery = query(collection(db, 'employees'), where('whatsappNumber', '==', formattedPhone));
-      const phoneSnap = await getDocs(phoneQuery);
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, password);
+      const user = userCredential.user;
+      
+      await updateProfile(user, { displayName: formData.fullName });
+      await sendEmailVerification(user);
 
-      if (!phoneSnap.empty) {
-        throw new Error("This phone number is already registered to a clinical professional.");
-      }
+      const empId = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+      await commitRecords(user.uid, empId);
 
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.clear();
-        (window as any).recaptchaVerifier = null;
-      }
-      initializeRecaptcha();
+      toast({ title: "Enrollment Pulse Successful", description: "Verification pulse dispatched to inbox." });
       
-      const verifier = (window as any).recaptchaVerifier;
-      const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
-      
-      setConfirmationResult(result);
-      setStep('otp');
-      setResendCooldown(60);
-      
-      toast({ title: "Code Dispatched", description: "Verification pulse sent to target endpoint." });
+      // Auto sign-out to prevent session collision with admin
+      await signOut(auth);
+      router.push('/login');
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Action Blocked", description: error.message });
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.clear();
-        (window as any).recaptchaVerifier = null;
-      }
-    } finally {
+      toast({ variant: "destructive", title: "Enrollment Failed", description: error.message });
       setLoading(false);
     }
   };
 
-  const handleVerifyAndComplete = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!confirmationResult || otp.length < 6) return;
-    
+    setLoading(true);
+    try {
+      await validateInput();
+      initializeRecaptcha();
+      const verifier = (window as any).recaptchaVerifier;
+      const result = await signInWithPhoneNumber(auth, `+91${formData.phone}`, verifier);
+      setConfirmationResult(result);
+      setStep('otp');
+      toast({ title: "Code Dispatched", description: "Verification pulse sent to mobile endpoint." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Action Blocked", description: error.message });
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmationResult) return;
     setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
-
-      const empId = `EMP-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString().slice(-4)}`;
-      const empRef = doc(db, 'employees', empId);
-      const userRef = doc(db, 'users', user.uid);
-
-      const payload = {
-        id: empId,
-        fullName: formData.fullName,
-        email: formData.email.toLowerCase(),
-        whatsappNumber: user.phoneNumber,
-        role: formData.role,
-        gender: formData.gender,
-        department: formData.department,
-        designation: formData.designation,
-        office: formData.office,
-        status: 'Active',
-        joinedAt: new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        authUid: user.uid
-      };
-
-      const userData = {
-        uid: user.uid,
-        email: formData.email.toLowerCase(),
-        role: formData.role as 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE',
-        displayName: formData.fullName,
-        employeeId: empId,
-        phoneNumber: user.phoneNumber,
-        office: formData.office,
-        status: 'Active' as const,
-        lastLogin: new Date().toISOString()
-      };
-
-      // Double-Commit Pulse: Master Registry + Auth Profile
-      await setDoc(empRef, payload);
-      await setDoc(userRef, userData);
-      await createOrUpdateSession(db, user.uid, empId);
+      const empId = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
       
-      logAudit(db, user.uid, 'ADMIN_PROVISION_EMPLOYEE', empId, { role: formData.role, office: formData.office });
-
-      toast({ title: "Enrollment Complete", description: "Identity and Authentication node provisioned." });
-      router.push('/admin/employees');
+      await commitRecords(user.uid, empId);
+      toast({ title: "Enrollment Complete", description: "Identity secured in registry." });
+      
+      await signOut(auth);
+      router.push('/login');
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Enrollment Failed", description: error.message });
-    } finally {
+      toast({ variant: "destructive", title: "Verification Failed", description: error.message });
       setLoading(false);
     }
   };
 
+  const commitRecords = async (uid: string, empId: string) => {
+    const empRef = doc(db, 'employees', empId);
+    const userRef = doc(db, 'users', uid);
+
+    const payload = {
+      id: empId,
+      fullName: formData.fullName,
+      email: formData.email.toLowerCase(),
+      whatsappNumber: method === 'phone' ? `+91${formData.phone}` : null,
+      role: formData.role,
+      gender: formData.gender,
+      department: formData.department,
+      designation: formData.designation,
+      office: formData.office,
+      status: 'Active',
+      joinedAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      authUid: uid
+    };
+
+    const userData = {
+      uid,
+      email: formData.email.toLowerCase(),
+      role: formData.role as any,
+      displayName: formData.fullName,
+      employeeId: empId,
+      phoneNumber: method === 'phone' ? `+91${formData.phone}` : null,
+      office: formData.office,
+      status: 'Active' as const,
+      lastLogin: new Date().toISOString()
+    };
+
+    await setDoc(empRef, payload);
+    await setDoc(userRef, userData);
+    logAudit(db, uid, 'ADMIN_PROVISION_EMPLOYEE', empId);
+  };
+
   return (
     <RoleGuard allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 font-body text-black">
-        <Card className="w-full max-w-xl shadow-2xl bg-white border-none rounded-[2.5rem] overflow-hidden">
-          <CardHeader className="text-center space-y-2 p-10 bg-primary text-white relative">
-             <div className="flex items-center justify-between mb-4 relative z-10">
-                <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 rounded-xl">
-                   <ArrowLeft className="mr-2 size-3" /> Back to Directory
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 font-body text-black">
+        <Card className="w-full max-w-2xl shadow-3xl bg-white border-none rounded-[3.5rem] overflow-hidden">
+          <CardHeader className="p-12 bg-primary text-white relative">
+             <div className="flex items-center justify-between mb-8 relative z-10">
+                <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 rounded-xl px-6">
+                   <ArrowLeft className="mr-3 size-4" /> Exit Node
                 </Button>
-                <div className="size-12 rounded-2xl bg-white/10 flex items-center justify-center text-white backdrop-blur-md border border-white/10">
-                    <UserPlus className="size-6" />
+                <div className="size-14 rounded-2xl bg-white/10 flex items-center justify-center text-white backdrop-blur-md border border-white/10">
+                    <UserPlus className="size-7" />
                 </div>
              </div>
-             <CardTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10">Enroll Professional</CardTitle>
-             <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 relative z-10">Auth & Identity Provisioning Node</CardDescription>
-             <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><UserPlus size={160} /></div>
+             <CardTitle className="text-4xl font-black uppercase tracking-tight leading-none relative z-10">Enroll Professional</CardTitle>
+             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/30 mt-4 relative z-10">Institutional Identity Node — Sync v2.2</CardDescription>
+             <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none"><Zap size={240} /></div>
           </CardHeader>
           
-          <CardContent className="p-10">
-            <div className="mb-8 p-6 rounded-2xl bg-amber-50 border-2 border-amber-100 flex gap-4 items-start">
-               <ShieldAlert className="size-5 text-amber-600 shrink-0 mt-1" />
-               <p className="text-[11px] font-bold text-amber-900 uppercase leading-relaxed tracking-tight">
-                  Institutional Notice: Completing this flow will sign you out. You must be with the professional to receive the OTP pulse on their mobile device.
-               </p>
-            </div>
+          <CardContent className="p-12">
+            <Tabs defaultValue="phone" className="w-full" onValueChange={v => setMethod(v as any)}>
+              <TabsList className="grid w-full grid-cols-2 h-16 bg-slate-100 rounded-2xl p-1.5 mb-12">
+                <TabsTrigger value="phone" className="rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg">Phone OTP Node</TabsTrigger>
+                <TabsTrigger value="email" className="rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg">Email Auth Node</TabsTrigger>
+              </TabsList>
 
-            {step === 'details' ? (
-              <form onSubmit={handleSendOtp} className="space-y-8">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Full Legal Name</Label>
-                    <Input className="font-black h-12 rounded-xl border-2 border-slate-100 text-black" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Official Email</Label>
-                    <Input type="email" className="font-black h-12 rounded-xl border-2 border-slate-100 text-black" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Mobile (OTP Auth)</Label>
-                    <div className="flex gap-2">
-                      <div className="flex h-12 w-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-slate-50 font-black text-black text-sm shrink-0">
-                        +91
-                      </div>
-                      <Input 
-                        placeholder="10-digit number"
-                        className="font-black h-12 border-2 border-slate-100 rounded-xl flex-1 text-black" 
-                        value={formData.phone} 
-                        onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} 
-                        required 
-                      />
+              <TabsContent value="phone" className="space-y-10">
+                {step === 'details' ? (
+                  <form onSubmit={handleSendOtp} className="space-y-10">
+                    <div className="grid grid-cols-2 gap-8">
+                       <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Full Legal Name</Label>
+                          <Input className="font-black h-14 rounded-2xl border-2 border-slate-100 focus:border-primary transition-all" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} required />
+                       </div>
+                       <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Official Mobile</Label>
+                          <div className="flex gap-3">
+                             <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 bg-slate-50 font-black">+91</div>
+                             <Input className="font-black h-14 rounded-2xl border-2 border-slate-100 flex-1" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0,10)})} required />
+                          </div>
+                       </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">ROC Cluster Node</Label>
-                    <Select value={formData.office} onValueChange={(v) => setFormData({...formData, office: v})}>
-                      <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
-                        <SelectItem value="KOLKATA_ROC" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Kolkata ROC</SelectItem>
-                        <SelectItem value="GURGAON_ROC" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Gurgaon ROC</SelectItem>
-                        <SelectItem value="LUCKNOW_ROC" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Lucknow ROC</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                    
+                    <div className="grid grid-cols-2 gap-8">
+                       <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">ROC Cluster Node</Label>
+                          <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
+                            <SelectTrigger className="h-14 font-black rounded-2xl border-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
+                              <SelectItem value="KOLKATA_ROC" className="font-bold py-3 uppercase text-[11px]">Kolkata ROC</SelectItem>
+                              <SelectItem value="GURGAON_ROC" className="font-bold py-3 uppercase text-[11px]">Gurgaon ROC</SelectItem>
+                              <SelectItem value="LUCKNOW_ROC" className="font-bold py-3 uppercase text-[11px]">Lucknow ROC</SelectItem>
+                            </SelectContent>
+                          </Select>
+                       </div>
+                       <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Gender Node</Label>
+                          <Select value={formData.gender} onValueChange={v => setFormData({...formData, gender: v})}>
+                            <SelectTrigger className="h-14 font-black rounded-2xl border-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
+                              <SelectItem value="Male" className="font-bold py-3 uppercase text-[11px]">Male</SelectItem>
+                              <SelectItem value="Female" className="font-bold py-3 uppercase text-[11px]">Female</SelectItem>
+                              <SelectItem value="Other" className="font-bold py-3 uppercase text-[11px]">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                       </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Institutional Role</Label>
-                      <Select value={formData.role} onValueChange={(v) => setFormData({...formData, role: v})}>
-                        <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
-                          <SelectItem value="EMPLOYEE" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Professional</SelectItem>
-                          <SelectItem value="ADMIN" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Admin</SelectItem>
-                          <SelectItem value="SUPER_ADMIN" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Executive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Gender Node</Label>
-                      <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
-                        <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
-                          <SelectItem value="Male" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Male</SelectItem>
-                          <SelectItem value="Female" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Female</SelectItem>
-                          <SelectItem value="Other" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                   </div>
-                </div>
+                    <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all" type="submit" disabled={loading}>
+                      {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Initiate Phone Handshake"}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtp} className="space-y-10 text-center">
+                    <div className="space-y-6">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-black/40">OTP Verification Key</Label>
+                      <Input maxLength={6} className="h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-slate-50" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g,''))} required />
+                    </div>
+                    <Button className="w-full bg-secondary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all" type="submit" disabled={loading}>
+                       {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Confirm Enrollment Pulse"}
+                    </Button>
+                  </form>
+                )}
+              </TabsContent>
 
-                <Button className="w-full bg-primary hover:bg-secondary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl transition-all border-none" type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Initiate Verification Pulse"}
-                </Button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyAndComplete} className="space-y-8 text-center">
-                <div className="space-y-6">
-                  <Label className="text-[11px] font-black uppercase tracking-widest ml-1 text-black/40 block">OTP Verification Key</Label>
-                  <Input
-                    maxLength={6}
-                    placeholder="000000"
-                    className="h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-slate-50/50 text-black shadow-inner"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    required
-                  />
-                  <p className="text-[10px] text-black/60 uppercase font-black tabular-nums tracking-widest">Dispatched to: +91 {formData.phone}</p>
-                </div>
-                <Button className="w-full bg-secondary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 transition-all border-none" type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Confirm Enrollment Pulse"}
-                </Button>
-                <button type="button" onClick={() => setStep('details')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Edit Registry Details</button>
-              </form>
-            )}
+              <TabsContent value="email" className="space-y-10">
+                <form onSubmit={handleRegisterEmail} className="space-y-10">
+                  <div className="grid grid-cols-2 gap-8">
+                     <div className="space-y-3">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Official Name</Label>
+                        <Input className="font-black h-14 rounded-2xl border-2" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} required />
+                     </div>
+                     <div className="space-y-3">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Target Email</Label>
+                        <Input type="email" className="font-black h-14 rounded-2xl border-2" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-8">
+                     <div className="space-y-3">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Initial Password</Label>
+                        <Input type="password" placeholder="Min 8 characters" className="font-black h-14 rounded-2xl border-2" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+                     </div>
+                     <div className="space-y-3">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">ROC Cluster Node</Label>
+                        <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
+                          <SelectTrigger className="h-14 font-black rounded-2xl border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
+                            {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold py-3 uppercase text-[11px]">{o.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                     </div>
+                  </div>
+
+                  <div className="p-8 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex gap-6 items-start shadow-inner">
+                    <ShieldCheck className="size-10 text-secondary shrink-0" />
+                    <p className="text-[11px] font-bold text-primary uppercase leading-relaxed tracking-tight">
+                       This action will initialize the Firebase Authentication node and dispatch a verification pulse to the target email. You will be signed out as an administrator after completion.
+                    </p>
+                  </div>
+
+                  <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all" type="submit" disabled={loading}>
+                    {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Authorize & Deploy Identity"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
           </CardContent>
           
-          <CardFooter className="bg-slate-50 p-8 border-t border-slate-100 flex gap-6 items-start">
-             <div className="size-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 shadow-inner">
-                <ShieldCheck className="size-7" />
+          <CardFooter className="bg-slate-50 p-12 border-t border-slate-100 flex gap-8 items-start">
+             <div className="size-14 rounded-[1.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 shadow-inner">
+                <ShieldCheck className="size-8" />
              </div>
-             <p className="text-[11px] text-black/50 uppercase leading-relaxed font-bold tracking-tight">
-                Governance Protocol: Enrollment creates an immutable clinical identity and initializes the authentication node. 
+             <p className="text-[11px] text-black/40 uppercase leading-relaxed font-black tracking-tight">
+                Governance Protocol: Enrollment creates an immutable clinical identity record and initializes the authentication node. 
                 All provisioning pulses are ledgered for institutional compliance.
              </p>
           </CardFooter>
