@@ -1,13 +1,8 @@
+
 'use server';
 
 /**
  * @fileOverview Trusted Coordinator Flow for Clinical Roster Generation.
- *
- * This flow orchestrates the deterministic optimization process:
- * 1. Fetches authoritative clinical data from Firestore.
- * 2. Strips PII and builds the mathematical model payload.
- * 3. Calls the authenticated Python CP-SAT Solver on Google Cloud Run.
- * 4. Independently validates assignments against core integrity rules.
  */
 
 import { ai } from '@/ai/genkit';
@@ -16,6 +11,7 @@ import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebas
 import { initializeFirebase } from '@/firebase';
 import { callSolver } from '@/lib/solver-client';
 import { isDateInRange, getDatesForWeek } from '@/lib/date-utils';
+import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 
 const { firestore } = initializeFirebase();
 
@@ -47,28 +43,6 @@ export const GenerateWeeklyRosterOutputSchema = z.object({
 });
 
 export type GenerateWeeklyRosterOutput = z.infer<typeof GenerateWeeklyRosterOutputSchema>;
-
-/**
- * Validates solver output against institutional hard rules.
- */
-function validateAssignments(assignments: any[], bookings: any[]) {
-  const issues: string[] = [];
-  
-  // Rule: No assignments on protected FCFS Weekly-Offs
-  assignments.forEach(a => {
-    const isOff = bookings.some(b => b.employeeId === a.employeeId && b.dayOfWeek === a.dayOfWeek);
-    if (isOff) issues.push(`INTEGRITY ALERT: Assignment for ${a.employeeId} overlaps with a protected Weekly-Off on ${a.dayOfWeek}.`);
-  });
-
-  // Rule: Single assignment per professional per day
-  const keys = assignments.map(a => `${a.employeeId}_${a.dayOfWeek}`);
-  const uniqueKeys = new Set(keys);
-  if (keys.length !== uniqueKeys.size) {
-    issues.push(`INTEGRITY ALERT: Double-assignment detected for one or more professionals.`);
-  }
-
-  return issues;
-}
 
 export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
   return generateWeeklyRosterFlow(input);
@@ -116,7 +90,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       const employees = empSnap.docs.map(d => ({ 
         id: d.id, 
         gender: (d.data().gender || 'Other').toLowerCase(),
-        // Historical values could be fetched from a summary collection in production
         historicalSO: 0, 
         historicalOP: 0 
       }));
@@ -165,7 +138,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         weight: 1.0
       }));
 
-      // 4. CP-SAT Execution (Authenticated Service-to-Service)
+      // 4. CP-SAT Execution
       const solverPayload = {
         weekId,
         officeId,
@@ -180,18 +153,24 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       const result = await callSolver(solverPayload);
 
       // 5. Independent Output Validation Gate
-      const assignments = result.assignments || [];
-      const integrityIssues = validateAssignments(assignments, bookingsSnap.docs.map(d => d.data()));
+      const integrity = verifyRosterIntegrity(
+        result.assignments || [],
+        bookingsSnap.docs.map(d => d.data()),
+        leavesSnap.docs.map(d => d.data()),
+        weekDates
+      );
 
       return {
-        rosterAssignments: assignments,
-        summary: result.status === 'OPTIMAL' 
+        rosterAssignments: result.assignments || [],
+        summary: !integrity.isValid 
+          ? "CRITICAL INTEGRITY FAILURE: Solver output violated hard clinical rules."
+          : result.status === 'OPTIMAL' 
           ? `Mathematically optimal roster found for clinical cluster ${officeId}.` 
           : result.status === 'INFEASIBLE'
           ? `Optimization failed: Clinical constraints (quotas/offs) are mathematically incompatible.`
           : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
-        status: result.status,
-        issuesEncountered: [...(result.errors || []), ...integrityIssues],
+        status: !integrity.isValid ? 'UNKNOWN' : result.status,
+        issuesEncountered: [...(result.errors || []), ...integrity.issues],
         solverMetadata: {
           solveTimeMs: result.metadata.solveTimeMs,
           constraintsChecked: solverPayload.employeeHardConstraints.length,
