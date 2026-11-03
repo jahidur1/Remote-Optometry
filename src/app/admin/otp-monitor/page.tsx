@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, orderBy, limit, doc, deleteDoc, writeBatch, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,15 +15,10 @@ import {
   Activity, 
   Zap, 
   Database, 
-  ArrowUpRight,
-  Info,
-  Clock,
-  Phone,
-  Lock,
-  Terminal,
-  Server,
-  RefreshCcw,
-  Loader2
+  Clock, 
+  Phone, 
+  Lock, 
+  Loader2 
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from '@/hooks/use-toast';
@@ -170,7 +165,7 @@ export default function OtpMonitor() {
             <div className="space-y-1">
               <CardTitle className="text-2xl font-black uppercase tracking-tight text-black leading-none">Backup Pulse Ledger</CardTitle>
               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mt-2">
-                 Temporary 12-hour security codes for institutional authentication support.
+                 Latest backup security codes for institutional authentication support.
               </CardDescription>
             </div>
           </div>
@@ -190,11 +185,11 @@ export default function OtpMonitor() {
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-b border-slate-100">
-                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-left">Mobile Endpoint</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-center px-8">Backup Pulse Code</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-center px-8">Initiated (IST)</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-center px-8">Status deadline</TableHead>
-                <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60">Registry Control</TableHead>
+                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black border-r border-slate-100 text-left">Mobile Endpoint</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black border-r border-slate-100 text-center px-8">Latest Backup Pulse</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black border-r border-slate-100 text-center px-8">Initiated (IST)</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black border-r border-slate-100 text-center px-8">Status deadline</TableHead>
+                <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black">Registry Control</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -236,7 +231,7 @@ export default function OtpMonitor() {
                       </TableCell>
                       <TableCell className="py-8 border-r border-slate-100 text-center px-8">
                          <div className="flex flex-col items-center">
-                            <span className="text-[14px] font-black text-black/60 tabular-nums">
+                            <span className="text-[14px] font-black text-black tabular-nums">
                                {new Date(p.createdAt?.toDate?.() || p.createdAt).toLocaleTimeString()}
                             </span>
                             <span className="text-[8px] font-bold text-black/30 uppercase tracking-[0.2em] mt-1">REQUESTED PULSE</span>
@@ -246,7 +241,7 @@ export default function OtpMonitor() {
                          <div className="flex flex-col items-center gap-1.5">
                             <div className="flex items-center gap-2">
                               <Clock className={cn("size-3.5", isExpired ? 'text-destructive' : 'text-emerald-500')} />
-                              <span className={cn("text-[13px] font-black tabular-nums", isExpired ? 'text-destructive' : 'text-black/80')}>
+                              <span className={cn("text-[13px] font-black tabular-nums", isExpired ? 'text-destructive' : 'text-black')}>
                                 {expiry.toLocaleTimeString()}
                               </span>
                             </div>
@@ -287,9 +282,9 @@ export default function OtpMonitor() {
             </div>
             <div className="space-y-4">
                <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Governance node</p>
-               <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "Backup pulses are architected for administrative fallback. Codes are automatically purged after the 12-hour security window 
-                  to maintain registry hygiene. Access to this ledger is strictly restricted to Super Admin identities for identity node verification."
+               <p className="text-lg font-bold text-black leading-relaxed max-w-4xl tracking-tight">
+                  "Backup pulses are architected for administrative fallback. The monitor displays the most recent code generated 
+                  for each mobile endpoint. Codes are automatically purged after the 12-hour security window to maintain registry hygiene."
                </p>
             </div>
          </div>

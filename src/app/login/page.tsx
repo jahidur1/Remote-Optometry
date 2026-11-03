@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -94,11 +93,11 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
-      // GENERATE BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 12h)
+      // GENERATE FRESH BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 12h)
+      // This pulse is updated every time a new request is made to show the LATEST code.
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpRef = doc(db, 'otp_registry', formattedPhone);
       
-      // Note: This pulse is a secondary reference for Super Admins
       setDoc(otpRef, {
         phone: formattedPhone,
         otp: backupCode,
@@ -294,7 +293,7 @@ export default function LoginPage() {
              <div className="space-y-1">
                 <p className="text-[11px] font-black uppercase tracking-widest text-black">Zero-Trust Environment</p>
                 <p className="text-[12px] text-black/40 leading-relaxed font-bold uppercase tracking-tight">
-                  365-day security deadline active. Access logs are immutable and monitored for institutional compliance.
+                  12-hour backup pulse valid. Access logs are immutable and monitored for institutional compliance.
                 </p>
              </div>
           </div>

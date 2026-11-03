@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -177,7 +176,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       <DialogContent className="sm:max-w-[640px] rounded-[2rem] border-none shadow-2xl bg-white">
         <DialogHeader className="pb-4 border-b border-slate-100">
           <DialogTitle className="uppercase font-black tracking-tight text-black text-xl">Identity Enrollment</DialogTitle>
-          <DialogDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
+          <DialogDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-black">
             Mandatory clinical fields are locked for self-modification by professionals.
           </DialogDescription>
         </DialogHeader>
@@ -185,7 +184,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
           <form onSubmit={handleSubmit} className="space-y-6 pb-6">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Professional ID</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Professional ID</Label>
                 <Input
                   placeholder="EMP000"
                   className="font-black h-12 rounded-xl border-2 border-slate-100 bg-slate-50/30 text-black placeholder:text-slate-300"
@@ -196,7 +195,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Full Legal Name</Label>
                 <Input
                   placeholder="Clinical Professional"
                   className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300"
@@ -209,7 +208,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">ROC Cluster Node</Label>
                 <Select
                   value={formData.office}
                   onValueChange={(val) => setFormData({ ...formData, office: val })}
@@ -223,7 +222,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Mobile (OTP Auth)</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Mobile (OTP Auth)</Label>
                 <div className="flex gap-2">
                   <div className="flex h-12 w-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-slate-50 font-black text-black text-sm shrink-0">
                     +91
@@ -244,7 +243,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-3 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Gender</Label>
                 <Select
                   value={formData.gender}
                   onValueChange={(val) => setFormData({ ...formData, gender: val })}
@@ -260,7 +259,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Age</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Age</Label>
                 <Input
                   type="number"
                   placeholder="25"
@@ -270,7 +269,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Account Status</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Account Status</Label>
                 <Select
                   value={formData.status}
                   onValueChange={(val) => setFormData({ ...formData, status: val })}
@@ -288,7 +287,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email Address</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Official Email Address</Label>
               <Input
                 type="email"
                 placeholder="professional@roc.internal"
@@ -301,7 +300,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Unit Department</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Unit Department</Label>
                 <Input
                   placeholder="Remote Optometry"
                   className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300"
@@ -310,7 +309,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Institutional Role</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black ml-1">Institutional Role</Label>
                 <Select
                   value={formData.role}
                   onValueChange={(val) => setFormData({ ...formData, role: val })}
