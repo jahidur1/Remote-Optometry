@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Secure client for interacting with the Python Solver Service.
  * Implements GCP IAM authentication and trusted payload handling.
@@ -30,9 +31,9 @@ async function getAuthHeaders(targetAudience: string) {
     headers['X-API-Key'] = SOLVER_API_KEY;
   }
 
-  // Only attempt GCP IAM auth if in production or explicitly enabled
+  // Only attempt GCP IAM auth if explicitly enabled
   // This code only runs on the server (Server Actions / Genkit Flows)
-  if (typeof window === 'undefined' && (process.env.NODE_ENV === 'production' || process.env.ENABLE_IAM_AUTH === 'true')) {
+  if (typeof window === 'undefined' && process.env.ENABLE_IAM_AUTH === 'true') {
     try {
       const auth = getAuth();
       const client = await auth.getIdTokenClient(targetAudience);
@@ -86,7 +87,10 @@ export async function validateAssignments(payload: any) {
 
 export async function checkSolverHealth() {
   try {
-    const response = await fetch(`${SOLVER_URL}/health`, { cache: 'no-store' });
+    const response = await fetch(`${SOLVER_URL}/health`, { 
+      method: 'GET',
+      cache: 'no-store' 
+    });
     if (!response.ok) return { status: 'offline' };
     return response.json();
   } catch (e) {
