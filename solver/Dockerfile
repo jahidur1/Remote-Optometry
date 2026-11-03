@@ -1,31 +1,31 @@
-# Use an official Python runtime as a parent image
+# Use Python 3.12 slim image as the base
 FROM python:3.12-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV PORT 8080
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
 
-# Set the working directory in the container
-WORKDIR /app
-
-# Install system dependencies needed for OR-Tools and build processes
+# Install system dependencies required by Google OR-Tools (C++ binaries)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Set the working directory
+WORKDIR /app
 
-# Install any needed packages specified in requirements.txt
+# Copy requirements and install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# Copy the application code
 COPY . .
 
-# Expose the port the app runs on
+# Expose the port Cloud Run expects
 EXPOSE 8080
 
 # Command to run the application
-# We use the module path since main.py is inside the app/ directory
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Cloud Run sets the PORT environment variable to 8080
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    
