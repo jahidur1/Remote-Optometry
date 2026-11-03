@@ -66,7 +66,6 @@ const navGroups = [
     items: [
       { title: "Directory", url: "/admin/employees", icon: Users, roles: ["SUPER_ADMIN", "ADMIN"] },
       { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Clinical Leaves", url: "/admin/leaves", icon: PlaneTakeoff, roles: ["SUPER_ADMIN", "ADMIN"] },
       { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["SUPER_ADMIN", "ADMIN"] },
     ]
   },
