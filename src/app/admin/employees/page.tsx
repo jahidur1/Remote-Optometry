@@ -22,10 +22,11 @@ import {
   Zap, 
   ShieldCheck, 
   Database,
-  Trash2,
   CheckCircle2,
-  XCircle,
-  Loader2
+  Loader2,
+  Lock,
+  Terminal,
+  Server
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmployeeDialog } from '@/components/admin/employee-dialog';
@@ -70,6 +71,7 @@ export default function EmployeeManagement() {
   const stats = useMemo(() => ({
     active: employees?.filter(e => e.status === 'Active').length || 0,
     offices: new Set(employees?.map(e => e.office)).size || 0,
+    syncIntegrity: 100
   }), [employees]);
 
   const handleEdit = (employee: any) => {
@@ -107,13 +109,13 @@ export default function EmployeeManagement() {
   };
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* Institutional Header Matrix */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
+    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+      {/* Institutional Header Pulse */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
-              <Users className="size-8 text-secondary" />
+              <Users className="size-8 text-secondary fill-secondary/20" />
             </div>
             <div>
               <h1 className="text-4xl font-black tracking-tight text-white uppercase leading-none">Registry Node</h1>
@@ -128,19 +130,25 @@ export default function EmployeeManagement() {
         </div>
 
         <div className="flex items-center gap-4 bg-white/[0.03] p-2 rounded-2xl border border-white/10 backdrop-blur-md shadow-2xl">
-           <div className="px-6 py-1.5 space-y-0.5">
+           <div className="px-6 py-1.5 border-r border-white/5 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Protocol Status</label>
-              <div className="flex items-center gap-3">
-                 <span className="font-black text-secondary uppercase tracking-widest text-lg">AUTHORIZED ACCESS</span>
-                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+              <div className="flex items-center gap-2">
+                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
+                 <span className="font-black text-white uppercase tracking-widest text-[11px]">AUTHORIZED ACCESS</span>
               </div>
            </div>
-           <div className="w-px h-10 bg-white/10" />
+           <div className="px-6 py-1.5 space-y-0.5 mr-2">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Registry Sync</label>
+              <div className="flex items-center gap-2">
+                 <Database className="size-3 text-secondary" />
+                 <span className="font-black text-white uppercase tracking-widest text-[11px]">ACTIVE PULSE</span>
+              </div>
+           </div>
            <Button 
-             className="bg-secondary text-white shadow-xl shadow-secondary/20 h-12 px-10 font-black uppercase tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
+             className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
              onClick={handleAdd}
            >
-            <UserPlus className="size-5 mr-3 group-hover:rotate-12 transition-transform" />
+            <UserPlus className="size-4 mr-2 group-hover:rotate-12 transition-transform" />
             PROVISION PROFILE
            </Button>
         </div>
@@ -148,49 +156,27 @@ export default function EmployeeManagement() {
 
       {/* KPI Ledger */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Authorized Pool</CardTitle>
-            <Zap className="h-5 w-5 text-secondary opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">{stats.active}</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Active Personnel</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">Cluster Distribution</CardTitle>
-            <Building2 className="h-5 w-5 text-accent opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-accent tracking-tighter">{stats.offices}</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">ROC Units Engaged</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Sync Pulse</CardTitle>
-            <Database className="h-5 w-5 text-secondary opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">100%</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">Registry Integrity</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Security Mode</CardTitle>
-            <ShieldCheck className="h-5 w-5 text-emerald-500 opacity-30 group-hover:opacity-100 transition-all" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-black text-white tracking-tighter">Z-TRUST</div>
-            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">IAM OIDC Policy</p>
-          </CardContent>
-        </Card>
+        {[
+          { label: 'Authorized Pool', value: stats.active, sub: 'Active Personnel', icon: Users, color: 'text-primary' },
+          { label: 'Cluster Distribution', value: stats.offices, sub: 'ROC Units Engaged', icon: Building2, color: 'text-secondary' },
+          { label: 'Sync Pulse', value: `${stats.syncIntegrity}%`, sub: 'Registry Integrity', icon: Database, color: 'text-accent' },
+          { label: 'Security Mode', value: 'Z-TRUST', sub: 'IAM OIDC Policy', icon: ShieldCheck, color: 'text-white' }
+        ].map((kpi, i) => (
+          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
+              <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
+            </CardHeader>
+            <CardContent>
+              {loading ? <Skeleton className="h-10 w-full rounded-xl opacity-10 bg-white" /> : (
+                <>
+                  <div className="text-5xl font-black text-white tracking-tighter">{kpi.value}</div>
+                  <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Main Staff Ledger */}
@@ -254,14 +240,14 @@ export default function EmployeeManagement() {
                     employee.status !== 'Active' && "opacity-40 grayscale"
                   )}>
                     <TableCell className="pl-10 py-8 border-r border-white/5">
-                      <code className="text-secondary font-black text-[13px] bg-secondary/10 px-4 py-1.5 rounded-lg border border-secondary/20 shadow-inner group-hover:scale-105 inline-block transition-transform">
+                      <code className="text-secondary font-black text-[13px] bg-secondary/10 px-4 py-1.5 rounded-lg border border-secondary/20 shadow-inner group-hover:scale-105 inline-block transition-transform tabular-nums">
                         {employee.id}
                       </code>
                     </TableCell>
                     <TableCell className="py-8 border-r border-white/5">
                       <div className="flex flex-col gap-1">
                         <span className="font-black text-[16px] text-white tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{employee.fullName}</span>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1.5">
                           <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-white/10 text-white/40 bg-white/5 px-2 py-0.5 rounded-md">
                             {employee.designation || 'STAFF'}
                           </Badge>
@@ -278,12 +264,12 @@ export default function EmployeeManagement() {
                       </div>
                     </TableCell>
                     <TableCell className="py-8 border-r border-white/5">
-                       <div className="flex items-center gap-4">
+                       <div className="flex items-center gap-6">
                           <div className="flex flex-col">
                              <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Node</span>
-                             <span className="text-[11px] font-black text-white/70">{employee.gender?.substring(0,1)} / {employee.age || '--'}</span>
+                             <span className="text-[11px] font-black text-white/70 uppercase">{employee.gender?.substring(0,1)} / {employee.age || '--'}</span>
                           </div>
-                          <div className="w-px h-6 bg-white/5" />
+                          <div className="w-px h-8 bg-white/5" />
                           <div className="flex flex-col">
                              <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Contact</span>
                              <span className="text-[11px] font-black text-white/70 tabular-nums">+{employee.whatsappNumber?.replace(/\D/g, '').slice(-10)}</span>
@@ -291,14 +277,16 @@ export default function EmployeeManagement() {
                        </div>
                     </TableCell>
                     <TableCell className="py-8 border-r border-white/5 text-center">
-                      <div className="flex flex-col items-center gap-2">
+                      <div className="flex flex-col items-center">
                         {processingId === employee.id ? (
                            <Loader2 className="size-4 animate-spin text-secondary" />
                         ) : (
                           <Badge 
                             className={cn(
-                              "font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full border-none shadow-2xl",
-                              employee.status === 'Active' ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-destructive text-white shadow-destructive/20'
+                              "font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full border-none shadow-2xl transition-all",
+                              employee.status === 'Active' 
+                                ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                                : 'bg-destructive text-white shadow-destructive/20'
                             )}
                           >
                             {employee.status}
@@ -342,15 +330,15 @@ export default function EmployeeManagement() {
         </CardContent>
       </Card>
 
-      {/* Institutional Protocol Policy */}
+      {/* Institutional Protocol Matrix */}
       <div className="grid md:grid-cols-2 gap-8">
-          <Card className="bg-primary text-primary-foreground shadow-2xl border border-white/5 rounded-[2.5rem] overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2s] opacity-[0.03]">
-               <Users size={280} />
+          <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary relative group">
+            <div className="absolute top-0 right-0 p-10 transform group-hover:scale-110 transition-transform duration-[2s] opacity-[0.03] pointer-events-none">
+               <Server size={280} />
             </div>
             <CardContent className="p-12 space-y-8 relative z-10">
-                <div className="size-16 rounded-[1.5rem] bg-secondary flex items-center justify-center shadow-2xl shadow-secondary/50">
-                    <ShieldCheck className="size-8 text-white" />
+                <div className="size-16 rounded-[1.5rem] bg-secondary/10 flex items-center justify-center border border-secondary/20 shadow-inner">
+                    <Terminal className="size-8 text-secondary" />
                 </div>
                 <div className="space-y-4">
                   <p className="text-[11px] font-black uppercase tracking-[0.4em] text-secondary">Registry Protocol</p>
@@ -362,10 +350,13 @@ export default function EmployeeManagement() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card border-none rounded-[2.5rem] overflow-hidden p-12 space-y-10 group border-l-4 border-l-secondary shadow-2xl">
+          <Card className="glass-card border-none rounded-[2.5rem] overflow-hidden p-12 space-y-10 group border-l-4 border-l-secondary shadow-2xl relative">
+             <div className="absolute top-0 right-0 p-10 opacity-[0.02] pointer-events-none">
+                <ShieldCheck size={200} />
+             </div>
              <div className="space-y-4">
                 <div className="size-16 rounded-[1.5rem] bg-secondary/10 flex items-center justify-center text-secondary shadow-inner group-hover:scale-110 transition-transform">
-                   <Activity className="size-8" />
+                   <Lock className="size-8" />
                 </div>
                 <div className="space-y-1">
                    <p className="text-[11px] font-black uppercase tracking-[0.4em] text-secondary">Operational Pulse</p>
@@ -394,3 +385,4 @@ export default function EmployeeManagement() {
     </div>
   );
 }
+
