@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // --- CORE HELPERS ---
+    // --- INSTITUTIONAL HELPERS ---
     
     function isSignedIn() {
       return request.auth != null;
@@ -14,6 +14,7 @@ service cloud.firestore {
       return exists(path) ? get(path).data : null;
     }
     
+    // Safety check for user activity status
     function isUserActive() {
       let data = getUserData();
       return isSignedIn() && data != null && data.status == 'Active';
@@ -33,24 +34,25 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Cluster Isolation: Validates if user belongs to the specific ROC node
     function matchesOffice(office) {
       let data = getUserData();
       return isAdmin() || (data != null && data.office == office);
     }
 
-    // --- OTP REGISTRY: 12h Backup Persistence ---
+    // --- GOVERNANCE: OTP REGISTRY (12h Backup Failsafe) ---
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow create: if true; // Publicly writable during login
+      allow create: if true; // Publicly writable during login pulse initiation
+      allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
-    // --- INSTITUTIONAL COLLECTIONS ---
-
-    // Sessions: Mandatory 365-day deadline logic
+    // --- SECURITY: SESSIONS (365-Day Mandatory Deadline) ---
     match /sessions/{sessionId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       
+      // Create only allowed with a strict 365-day expiration window
       allow create: if isSignedIn() && 
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.deadlineAt == request.time + duration.value(31536000, 's');
@@ -61,19 +63,19 @@ service cloud.firestore {
          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt']))
       );
       
-      allow delete: if false;
+      allow delete: if false; // Sessions are revoked/expired, never deleted for audit integrity
     }
 
-    // Employees: Field-level locking and self-update restrictions
-    // ALLOW get/list during login if the phone number matches the auth token
+    // --- WORKFORCE: EMPLOYEES (Identity Registry) ---
     match /employees/{employeeId} {
+      // Handshake: Allow identity verification if phone matches auth token
       allow get: if isSignedIn() && (
         isAdmin() || 
         resource.data.whatsappNumber == request.auth.token.phone_number
       );
       allow list: if isSignedIn() && (
         isAdmin() || 
-        request.query.limit <= 5 // Allow restricted listing for self-identification
+        request.query.limit <= 5 // Restricted listing for self-identification
       );
       allow create: if isAdmin() && isUserActive();
       
@@ -84,19 +86,18 @@ service cloud.firestore {
       );
     }
 
-    // Users: Profile synchronization
+    // --- USERS: AUTH PROFILES ---
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if (isOwner(userId) || isAdmin()) && isSignedIn();
     }
 
-    // Week-Off Configs: Cluster-based visibility
+    // --- OPERATIONS: WEEK-OFFS ---
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && matchesOffice(resource.data.office);
       allow write: if isAdmin() && isUserActive();
     }
 
-    // Week-Off Bookings: Atomic reservation logic
     match /weekoff_bookings/{bookingId} {
       allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || isAdmin());
       
@@ -105,12 +106,11 @@ service cloud.firestore {
         request.resource.data.status == 'confirmed' &&
         request.resource.data.office == getUserData().office;
       
-      // Super Admin override allowed for manual roster tweaks
       allow update: if (isSuperAdmin() || isAdmin()) && isUserActive();
       allow delete: if isAdmin() && isUserActive();
     }
 
-    // Shift Swaps: Bilateral agreement and Admin authorization
+    // --- OPERATIONS: EXCHANGES (Shift Swaps) ---
     match /shift_swaps/{swapId} {
       allow read: if isUserActive() && (
         resource.data.requesterId == getUserData().employeeId || 
@@ -125,14 +125,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Preferences: Soft optimization constraints
+    // --- OPERATIONS: PREFERENCES ---
     match /employee_preferences/{prefId} {
       allow read: if isUserActive();
       allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
     }
 
-    // --- GOVERNANCE & LOGGING ---
-
+    // --- AUDIT & MESSAGING ---
     match /audit_logs/{logId} {
       allow read: if isAdmin() && isUserActive();
       allow create: if isSignedIn(); 
@@ -143,8 +142,7 @@ service cloud.firestore {
       allow create: if isSignedIn(); 
     }
 
-    // --- MASTER DATA & INTELLIGENCE ---
-
+    // --- MASTER DATA & ROSTER ENGINE ---
     match /shift_master/{shiftId} { 
       allow read: if isUserActive(); 
       allow write: if isAdmin();
