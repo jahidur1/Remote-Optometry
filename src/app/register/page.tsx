@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, ShieldCheck, Mail, Phone, Loader2, Key, RefreshCcw, ArrowLeft } from 'lucide-react';
+import { UserPlus, ShieldCheck, Mail, Phone, Loader2, Key, RefreshCcw, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -83,7 +83,7 @@ export default function RegisterPage() {
       const phoneSnap = await getDocs(phoneQuery);
 
       if (!phoneSnap.empty) {
-        throw new Error("This phone number is already registered.");
+        throw new Error("This phone number is already registered to a clinical professional.");
       }
 
       if ((window as any).recaptchaVerifier) {
@@ -99,7 +99,7 @@ export default function RegisterPage() {
       setStep('otp');
       setResendCooldown(60);
       
-      toast({ title: "Code Sent", description: "Verification code sent to administrative target." });
+      toast({ title: "Code Dispatched", description: "Verification pulse sent to target endpoint." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Action Blocked", description: error.message });
       if ((window as any).recaptchaVerifier) {
@@ -144,21 +144,23 @@ export default function RegisterPage() {
       const userData = {
         uid: user.uid,
         email: formData.email.toLowerCase(),
-        role: formData.role,
+        role: formData.role as 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE',
         displayName: formData.fullName,
         employeeId: empId,
         phoneNumber: user.phoneNumber,
-        status: 'Active',
+        office: formData.office,
+        status: 'Active' as const,
         lastLogin: new Date().toISOString()
       };
 
+      // Double-Commit Pulse: Master Registry + Auth Profile
       await setDoc(empRef, payload);
       await setDoc(userRef, userData);
       await createOrUpdateSession(db, user.uid, empId);
       
-      logAudit(db, user.uid, 'ADMIN_PROVISION_EMPLOYEE', empId, { role: formData.role });
+      logAudit(db, user.uid, 'ADMIN_PROVISION_EMPLOYEE', empId, { role: formData.role, office: formData.office });
 
-      toast({ title: "Enrollment Complete", description: "Clinical profile provisioned successfully." });
+      toast({ title: "Enrollment Complete", description: "Identity and Authentication node provisioned." });
       router.push('/admin/employees');
     } catch (error: any) {
       toast({ variant: "destructive", title: "Enrollment Failed", description: error.message });
@@ -169,7 +171,7 @@ export default function RegisterPage() {
 
   return (
     <RoleGuard allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 font-body text-black">
         <Card className="w-full max-w-xl shadow-2xl bg-white border-none rounded-[2.5rem] overflow-hidden">
           <CardHeader className="text-center space-y-2 p-10 bg-primary text-white relative">
              <div className="flex items-center justify-between mb-4 relative z-10">
@@ -180,22 +182,29 @@ export default function RegisterPage() {
                     <UserPlus className="size-6" />
                 </div>
              </div>
-             <CardTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10">Provision Professional</CardTitle>
-             <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 relative z-10">Administrative Identity Enrollment Hub</CardDescription>
+             <CardTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10">Enroll Professional</CardTitle>
+             <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 relative z-10">Auth & Identity Provisioning Node</CardDescription>
              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><UserPlus size={160} /></div>
           </CardHeader>
           
           <CardContent className="p-10">
+            <div className="mb-8 p-6 rounded-2xl bg-amber-50 border-2 border-amber-100 flex gap-4 items-start">
+               <ShieldAlert className="size-5 text-amber-600 shrink-0 mt-1" />
+               <p className="text-[11px] font-bold text-amber-900 uppercase leading-relaxed tracking-tight">
+                  Institutional Notice: Completing this flow will sign you out. You must be with the professional to receive the OTP pulse on their mobile device.
+               </p>
+            </div>
+
             {step === 'details' ? (
               <form onSubmit={handleSendOtp} className="space-y-8">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Full Name</Label>
-                    <Input className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} required />
+                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Full Legal Name</Label>
+                    <Input className="font-black h-12 rounded-xl border-2 border-slate-100 text-black" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} required />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Official Email</Label>
-                    <Input type="email" className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
+                    <Input type="email" className="font-black h-12 rounded-xl border-2 border-slate-100 text-black" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
                   </div>
                 </div>
 
@@ -208,7 +217,7 @@ export default function RegisterPage() {
                       </div>
                       <Input 
                         placeholder="10-digit number"
-                        className="font-black h-12 border-2 border-slate-100 rounded-xl flex-1 text-black placeholder:text-slate-300" 
+                        className="font-black h-12 border-2 border-slate-100 rounded-xl flex-1 text-black" 
                         value={formData.phone} 
                         onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} 
                         required 
@@ -216,7 +225,7 @@ export default function RegisterPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Office Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">ROC Cluster Node</Label>
                     <Select value={formData.office} onValueChange={(v) => setFormData({...formData, office: v})}>
                       <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                         <SelectValue />
@@ -260,7 +269,7 @@ export default function RegisterPage() {
                 </div>
 
                 <Button className="w-full bg-primary hover:bg-secondary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl transition-all border-none" type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Verify Identity & Provision"}
+                  {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Initiate Verification Pulse"}
                 </Button>
               </form>
             ) : (
@@ -280,7 +289,7 @@ export default function RegisterPage() {
                 <Button className="w-full bg-secondary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 transition-all border-none" type="submit" disabled={loading}>
                   {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Confirm Enrollment Pulse"}
                 </Button>
-                <button type="button" onClick={() => setStep('details')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Edit Registration Details</button>
+                <button type="button" onClick={() => setStep('details')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Edit Registry Details</button>
               </form>
             )}
           </CardContent>
@@ -290,8 +299,8 @@ export default function RegisterPage() {
                 <ShieldCheck className="size-7" />
              </div>
              <p className="text-[11px] text-black/50 uppercase leading-relaxed font-bold tracking-tight">
-                Institutional Security: Enrollment requires a unique 10-digit mobile endpoint and verified administrative authorization. 
-                All provisioning pulses are immutably ledgered in the audit registry.
+                Governance Protocol: Enrollment creates an immutable clinical identity and initializes the authentication node. 
+                All provisioning pulses are ledgered for institutional compliance.
              </p>
           </CardFooter>
         </Card>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -129,23 +130,25 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       };
 
       if (employee) {
-        await updateDoc(employeeRef, payload).catch(async (err) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: employeeRef.path,
-            operation: 'update',
-            requestResourceData: payload,
-          }));
-        });
+        await updateDoc(employeeRef, payload);
+        
+        // SYNC: Update corresponding user record if it exists
+        const userQuery = query(collection(db, 'users'), where('employeeId', '==', docId));
+        const userSnap = await getDocs(userQuery);
+        if (!userSnap.empty) {
+          const userRef = userSnap.docs[0].ref;
+          await updateDoc(userRef, {
+            displayName: formData.fullName,
+            email: formData.email.toLowerCase(),
+            role: formData.role,
+            office: formData.office,
+            status: formData.status
+          });
+        }
       } else {
         await setDoc(employeeRef, {
           ...payload,
           createdAt: new Date().toISOString(),
-        }).catch(async (err) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: employeeRef.path,
-            operation: 'create',
-            requestResourceData: payload,
-          }));
         });
       }
 
@@ -157,7 +160,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
       toast({
         title: employee ? 'Registry Updated' : 'Professional Provisioned',
-        description: `${formData.fullName} (ID: ${formData.id}) record secured for ${formData.office?.replace('_', ' ')}.`,
+        description: `${formData.fullName} (ID: ${formData.id}) record secured.`,
       });
       onOpenChange(false);
     } catch (error: any) {
@@ -177,7 +180,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         <DialogHeader className="pb-4 border-b border-slate-100">
           <DialogTitle className="uppercase font-black tracking-tight text-black text-xl">Identity Enrollment</DialogTitle>
           <DialogDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-black">
-            Mandatory clinical fields are locked for self-modification by professionals.
+            Clinical identity data synchronization node.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[75vh] pr-4 pt-4">
@@ -236,6 +239,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                       setFormData({ ...formData, whatsappNumber: val ? `+91${val}` : '' });
                     }}
                     required
+                    disabled={!!employee}
                   />
                 </div>
               </div>

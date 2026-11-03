@@ -126,7 +126,8 @@ export default function LoginPage() {
         (window as any).recaptchaVerifier = null;
       }
     } finally {
-      setLoading(false);
+      // Small delay to prevent layout flicker
+      setTimeout(() => setLoading(false), 500);
     }
   };
 
@@ -160,12 +161,12 @@ export default function LoginPage() {
           displayName: employee.fullName,
           employeeId: employee.id,
           phoneNumber: user.phoneNumber,
-          status: 'Active',
           office: employee.office || null,
+          status: 'Active' as const,
           lastLogin: new Date().toISOString()
         };
 
-        // Non-blocking profile synchronization
+        // Non-blocking profile synchronization (Master Sync)
         setDoc(userRef, userData, { merge: true }).catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: userRef.path,
@@ -180,7 +181,7 @@ export default function LoginPage() {
 
         toast({
           title: "Identity Verified",
-          description: `Welcome to the cluster, ${employee.fullName.split(' ')[0]}.`,
+          description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
         });
 
         // Final redirection pulse
@@ -199,7 +200,6 @@ export default function LoginPage() {
         title: "Verification Failure",
         description: error.message || "Invalid or expired OTP sequence.",
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -268,7 +268,7 @@ export default function LoginPage() {
                     type="text"
                     maxLength={6}
                     placeholder="000000"
-                    className="pl-12 h-20 text-5xl text-center font-black tracking-[0.6em] rounded-3xl border-4 border-slate-100 bg-white text-black focus:border-primary shadow-inner"
+                    className="pl-12 h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-white text-black focus:border-primary shadow-inner"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     required

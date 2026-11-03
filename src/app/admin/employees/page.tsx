@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, orderBy, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -40,6 +41,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
+import Link from 'next/link';
 
 export default function EmployeeManagement() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,11 +80,6 @@ export default function EmployeeManagement() {
     setIsDialogOpen(true);
   };
 
-  const handleAdd = () => {
-    setSelectedEmployee(null);
-    setIsDialogOpen(true);
-  };
-
   const toggleStatus = async (employee: any) => {
     if (!profile) return;
     const newStatus = employee.status === 'Active' ? 'Suspended' : 'Active';
@@ -95,6 +92,13 @@ export default function EmployeeManagement() {
         updatedAt: serverTimestamp() 
       });
       
+      // SYNC: Update corresponding user record if it exists
+      const userQuery = query(collection(firestore, 'users'), where('employeeId', '==', employee.id));
+      const userSnap = await getDocs(userQuery);
+      if (!userSnap.empty) {
+        await updateDoc(userSnap.docs[0].ref, { status: newStatus });
+      }
+
       logAudit(firestore, profile.uid, `ADMIN_${newStatus.toUpperCase()}_EMPLOYEE`, employee.id);
       toast({ 
         title: `Protocol Updated`, 
@@ -143,13 +147,14 @@ export default function EmployeeManagement() {
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE PULSE</span>
               </div>
            </div>
-           <Button 
-             className="bg-primary text-white shadow-xl shadow-primary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
-             onClick={handleAdd}
-           >
-            <UserPlus className="size-4 mr-2 group-hover:rotate-12 transition-transform" />
-            PROVISION PROFILE
-           </Button>
+           <Link href="/register">
+             <Button 
+               className="bg-primary text-white shadow-xl shadow-primary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
+             >
+              <UserPlus className="size-4 mr-2 group-hover:rotate-12 transition-transform" />
+              PROVISION PROFILE
+             </Button>
+           </Link>
         </div>
       </div>
 
