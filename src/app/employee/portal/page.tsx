@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
@@ -25,7 +24,7 @@ import {
   History,
   TrendingUp
 } from "lucide-react"
-import Link from "next/next/link"
+import Link from "next/link"
 import { DemoBadge } from "@/components/ui/demo-badge"
 import { cn } from "@/lib/utils"
 import {
@@ -167,7 +166,7 @@ export default function EmployeePortal() {
           {/* FCFS Booking Pulse */}
           {userBooking ? (
             <Card className="border-none bg-emerald-500 text-white shadow-[0_30px_60px_-15px_rgba(16,185,129,0.4)] rounded-[3rem] overflow-hidden relative group animate-in zoom-in-95">
-               <div className="absolute top-0 right-0 p-10 transform group-hover:scale-110 transition-transform duration-1000 opacity-20"><Sparkles size={260} /></div>
+               <div className="absolute top-0 right-0 p-10 transform group-hover:scale-110 transition-transform duration-1000 opacity-20"><Sparkles className="size-260" /></div>
                <CardContent className="p-12 flex flex-col md:flex-row items-center gap-14 relative z-10">
                   <div className="size-24 rounded-[2.25rem] bg-white/20 flex items-center justify-center shadow-inner border border-white/20 shrink-0">
                     <CheckCircle2 className="size-12 text-white" />
