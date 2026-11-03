@@ -14,6 +14,7 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
@@ -68,7 +69,6 @@ export default function LoginPage() {
       const field = user.phoneNumber ? 'whatsappNumber' : 'email';
       const value = user.phoneNumber || user.email;
       
-      // 1. Resolve clinical identity from master registry (Handshake allowed by Rules)
       const q = query(collection(db, 'employees'), where(field, '==', value));
       const snap = await getDocs(q);
       
@@ -80,7 +80,6 @@ export default function LoginPage() {
           throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
         }
 
-        // 2. Synchronize Auth Profile (users collection)
         const userRef = doc(db, 'users', user.uid);
         const userData = {
           uid: user.uid,
@@ -94,12 +93,10 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         };
 
-        // setDoc with catch to handle permission context
         setDoc(userRef, userData, { merge: true }).catch(err => {
             console.error("Registry Sync Delayed:", err);
         });
         
-        // 3. Establish Security Session
         await createOrUpdateSession(db, user.uid, employee.id);
         logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
 
@@ -143,6 +140,34 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({ 
+        variant: "destructive", 
+        title: "Input Required", 
+        description: "Please enter your official email address to receive a reset pulse." 
+      });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({ 
+        title: "Reset Pulse Dispatched", 
+        description: `A password reset link has been sent to ${email}. Check your inbox.` 
+      });
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Pulse Failed", 
+        description: error.message 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
@@ -169,7 +194,6 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
-      // Generate unique pulse for admin monitor
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
       await setDoc(doc(db, 'otp_registry', formattedPhone), {
         phone: formattedPhone,
@@ -291,7 +315,16 @@ export default function LoginPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Password</Label>
+                    <div className="flex justify-between items-center ml-1">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-black/40">Password</Label>
+                      <button 
+                        type="button" 
+                        onClick={handleForgotPassword}
+                        className="text-[9px] font-black uppercase text-secondary hover:underline transition-all"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
                       <Input 
