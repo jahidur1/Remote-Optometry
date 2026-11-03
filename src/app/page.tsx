@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -48,6 +47,7 @@ export default function Home() {
               fill 
               className="object-contain"
               data-ai-hint="remote optometry"
+              priority
             />
           </div>
         )}
