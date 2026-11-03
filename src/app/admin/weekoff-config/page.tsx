@@ -55,7 +55,6 @@ export default function WeekOffConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  // Stable Authoritative Query
   const configsQuery = useMemo(() => query(
     collection(db, 'weekoff_configs'), 
     orderBy('weekId', 'desc')
@@ -99,16 +98,15 @@ export default function WeekOffConfiguration() {
   };
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* High-Intensity Precision Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
+    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
               <CalendarRange className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-white uppercase leading-none">Off Matrix</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Off Matrix</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   FCFS Pulse Control <Activity className="size-3 text-secondary animate-pulse" />
@@ -119,12 +117,12 @@ export default function WeekOffConfiguration() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-white/[0.03] p-2 rounded-2xl border border-white/10 backdrop-blur-md shadow-2xl">
-           <div className="px-6 py-1.5 border-r border-white/5 space-y-0.5">
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+           <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
               <div className="flex items-center gap-2">
                  <Input 
-                  className="w-24 h-6 font-black text-white border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
+                  className="w-24 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
                   value={weekId} 
                   onChange={(e) => setWeekId(e.target.value)}
                 />
@@ -135,7 +133,7 @@ export default function WeekOffConfiguration() {
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
-                 <span className="font-black text-white uppercase tracking-widest text-[11px]">LIVE SYNC</span>
+                 <span className="font-black text-black uppercase tracking-widest text-[11px]">LIVE SYNC</span>
               </div>
            </div>
            <Button 
@@ -150,28 +148,27 @@ export default function WeekOffConfiguration() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
-        {/* Configuration Hub */}
         <div className="lg:col-span-4 space-y-8">
-          <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary">
-            <CardHeader className="bg-white/[0.03] border-b border-white/5 p-8">
+          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
               <div className="flex items-center gap-6">
-                <div className="size-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary border border-secondary/20">
+                <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-secondary border border-secondary/20 shadow-inner">
                   <MapPin className="size-7" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl uppercase font-black tracking-tight text-white leading-none">Unit Parameters</CardTitle>
-                  <CardDescription className="text-[9px] font-black uppercase tracking-widest text-white/30 mt-2">Node Assignment</CardDescription>
+                  <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Unit Parameters</CardTitle>
+                  <CardDescription className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-2">Node Assignment</CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-8 space-y-8">
+            <CardContent className="p-10 space-y-8">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] ml-1">Target ROC Cluster</Label>
                 <Select value={office} onValueChange={setOffice}>
-                  <SelectTrigger className="h-12 text-sm font-black rounded-xl border-2 border-white/10 bg-white/[0.02] shadow-sm hover:border-secondary transition-all">
+                  <SelectTrigger className="h-12 text-sm font-black rounded-xl border-2 border-slate-100 bg-slate-50 shadow-inner hover:border-secondary transition-all">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl bg-slate-900/95 backdrop-blur-xl p-2">
+                  <SelectContent className="rounded-2xl border-none shadow-2xl bg-white p-2">
                     {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] py-3 rounded-xl uppercase">{o.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -179,23 +176,23 @@ export default function WeekOffConfiguration() {
 
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1 flex items-center gap-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-2">
                     <Clock className="size-3 text-secondary" /> Pulse Initiation (IST)
                   </Label>
                   <Input 
                     type="datetime-local" 
-                    className="h-12 font-black border-2 border-white/10 bg-white/[0.02] rounded-xl px-6 text-white focus:border-secondary transition-all" 
+                    className="h-12 font-black border-2 border-slate-100 bg-slate-50 rounded-xl px-6 text-black focus:border-secondary transition-all shadow-inner" 
                     value={openTime} 
                     onChange={e => setOpenTime(e.target.value)} 
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1 flex items-center gap-2">
-                    <Clock className="size-3 text-accent" /> Pulse Termination (IST)
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-2">
+                    <Clock className="size-3 text-secondary" /> Pulse Termination (IST)
                   </Label>
                   <Input 
                     type="datetime-local" 
-                    className="h-12 font-black border-2 border-white/10 bg-white/[0.02] rounded-xl px-6 text-white focus:border-accent transition-all" 
+                    className="h-12 font-black border-2 border-slate-100 bg-slate-50 rounded-xl px-6 text-black focus:border-secondary transition-all shadow-inner" 
                     value={closeTime} 
                     onChange={e => setCloseTime(e.target.value)} 
                   />
@@ -204,43 +201,42 @@ export default function WeekOffConfiguration() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card border-none rounded-[2.5rem] overflow-hidden p-10 space-y-8 group border-l-4 border-l-secondary shadow-2xl">
+          <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden p-10 space-y-8 group border-l-4 border-l-secondary bg-white">
              <div className="space-y-3">
                 <div className="size-12 rounded-[1.25rem] bg-secondary/10 flex items-center justify-center text-secondary shadow-inner group-hover:scale-105 transition-transform">
                    <ShieldCheck className="size-6" />
                 </div>
                 <div>
                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-secondary">Atomic Protocol</p>
-                   <p className="text-xl font-black text-white uppercase tracking-tight leading-none">FCFS Integrity</p>
+                   <p className="text-2xl font-black text-black uppercase tracking-tight leading-none">FCFS Integrity</p>
                 </div>
              </div>
-             <p className="text-[13px] text-white/40 leading-relaxed font-black uppercase tracking-widest">
+             <p className="text-[13px] text-muted-foreground leading-relaxed font-black uppercase tracking-widest">
                Slot reservations are processed via server-side atomic transactions. Once secured, they are mathematically locked for the solver.
              </p>
-             <div className="pt-6 border-t border-white/10 flex items-center gap-4">
+             <div className="pt-6 border-t border-slate-100 flex items-center gap-4">
                 <Zap className="size-5 text-secondary" />
                 <p className="text-[10px] font-black uppercase text-secondary tracking-[0.2em]">Institutional Access Guard Active</p>
              </div>
           </Card>
         </div>
 
-        {/* Quotas & Registry Hub */}
         <div className="lg:col-span-8 space-y-8">
-          <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-accent">
-            <CardHeader className="bg-white/[0.03] border-b border-white/5 p-10 flex flex-col md:flex-row items-center justify-between">
+          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between">
               <div className="flex items-center gap-6">
-                <div className="size-16 rounded-[1.75rem] flex items-center justify-center shadow-inner bg-primary border border-white/10">
-                  <Terminal className="size-8 text-accent" />
+                <div className="size-16 rounded-[1.75rem] flex items-center justify-center shadow-inner bg-primary border border-slate-100">
+                  <Terminal className="size-8 text-secondary" />
                 </div>
                 <div className="space-y-1">
-                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-white leading-none">Reservation Matrix</CardTitle>
-                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mt-2">
+                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Reservation Matrix</CardTitle>
+                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
                      Maximum daily FCFS slot limits.
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="outline" className="px-6 py-2 rounded-xl font-black text-[10px] uppercase border-accent/20 text-accent bg-accent/5">
-                W{weekId}
+              <Badge variant="outline" className="px-6 py-2 rounded-xl font-black text-[10px] uppercase border-secondary/20 text-secondary bg-secondary/5 shadow-inner">
+                CYCLE {weekId}
               </Badge>
             </CardHeader>
             <CardContent className="p-10">
@@ -248,12 +244,12 @@ export default function WeekOffConfiguration() {
                 {DAYS.map((day) => (
                   <div key={day} className="space-y-4 group">
                     <div className="text-center">
-                      <Label className="text-[10px] uppercase tracking-[0.3em] font-black text-white/40 group-hover:text-accent transition-colors">{day.substring(0, 3)}</Label>
+                      <Label className="text-[10px] uppercase tracking-[0.3em] font-black text-black/40 group-hover:text-secondary transition-colors">{day.substring(0, 3)}</Label>
                     </div>
                     <div className="relative">
                       <Input 
                         type="number" 
-                        className="h-16 font-black text-center text-2xl border-2 border-white/10 bg-white/[0.02] rounded-2xl focus:border-accent focus:bg-accent/5 transition-all shadow-inner text-white tabular-nums"
+                        className="h-16 font-black text-center text-2xl border-2 border-slate-100 bg-slate-50 rounded-2xl focus:border-secondary focus:bg-white transition-all shadow-inner text-black tabular-nums"
                         value={quotas[day]}
                         onChange={(e) => setQuotas({ ...quotas, [day]: parseInt(e.target.value) || 0 })}
                       />
@@ -264,49 +260,49 @@ export default function WeekOffConfiguration() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card">
-            <CardHeader className="bg-white/[0.03] border-b border-white/5 p-8 flex flex-row items-center justify-between">
+          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8 flex flex-row items-center justify-between">
                <div className="flex items-center gap-5">
                   <div className="size-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary">
                     <History className="size-6" />
                   </div>
-                  <CardTitle className="text-base font-black uppercase tracking-[0.15em] text-white">Pulse Ledger</CardTitle>
+                  <CardTitle className="text-base font-black uppercase tracking-[0.15em] text-black">Pulse Ledger</CardTitle>
                </div>
-               <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-white/10 text-white/30">Registry History</Badge>
+               <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-slate-200 text-black/30">Registry History</Badge>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto no-scrollbar">
               <Table className="border-collapse">
-                <TableHeader className="bg-white/[0.02]">
-                  <TableRow className="border-b border-white/5">
-                    <TableHead className="py-6 px-10 text-left border-r border-white/5 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">ROC Cluster</TableHead>
-                    <TableHead className="px-10 text-left border-r border-white/5 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Cycle</TableHead>
-                    <TableHead className="px-10 text-left border-r border-white/5 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Execution Window (IST)</TableHead>
+                <TableHeader className="bg-slate-50/30">
+                  <TableRow className="border-b border-slate-100">
+                    <TableHead className="py-6 px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">ROC Cluster</TableHead>
+                    <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Cycle</TableHead>
+                    <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Execution Window (IST)</TableHead>
                     <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Node Status</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody className="divide-y divide-white/5">
+                <TableBody className="divide-y divide-slate-100">
                   {fetching ? (
                     Array(4).fill(0).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={4} className="p-10"><Skeleton className="h-10 w-full rounded-2xl opacity-10 bg-white" /></TableCell></TableRow>
+                      <TableRow key={i}><TableCell colSpan={4} className="p-10"><Skeleton className="h-10 w-full rounded-2xl bg-slate-50 opacity-10" /></TableCell></TableRow>
                     ))
                   ) : configs?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-32 text-center opacity-10 italic font-black uppercase text-xs tracking-[0.3em]">No history in cluster ledger.</TableCell>
+                      <TableCell colSpan={4} className="py-32 text-center opacity-40 italic font-black uppercase text-xs tracking-[0.3em] text-black">No history in cluster ledger.</TableCell>
                     </TableRow>
                   ) : configs?.map((c) => (
-                    <TableRow key={c.id} className="hover:bg-white/[0.04] transition-all group">
-                      <TableCell className="py-8 px-10 border-r border-white/5">
+                    <TableRow key={c.id} className="hover:bg-slate-50 transition-all group">
+                      <TableCell className="py-8 px-10 border-r border-slate-100">
                          <div className="flex items-center gap-4">
                             <div className="size-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                            <span className="font-black text-[14px] text-white tracking-tight uppercase group-hover:translate-x-1 transition-transform">{c.office?.replace('_', ' ')}</span>
+                            <span className="font-black text-[14px] text-black tracking-tight uppercase group-hover:translate-x-1 transition-transform">{c.office?.replace('_', ' ')}</span>
                          </div>
                       </TableCell>
-                      <TableCell className="px-10 border-r border-white/5">
-                        <Badge variant="outline" className="font-black text-[10px] border-white/10 text-white/60 bg-white/5 px-4 py-1.5 rounded-lg">WEEK {c.weekId}</Badge>
+                      <TableCell className="px-10 border-r border-slate-100">
+                        <Badge variant="outline" className="font-black text-[10px] border-slate-200 text-black/60 bg-white px-4 py-1.5 rounded-lg">WEEK {c.weekId}</Badge>
                       </TableCell>
-                      <TableCell className="px-10 border-r border-white/5">
+                      <TableCell className="px-10 border-r border-slate-100">
                         <div className="flex flex-col gap-1">
-                          <span className="text-[12px] font-black text-white/80 tabular-nums">
+                          <span className="text-[12px] font-black text-black/80 tabular-nums">
                             {new Date(c.bookingOpen).toLocaleString()}
                           </span>
                           <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -317,8 +313,8 @@ export default function WeekOffConfiguration() {
                       <TableCell className="text-right pr-12">
                          <div className="flex items-center justify-end gap-3">
                             <span className="text-[9px] font-black text-secondary uppercase tracking-widest">ACTIVE_SYNC</span>
-                            <div className="size-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                               <Server className="size-4 text-white/20" />
+                            <div className="size-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 shadow-inner">
+                               <Server className="size-4 text-black/20" />
                             </div>
                          </div>
                       </TableCell>
@@ -327,14 +323,14 @@ export default function WeekOffConfiguration() {
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter className="bg-white/[0.02] p-10 border-t border-white/5">
+            <CardFooter className="bg-slate-50/50 p-10 border-t border-slate-100">
                <div className="flex items-center gap-10">
                   <div className="size-16 rounded-[1.5rem] bg-secondary/10 flex items-center justify-center text-secondary shadow-inner shrink-0">
                      <Info className="size-8" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40">Audit Note</p>
-                    <p className="text-[13px] font-medium text-white/80 uppercase leading-relaxed tracking-tight max-w-4xl">
+                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-black/40">Audit Note</p>
+                    <p className="text-[13px] font-medium text-black/80 uppercase leading-relaxed tracking-tight max-w-4xl">
                       Windows are cluster-isolated. Professional slot reservations are immutable once secured and logged to the trace ledger.
                     </p>
                   </div>
