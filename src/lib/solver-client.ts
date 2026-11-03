@@ -8,7 +8,14 @@ import { GoogleAuth } from 'google-auth-library';
 const SOLVER_URL = process.env.SOLVER_URL || 'http://localhost:8000';
 const SOLVER_API_KEY = process.env.SOLVER_API_KEY;
 
-const auth = new GoogleAuth();
+// Idempotent auth instance for server-side ID token retrieval
+let authInstance: any = null;
+function getAuth() {
+  if (typeof window === 'undefined' && !authInstance) {
+    authInstance = new GoogleAuth();
+  }
+  return authInstance;
+}
 
 /**
  * Retrieves an OIDC ID token for service-to-service authentication on GCP.
@@ -24,9 +31,10 @@ async function getAuthHeaders(targetAudience: string) {
   }
 
   // Only attempt GCP IAM auth if in production or explicitly enabled
-  if (process.env.NODE_ENV === 'production' || process.env.ENABLE_IAM_AUTH === 'true') {
+  // This code only runs on the server (Server Actions / Genkit Flows)
+  if (typeof window === 'undefined' && (process.env.NODE_ENV === 'production' || process.env.ENABLE_IAM_AUTH === 'true')) {
     try {
-      // In GCP environments (Cloud Run/Functions), this retrieves the service account's identity token
+      const auth = getAuth();
       const client = await auth.getIdTokenClient(targetAudience);
       const authHeaders = await client.getRequestHeaders();
       if (authHeaders['Authorization']) {
@@ -47,6 +55,7 @@ export async function callSolver(payload: any) {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+    cache: 'no-store'
   });
 
   if (!response.ok) {
@@ -64,6 +73,7 @@ export async function validateAssignments(payload: any) {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+    cache: 'no-store'
   });
 
   if (!response.ok) {
@@ -75,6 +85,11 @@ export async function validateAssignments(payload: any) {
 }
 
 export async function checkSolverHealth() {
-  const response = await fetch(`${SOLVER_URL}/health`);
-  return response.json();
+  try {
+    const response = await fetch(`${SOLVER_URL}/health`, { cache: 'no-store' });
+    if (!response.ok) return { status: 'offline' };
+    return response.json();
+  } catch (e) {
+    return { status: 'offline' };
+  }
 }
