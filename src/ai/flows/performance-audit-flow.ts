@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Institutional Performance Audit Flow.
@@ -9,6 +10,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { callSolver } from '@/lib/solver-client';
+import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 
 const AuditInputSchema = z.object({
   testPoolSize: z.number().describe('Number of synthetic employees to generate for the test.'),
@@ -70,10 +72,15 @@ const performanceAuditFlow = ai.defineFlow(
     );
 
     // Generate Hard Constraints (15% random weekly offs)
-    const employeeHardConstraints = employees.slice(0, Math.floor(testPoolSize * 0.15)).map(emp => ({
+    const mockBookings = employees.slice(0, Math.floor(testPoolSize * 0.15)).map(emp => ({
       employeeId: emp.id,
-      type: 'weeklyOff',
       dayOfWeek: DAYS[Math.floor(Math.random() * 7)]
+    }));
+
+    const employeeHardConstraints = mockBookings.map(b => ({
+      employeeId: b.employeeId,
+      type: 'weeklyOff',
+      dayOfWeek: b.dayOfWeek
     }));
 
     const solverPayload = {
@@ -86,7 +93,7 @@ const performanceAuditFlow = ai.defineFlow(
       timeLimitSeconds: 30
     };
 
-    logs.push(`PAYLOAD CONSTRUCTED: ${employees.length * 7 * 6} variables`);
+    logs.push(`PAYLOAD CONSTRUCTED: ${employees.length * 7 * SHIFTS.length} variables`);
 
     // 2. Execute Solver Call
     try {
@@ -96,33 +103,25 @@ const performanceAuditFlow = ai.defineFlow(
 
       logs.push(`SOLVER COMPLETED: Status ${result.status} in ${end - start}ms`);
 
-      // 3. Independent Integrity Check
-      let integrityOk = true;
-      if (result.assignments) {
-        // Check for double assignments
-        const uniqueCheck = new Set();
-        result.assignments.forEach((a: any) => {
-          const key = `${a.employeeId}_${a.dayOfWeek}`;
-          if (uniqueCheck.has(key)) {
-            integrityOk = false;
-            logs.push(`INTEGRITY FAILURE: Double assignment for ${a.employeeId} on ${a.dayOfWeek}`);
-          }
-          uniqueCheck.add(key);
+      // 3. Independent Integrity Check via trusted utility
+      const integrity = verifyRosterIntegrity(
+        result.assignments || [],
+        mockBookings,
+        [], // No leaves in simple audit
+        Array(7).fill(new Date()) // Dummy dates
+      );
 
-          // Check against off-days
-          const isOff = employeeHardConstraints.some(c => c.employeeId === a.employeeId && c.dayOfWeek === a.dayOfWeek);
-          if (isOff) {
-            integrityOk = false;
-            logs.push(`INTEGRITY FAILURE: Assignment on Weekly-Off for ${a.employeeId}`);
-          }
-        });
+      if (!integrity.isValid) {
+        integrity.issues.forEach(issue => logs.push(`INTEGRITY FAILURE: ${issue}`));
+      } else {
+        logs.push(`INTEGRITY VERIFIED: No hard constraint violations.`);
       }
 
       return {
-        success: integrityOk && (result.status === 'OPTIMAL' || result.status === 'FEASIBLE'),
+        success: integrity.isValid && (result.status === 'OPTIMAL' || result.status === 'FEASIBLE'),
         metrics: {
           solveTimeMs: result.metadata.solveTimeMs,
-          variableCount: employees.length * 7 * 6,
+          variableCount: employees.length * 7 * SHIFTS.length,
           status: result.status,
           integrityChecked: true
         },
