@@ -1,9 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Refactored Genkit flow for generating an optimized weekly employee roster.
- * This flow now acts as a trusted backend coordinator, fetching authoritative data 
- * from Firestore and delegating the heavy math to the Python OR-Tools solver.
+ * @fileOverview Trusted Coordinator Flow for Clinical Roster Generation.
+ *
+ * This flow orchestrates the deterministic optimization process:
+ * 1. Fetches authoritative clinical data from Firestore.
+ * 2. Strips PII and builds the mathematical model payload.
+ * 3. Calls the authenticated Python CP-SAT Solver on Google Cloud Run.
+ * 4. Independently validates assignments against core integrity rules.
  */
 
 import { ai } from '@/ai/genkit';
@@ -45,27 +49,18 @@ export const GenerateWeeklyRosterOutputSchema = z.object({
 export type GenerateWeeklyRosterOutput = z.infer<typeof GenerateWeeklyRosterOutputSchema>;
 
 /**
- * Trusted Backend Entry Point: Fetches authoritative data and strips PII.
+ * Validates solver output against institutional hard rules.
  */
-export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
-  return generateWeeklyRosterFlow(input);
-}
-
-/**
- * Independent Backend Validation
- * Re-verifies that the solver output doesn't violate core integrity rules
- * before returning it to the UI.
- */
-function validateSolverOutput(assignments: any[], bookings: any[]) {
+function validateAssignments(assignments: any[], bookings: any[]) {
   const issues: string[] = [];
   
-  // Rule 1: No assignments on protected Weekly-Offs
+  // Rule: No assignments on protected FCFS Weekly-Offs
   assignments.forEach(a => {
-    const isOff = bookings.some(b => b.data().employeeId === a.employeeId && b.data().dayOfWeek === a.dayOfWeek);
-    if (isOff) issues.push(`INTEGRITY ALERT: Assignment for ${a.employeeId} overlaps with protected Weekly-Off on ${a.dayOfWeek}.`);
+    const isOff = bookings.some(b => b.employeeId === a.employeeId && b.dayOfWeek === a.dayOfWeek);
+    if (isOff) issues.push(`INTEGRITY ALERT: Assignment for ${a.employeeId} overlaps with a protected Weekly-Off on ${a.dayOfWeek}.`);
   });
 
-  // Rule 2: Single assignment per professional per day
+  // Rule: Single assignment per professional per day
   const keys = assignments.map(a => `${a.employeeId}_${a.dayOfWeek}`);
   const uniqueKeys = new Set(keys);
   if (keys.length !== uniqueKeys.size) {
@@ -73,6 +68,10 @@ function validateSolverOutput(assignments: any[], bookings: any[]) {
   }
 
   return issues;
+}
+
+export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
+  return generateWeeklyRosterFlow(input);
 }
 
 const generateWeeklyRosterFlow = ai.defineFlow(
@@ -88,18 +87,17 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     const weekDates = getDatesForWeek(weekId);
 
     try {
-      // 1. Institutional Permission Check
+      // 1. Institutional Permission Gate
       const adminSnap = await getDoc(doc(firestore, 'users', adminUid));
       if (!adminSnap.exists() || !['ADMIN', 'SUPER_ADMIN'].includes(adminSnap.data().role)) {
-        throw new Error("Access Denied: Unauthorized administrative attempt.");
+        throw new Error("Access Denied: Unauthorized administrative identity.");
       }
       
-      // Office isolation: only allow managing the admin's own office unless super admin
       if (adminSnap.data().office !== officeId && adminSnap.data().role !== 'SUPER_ADMIN') {
         throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
       }
 
-      // 2. Authoritative Data Fetching (Trusted Backend context)
+      // 2. Data Synchronization (Authoritative Fetch)
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         getDocs(query(collection(firestore, 'employees'), where('office', '==', officeId), where('status', '==', 'Active'))),
         getDocs(query(collection(firestore, 'shift_master'), orderBy('displayOrder'))),
@@ -111,22 +109,21 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       ]);
 
       if (!quotaSnap.exists()) {
-        throw new Error(`Configuration Missing: Staffing quotas for Week ${weekId} have not been defined.`);
+        throw new Error(`Configuration Missing: Clinical quotas for Week ${weekId} have not been defined.`);
       }
 
       const quotaData = quotaSnap.data()!;
-      
-      // SANITIZATION: Strip PII. Solver only sees IDs and Gender (for soft targets).
       const employees = empSnap.docs.map(d => ({ 
         id: d.id, 
         gender: (d.data().gender || 'Other').toLowerCase(),
+        // Historical values could be fetched from a summary collection in production
         historicalSO: 0, 
         historicalOP: 0 
       }));
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
 
-      // 3. Constraint Construction (Trusted context)
+      // 3. Model Construction (PII-Stripped)
       const employeeHardConstraints = [
         ...bookingsSnap.docs.map(d => ({ 
           employeeId: d.data().employeeId, 
@@ -146,7 +143,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
           if (!rule) return [];
           const res: any[] = [];
           const idx = DAYS.indexOf(booking.dayOfWeek);
-          // Adjacency Fairness
           if (idx > 0 && rule.allowedPreOffShifts?.length > 0) {
             res.push({ employeeId: booking.employeeId, type: 'restrictedShift', dayOfWeek: DAYS[idx - 1], restrictedToShifts: rule.allowedPreOffShifts });
           }
@@ -169,7 +165,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         weight: 1.0
       }));
 
-      // 4. Mathematical Optimization (Authenticated Cloud Run Call)
+      // 4. CP-SAT Execution (Authenticated Service-to-Service)
       const solverPayload = {
         weekId,
         officeId,
@@ -183,14 +179,16 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       const result = await callSolver(solverPayload);
 
-      // 5. Output Validation (Independent Gate)
+      // 5. Independent Output Validation Gate
       const assignments = result.assignments || [];
-      const integrityIssues = validateSolverOutput(assignments, bookingsSnap.docs);
+      const integrityIssues = validateAssignments(assignments, bookingsSnap.docs.map(d => d.data()));
 
       return {
         rosterAssignments: assignments,
         summary: result.status === 'OPTIMAL' 
           ? `Mathematically optimal roster found for clinical cluster ${officeId}.` 
+          : result.status === 'INFEASIBLE'
+          ? `Optimization failed: Clinical constraints (quotas/offs) are mathematically incompatible.`
           : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
         status: result.status,
         issuesEncountered: [...(result.errors || []), ...integrityIssues],
@@ -203,10 +201,10 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       };
 
     } catch (e: any) {
-      console.error('Institutional Pipeline Error:', e);
+      console.error('Institutional Pipeline Failure:', e);
       return {
         rosterAssignments: [],
-        summary: `Pipeline Failure: ${e.message}`,
+        summary: `Deterministic Node Failure: ${e.message}`,
         status: 'UNKNOWN',
         issuesEncountered: [e.message],
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }
