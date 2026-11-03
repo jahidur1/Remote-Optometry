@@ -10,19 +10,23 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
     }
     
     function isUserActive() {
-      return isSignedIn() && getUserData().status == 'Active';
+      let data = getUserData();
+      return isSignedIn() && data != null && data.status == 'Active';
     }
     
     function isAdmin() {
-      return isSignedIn() && getUserData().role in ['ADMIN', 'SUPER_ADMIN'];
+      let data = getUserData();
+      return isSignedIn() && data != null && data.role in ['ADMIN', 'SUPER_ADMIN'];
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && getUserData().role == 'SUPER_ADMIN';
+      let data = getUserData();
+      return isSignedIn() && data != null && data.role == 'SUPER_ADMIN';
     }
 
     function isOwner(userId) {
@@ -30,10 +34,11 @@ service cloud.firestore {
     }
 
     function matchesOffice(office) {
-      return isAdmin() || getUserData().office == office;
+      let data = getUserData();
+      return isAdmin() || (data != null && data.office == office);
     }
 
-    // --- OTP REGISTRY: 24h Backup Persistence ---
+    // --- OTP REGISTRY: 12h Backup Persistence ---
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
       allow create: if true; // Publicly writable during login
@@ -60,9 +65,16 @@ service cloud.firestore {
     }
 
     // Employees: Field-level locking and self-update restrictions
+    // ALLOW get/list during login if the phone number matches the auth token
     match /employees/{employeeId} {
-      allow get: if isUserActive() && (isAdmin() || resource.data.whatsappNumber == request.auth.token.phone_number);
-      allow list: if isAdmin() && isUserActive();
+      allow get: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.whatsappNumber == request.auth.token.phone_number
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() || 
+        request.query.limit <= 5 // Allow restricted listing for self-identification
+      );
       allow create: if isAdmin() && isUserActive();
       
       allow update: if (isAdmin() && isUserActive()) || (

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -21,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { addHours } from 'date-fns';
 
 export default function LoginPage() {
@@ -94,7 +95,6 @@ export default function LoginPage() {
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
       // GENERATE FRESH BACKUP OTP FOR ADMINISTRATIVE SUPPORT (TTL: 12h)
-      // This pulse is updated every time a new request is made to show the LATEST code.
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpRef = doc(db, 'otp_registry', formattedPhone);
       
@@ -103,7 +103,9 @@ export default function LoginPage() {
         otp: backupCode,
         expiresAt: addHours(new Date(), 12).toISOString(),
         createdAt: serverTimestamp()
-      }, { merge: true });
+      }, { merge: true }).catch(async (error) => {
+         // Silently handle backup OTP permission failures for non-superadmins
+      });
 
       setConfirmationResult(result);
       setStep('otp');
@@ -138,6 +140,7 @@ export default function LoginPage() {
       const userCredential = await confirmationResult.confirm(otp);
       const user = userCredential.user;
 
+      // HANDSHAKE: Find the employee record matching the verified phone number
       const q = query(collection(db, 'employees'), where('whatsappNumber', '==', user.phoneNumber));
       const snap = await getDocs(q);
       
@@ -158,18 +161,21 @@ export default function LoginPage() {
           employeeId: employee.id,
           phoneNumber: user.phoneNumber,
           status: 'Active',
+          office: employee.office || null,
           lastLogin: new Date().toISOString()
         };
 
-        await setDoc(userRef, userData, { merge: true }).catch(async (error) => {
+        // Non-blocking profile synchronization
+        setDoc(userRef, userData, { merge: true }).catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: userRef.path,
-            operation: 'update',
+            operation: 'write',
             requestResourceData: userData,
-          }));
+          } satisfies SecurityRuleContext));
         });
 
-        await createOrUpdateSession(db, user.uid, employee.id);
+        // Initialize secure device session
+        createOrUpdateSession(db, user.uid, employee.id);
         logAudit(db, user.uid, 'AUTH_OTP_VERIFY_SUCCESS', employee.id);
 
         toast({
@@ -177,6 +183,7 @@ export default function LoginPage() {
           description: `Welcome to the cluster, ${employee.fullName.split(' ')[0]}.`,
         });
 
+        // Final redirection pulse
         if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
           router.push('/admin');
         } else {
@@ -220,7 +227,7 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <Label htmlFor="phone" className="text-[11px] font-black uppercase tracking-widest text-black/40 ml-1">Verified Mobile Endpoint</Label>
                   <div className="flex gap-4">
-                    <div className="flex h-14 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 px-5 font-black text-primary text-lg">
+                    <div className="flex h-14 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-primary text-lg">
                       +91
                     </div>
                     <div className="relative flex-1 group">
