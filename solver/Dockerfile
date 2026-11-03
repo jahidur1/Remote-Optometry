@@ -1,23 +1,26 @@
-# Use the official Python image.
-# https://hub.docker.com/_/python
+# Use official Python 3.12 slim image
 FROM python:3.12-slim
 
-# Allow statements and log messages to immediately appear in the logs
-ENV PYTHONUNBUFFERED True
+# Set working directory
+WORKDIR /app
 
-# Install system dependencies required for Google OR-Tools
-RUN apt-get update && apt-get install -y \
+# Install system dependencies required for OR-Tools and production
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy local code to the container image.
-ENV APP_HOME /app
-WORKDIR $APP_HOME
-COPY . ./
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
 
-# Install production dependencies.
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Run the web service on container startup.
-# Cloud Run standardizes on port 8080.
+# Copy the rest of the application code
+COPY . .
+
+# Expose the port FastAPI will run on
+EXPOSE 8080
+
+# Command to run the application using Uvicorn
+# Cloud Run expects the service to listen on 0.0.0.0:$PORT (default 8080)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
