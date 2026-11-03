@@ -88,11 +88,6 @@ export default function Home() {
           </div>
 
           <div className="space-y-8">
-             <div className="inline-flex items-center gap-3 px-6 py-2.5 rounded-full bg-slate-50 border border-slate-100 shadow-sm">
-                <Terminal className="size-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-black/60">Institutional Protocol • Node v2.1</span>
-             </div>
-             
              <div className="space-y-4">
                 <h1 className="text-8xl font-black tracking-tight font-headline sm:text-[10rem] uppercase leading-[0.8] text-black">
                   Remote <br /> <span className="text-primary italic">Optometry</span>
@@ -111,7 +106,7 @@ export default function Home() {
            <Link href="/login" className="w-full max-w-sm group">
              <Button className="w-full bg-primary text-white hover:bg-black h-20 text-xl font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-2xl transition-all duration-500 hover:scale-[1.02] active:scale-95 border-none relative overflow-hidden group">
                <span className="relative z-10 flex items-center justify-center">
-                 Enter Node Access 
+                 Authentication
                  <ArrowRight className="ml-4 size-7 group-hover:translate-x-4 transition-transform" />
                </span>
                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
