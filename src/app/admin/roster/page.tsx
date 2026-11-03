@@ -30,6 +30,7 @@ export default function RosterSolver() {
   const [progress, setProgress] = useState(0);
   const [explanation, setExplanation] = useState<any>(null);
   const [solverResult, setSolverResult] = useState<any>(null);
+  const [lastDraftId, setLastDraftId] = useState<string | null>(null);
 
   const db = useFirestore();
   const { profile } = useUser();
@@ -65,6 +66,7 @@ export default function RosterSolver() {
     setProgress(20);
     setExplanation(null);
     setSolverResult(null);
+    setLastDraftId(null);
 
     const interval = setInterval(() => {
       setProgress(prev => (prev < 90 ? prev + Math.random() * 5 : prev));
@@ -101,6 +103,7 @@ export default function RosterSolver() {
         actorId: profile.uid
       });
 
+      setLastDraftId(draftId);
       logAudit(db, profile.uid, 'RUN_CP_SAT_SOLVER', draftId, { weekId, solverStatus: result.status, office: targetOffice });
       setStatus("success");
       toast({ title: "Optimization Complete", description: "Deterministic draft secured in cluster registry." });
@@ -133,7 +136,7 @@ export default function RosterSolver() {
               <Cpu className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none text-black">Roster Solver</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   CP-SAT Optimization Node <Activity className="size-3 text-secondary animate-pulse" />
@@ -219,7 +222,7 @@ export default function RosterSolver() {
                     "p-8 rounded-[2rem] border-2 animate-in zoom-in-95 transition-all duration-500",
                     solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20'
                 )}>
-                  <div className="flex gap-8 items-start">
+                  <div className="flex flex-col md:flex-row gap-8 items-start">
                     <div className={cn(
                         "size-14 rounded-2xl flex items-center justify-center shrink-0",
                         solverResult.status === 'INFEASIBLE' ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600'
@@ -233,6 +236,14 @@ export default function RosterSolver() {
                        </div>
                        <p className="text-lg font-black text-black leading-snug">{solverResult.summary}</p>
                        
+                       {lastDraftId && solverResult.status !== 'INFEASIBLE' && (
+                         <Link href={`/admin/roster/review/${lastDraftId}`} className="block">
+                            <Button className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-[0.2em] rounded-xl shadow-xl transition-all group">
+                                Enter Review Workspace <ChevronRight className="ml-2 size-5 group-hover:translate-x-1 transition-transform" />
+                            </Button>
+                         </Link>
+                       )}
+
                        {solverResult.solverMetadata && (
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6 border-t border-black/5">
                             <div className="space-y-1">

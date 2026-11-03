@@ -216,7 +216,7 @@ export default function RosterReviewWorkspace() {
               <User className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
               <Input 
                 placeholder="Search Professional..." 
-                className="pl-12 h-11 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-secondary transition-all"
+                className="pl-12 h-11 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-secondary transition-all shadow-none"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
@@ -411,7 +411,7 @@ export default function RosterReviewWorkspace() {
                 <Label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] px-4 block">Mandatory Governance Justification</Label>
                 <Textarea 
                   placeholder="Explain why this override is necessary for clinical pod-balance..." 
-                  className="min-h-[180px] rounded-3xl font-medium border-2 border-slate-100 bg-slate-50/50 focus:border-secondary transition-all text-sm leading-relaxed p-8 shadow-inner"
+                  className="min-h-[180px] rounded-3xl font-medium border-2 border-slate-100 bg-slate-50/50 focus:border-secondary transition-all text-sm leading-relaxed p-8 shadow-inner shadow-none"
                   value={overrideReason}
                   onChange={e => setOverrideReason(e.target.value)}
                 />
