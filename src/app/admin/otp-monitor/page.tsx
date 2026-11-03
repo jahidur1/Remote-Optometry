@@ -1,8 +1,7 @@
-
 'use client';
 
-import { useState, useMemo } from 'react';
-import { collection, query, orderBy, limit, doc, deleteDoc } from 'firebase/firestore';
+import { useState, useMemo, useEffect } from 'react';
+import { collection, query, orderBy, limit, doc, deleteDoc, writeBatch, getDocs, where } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,7 +21,9 @@ import {
   Phone,
   Lock,
   Terminal,
-  Server
+  Server,
+  RefreshCcw,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +35,7 @@ export default function OtpMonitor() {
   const db = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [cleaning, setCleaning] = useState(false);
 
   // Stable Authoritative Fetch (Latest 100 pulses)
   const otpQuery = useMemo(() => query(
@@ -43,6 +45,37 @@ export default function OtpMonitor() {
   ), [db]);
 
   const { data: pulses, loading } = useCollection(otpQuery);
+
+  /**
+   * ADMINISTRATIVE AUTO-CLEANUP PROTOCOL
+   * Purges expired pulses from the registry to maintain security hygiene.
+   */
+  useEffect(() => {
+    if (!pulses || pulses.length === 0) return;
+
+    const cleanupExpired = async () => {
+      const now = new Date();
+      const expired = pulses.filter(p => new Date(p.expiresAt) < now);
+      
+      if (expired.length > 0) {
+        setCleaning(true);
+        try {
+          const batch = writeBatch(db);
+          expired.forEach(p => {
+            batch.delete(doc(db, 'otp_registry', p.phone));
+          });
+          await batch.commit();
+          toast({ title: "Registry Purged", description: `Decommissioned ${expired.length} expired backup pulses.` });
+        } catch (e) {
+          console.error("Cleanup Failure:", e);
+        } finally {
+          setCleaning(false);
+        }
+      }
+    };
+
+    cleanupExpired();
+  }, [pulses, db, toast]);
 
   const handleDelete = async (phone: string) => {
     if (!confirm("Decommission this backup pulse?")) return;
@@ -71,7 +104,7 @@ export default function OtpMonitor() {
             <div>
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">OTP Monitor</h1>
               <div className="flex items-center gap-3 mt-2">
-                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
+                <p className="text-black/60 font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Backup Pulse Ledger <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
@@ -82,19 +115,25 @@ export default function OtpMonitor() {
 
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Protocol Status</label>
+              <label className="text-[9px] font-black uppercase text-black/40 tracking-[0.2em]">Protocol Status</label>
               <div className="flex items-center gap-3">
                  <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ADMIN_BACKUP_LIVE</span>
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[9px] font-black uppercase text-black/40 tracking-[0.2em]">Registry Sync</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
-                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
+                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE PULSE</span>
               </div>
            </div>
+           {cleaning && (
+             <div className="flex items-center gap-2 px-4 py-2 bg-secondary/5 rounded-xl border border-secondary/10 animate-pulse">
+                <Loader2 className="size-3 animate-spin text-secondary" />
+                <span className="text-[9px] font-black uppercase text-secondary tracking-widest">PURGING_EXPIRED</span>
+             </div>
+           )}
         </div>
       </div>
 
@@ -107,14 +146,14 @@ export default function OtpMonitor() {
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all bg-white shadow-sm border border-slate-100">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
+              <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-black/60">{kpi.label}</CardTitle>
               <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
             </CardHeader>
             <CardContent>
               {loading ? <Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /> : (
                 <>
                   <div className="text-5xl font-black text-black tracking-tighter">{kpi.value}</div>
-                  <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
+                  <p className="text-[9px] text-black/40 uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
                 </>
               )}
             </CardContent>
@@ -130,8 +169,8 @@ export default function OtpMonitor() {
             </div>
             <div className="space-y-1">
               <CardTitle className="text-2xl font-black uppercase tracking-tight text-black leading-none">Backup Pulse Ledger</CardTitle>
-              <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                 Temporary security codes for institutional authentication support.
+              <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mt-2">
+                 Temporary 12-hour security codes for institutional authentication support.
               </CardDescription>
             </div>
           </div>
@@ -151,11 +190,11 @@ export default function OtpMonitor() {
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-b border-slate-100">
-                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left">Mobile Endpoint</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center px-8">Backup Pulse Code</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center px-8">Initiated (IST)</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center px-8">Status deadline</TableHead>
-                <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
+                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-left">Mobile Endpoint</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-center px-8">Backup Pulse Code</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-center px-8">Initiated (IST)</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60 border-r border-slate-100 text-center px-8">Status deadline</TableHead>
+                <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-black/60">Registry Control</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -166,7 +205,7 @@ export default function OtpMonitor() {
               ) : filteredPulses?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-40 text-center">
-                    <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mb-4 italic">No active backup pulses found in node.</p>
+                    <p className="text-black/20 font-black uppercase text-xs tracking-[0.4em] mb-4 italic">No active backup pulses found in node.</p>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -186,7 +225,7 @@ export default function OtpMonitor() {
                            </div>
                            <div className="flex flex-col">
                               <span className="font-black text-[17px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{p.phone}</span>
-                              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">IDENTITY_ENDPOINT</span>
+                              <span className="text-[9px] font-black text-black/30 uppercase tracking-widest mt-1">IDENTITY_ENDPOINT</span>
                            </div>
                         </div>
                       </TableCell>
@@ -200,7 +239,7 @@ export default function OtpMonitor() {
                             <span className="text-[14px] font-black text-black/60 tabular-nums">
                                {new Date(p.createdAt?.toDate?.() || p.createdAt).toLocaleTimeString()}
                             </span>
-                            <span className="text-[8px] font-bold text-slate-300 uppercase tracking-[0.2em] mt-1">REQUESTED PULSE</span>
+                            <span className="text-[8px] font-bold text-black/30 uppercase tracking-[0.2em] mt-1">REQUESTED PULSE</span>
                          </div>
                       </TableCell>
                       <TableCell className="py-8 border-r border-slate-100 text-center px-8">
@@ -225,7 +264,7 @@ export default function OtpMonitor() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="size-11 rounded-xl text-slate-200 hover:bg-destructive/10 hover:text-destructive transition-all border border-transparent hover:border-destructive/20"
+                          className="size-11 rounded-xl text-black/10 hover:bg-destructive/10 hover:text-destructive transition-all border border-transparent hover:border-destructive/20"
                           onClick={() => handleDelete(p.phone)}
                         >
                           <Trash2 className="size-5" />
@@ -235,21 +274,21 @@ export default function OtpMonitor() {
                   );
                 })
               )}
-            </tbody>
+            </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 relative overflow-hidden group shadow-2xl">
-         <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><Database size={280} className="text-primary" /></div>
+         <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><Database size={280} className="text-black/20" /></div>
          <div className="flex flex-col md:flex-row gap-10 items-start relative z-10">
             <div className="size-16 rounded-2xl bg-secondary flex items-center justify-center shadow-2xl shadow-secondary/50 shrink-0">
-               <ArrowUpRight className="size-8 text-white" />
+               <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
                <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Governance node</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "Backup pulses are architected for administrative fallback. Codes are immutably deleted after the 12-hour security window 
+                  "Backup pulses are architected for administrative fallback. Codes are automatically purged after the 12-hour security window 
                   to maintain registry hygiene. Access to this ledger is strictly restricted to Super Admin identities for identity node verification."
                </p>
             </div>
