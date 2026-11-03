@@ -89,6 +89,7 @@ export function AdminSidebar() {
     await signOut(auth)
   }
 
+  // Ensure navigation always closes mobile sidebar and clears interaction state
   const handleNavClick = () => {
     if (isMobile) {
       setOpenMobile(false)
@@ -96,21 +97,21 @@ export function AdminSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0 bg-primary/95">
-      <SidebarHeader className="h-20 flex justify-center px-6">
+    <Sidebar collapsible="icon" className="border-r-0 bg-primary/95 dark:bg-black/95">
+      <SidebarHeader className="h-24 flex justify-center px-6">
         <SidebarMenu>
           <SidebarMenuItem>
             <div className={cn(
               "flex items-center gap-3 transition-all duration-300",
               state === "collapsed" ? "justify-center" : "justify-start"
             )}>
-              <div className="flex aspect-square size-10 items-center justify-center rounded-2xl bg-secondary text-white shadow-lg shadow-secondary/30">
-                <Stethoscope className="size-6" />
+              <div className="flex aspect-square size-12 items-center justify-center rounded-2xl bg-secondary text-white shadow-xl shadow-secondary/20">
+                <Stethoscope className="size-7" />
               </div>
               {state === "expanded" && (
                 <div className="flex flex-col">
-                  <span className="text-sm font-black uppercase tracking-tighter text-white">ROC Workforce</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-secondary">Intelligence Node</span>
+                  <span className="text-base font-black uppercase tracking-tighter text-white">ROC Workforce</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary/80">Intelligence Node</span>
                 </div>
               )}
             </div>
@@ -118,7 +119,7 @@ export function AdminSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       
-      <SidebarContent className="px-3">
+      <SidebarContent className="px-4">
         {navGroups.map((group) => {
           const filteredItems = group.items.filter(item => 
             !item.roles || (profile && item.roles.includes(profile.role))
@@ -127,12 +128,12 @@ export function AdminSidebar() {
           if (filteredItems.length === 0) return null
 
           return (
-            <SidebarGroup key={group.label} className="mt-4">
-              <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 px-4 mb-2">
+            <SidebarGroup key={group.label} className="mt-6">
+              <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 px-4 mb-3">
                 {group.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="gap-1.5">
                   {filteredItems.map((item) => {
                     const isActive = pathname === item.url || (item.url !== '/admin' && pathname.startsWith(item.url));
                     return (
@@ -142,16 +143,16 @@ export function AdminSidebar() {
                           isActive={isActive} 
                           tooltip={item.title}
                           className={cn(
-                            "h-11 px-4 rounded-xl transition-all duration-200 group",
+                            "h-12 px-4 rounded-2xl transition-all duration-300 group",
                             isActive 
-                              ? "bg-secondary text-white shadow-lg shadow-secondary/40" 
-                              : "text-white/80 hover:text-white hover:bg-white/10"
+                              ? "bg-secondary text-white shadow-2xl shadow-secondary/50" 
+                              : "text-white/60 hover:text-white hover:bg-white/10"
                           )}
                         >
-                          <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-3">
-                            <item.icon className={cn("size-5", isActive ? "text-white" : "group-hover:scale-110 transition-transform")} />
-                            <span className="font-bold text-[13px] tracking-tight">{item.title}</span>
-                            {isActive && <ChevronRight className="ml-auto size-3 animate-in fade-in slide-in-from-left-1" />}
+                          <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-4">
+                            <item.icon className={cn("size-5", isActive ? "text-white stroke-[2.5px]" : "group-hover:scale-110 group-hover:text-secondary transition-all")} />
+                            <span className="font-bold text-[14px] tracking-tight uppercase">{item.title}</span>
+                            {isActive && <div className="ml-auto size-1.5 rounded-full bg-white shadow-[0_0_10px_white] animate-pulse" />}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -164,15 +165,15 @@ export function AdminSidebar() {
         })}
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-6">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
-              className="h-12 rounded-2xl text-white/60 hover:text-white hover:bg-white/10 px-4 transition-all duration-200"
+              className="h-14 rounded-2xl text-white/40 hover:text-white hover:bg-destructive/10 hover:text-destructive px-5 transition-all duration-300 group"
               onClick={handleLogout}
             >
-              <LogOut className="size-5" />
-              <span className="font-bold text-[13px]">De-authorize Session</span>
+              <LogOut className="size-5 group-hover:rotate-12 transition-transform" />
+              <span className="font-black uppercase text-[12px] tracking-widest">De-authorize</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

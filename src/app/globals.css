@@ -10,13 +10,13 @@
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 222 47% 11%; /* Institutional Deep Navy */
+    --primary: 222 47% 11%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 221 83% 53%; /* Precision Blue */
+    --secondary: 221 83% 53%;
     --secondary-foreground: 210 40% 98%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 173 80% 40%; /* Medical Teal */
+    --accent: 173 80% 40%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -35,28 +35,28 @@
   }
 
   .dark {
-    --background: 222 47% 4%; /* Slightly darker for better contrast */
-    --foreground: 210 40% 98%;
-    --card: 222 47% 6%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 6%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
+    --background: 222 47% 2%; /* Deep Midnight slate for better contrast */
+    --foreground: 0 0% 100%; /* Pure white text */
+    --card: 222 47% 4%;
+    --card-foreground: 0 0% 100%;
+    --popover: 222 47% 4%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 221 83% 60%; /* Brighter in dark mode */
-    --secondary-foreground: 210 40% 98%;
-    --muted: 222 47% 12%;
-    --muted-foreground: 215 20.2% 75%; /* More visible muted text */
-    --accent: 173 80% 45%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 40%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 222 47% 15%;
-    --input: 222 47% 15%;
-    --ring: 221 83% 53%;
-    --sidebar-background: 222 47% 4%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 12%;
+    --secondary: 221 83% 58%; /* High intensity Precision Blue */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 222 47% 10%;
+    --muted-foreground: 215 20% 75%;
+    --accent: 173 80% 45%; /* High intensity Medical Teal */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 47% 12%;
+    --input: 222 47% 12%;
+    --ring: 221 83% 58%;
+    --sidebar-background: 222 47% 3%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-border: 222 47% 8%;
   }
 }
 
@@ -97,10 +97,9 @@
   @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/10 rounded-full hover:bg-muted-foreground/30 transition-colors;
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
 }
 
-/* Institutional Shadow System */
 .shadow-premium {
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
@@ -109,7 +108,6 @@
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
 }
 
-/* Force mobile optimization */
 @media (max-width: 768px) {
   .container {
     @apply px-4 !important;
