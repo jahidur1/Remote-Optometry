@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { initializeApp, deleteApp, getApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { 
   getAuth,
   createUserWithEmailAndPassword,
@@ -313,6 +313,7 @@ export default function RegisterPage() {
           </CardFooter>
         </Card>
       </div>
-    </RoleGuard>
+      <div id="recaptcha-container"></div>
+    </Card>
   );
 }

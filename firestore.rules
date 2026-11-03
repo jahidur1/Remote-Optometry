@@ -9,11 +9,7 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-    
-    // Safety check for user activity status
+    // Safety check for user identity and status
     function isUserActive() {
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
       return isSignedIn() && exists(path) && get(path).data.status == 'Active';
@@ -51,7 +47,6 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       
-      // Create only allowed with a strict 365-day expiration window
       allow create: if isSignedIn() && 
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.deadlineAt == request.time + duration.value(31536000, 's');
@@ -62,12 +57,12 @@ service cloud.firestore {
          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt']))
       );
       
-      allow delete: if false; // Sessions are revoked/expired, never deleted for audit integrity
+      allow delete: if false; // Audit integrity
     }
 
     // --- WORKFORCE: EMPLOYEES (Identity Registry) ---
     match /employees/{employeeId} {
-      // Handshake: Allow identity verification if phone/email matches auth token
+      // Handshake: Allow identity verification if credentials match auth token
       allow get: if isSignedIn() && (
         isAdmin() || 
         resource.data.whatsappNumber == request.auth.token.phone_number ||
@@ -75,7 +70,7 @@ service cloud.firestore {
       );
       allow list: if isSignedIn() && (
         isAdmin() || 
-        request.query.limit <= 5 // Restricted listing for self-identification
+        request.query.limit <= 5 
       );
       allow create, update: if isAdmin();
       allow delete: if isSuperAdmin();
@@ -94,13 +89,14 @@ service cloud.firestore {
     }
 
     match /weekoff_bookings/{bookingId} {
-      // Use the profile role from users collection to check access
-      allow read: if isUserActive() && (resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || isAdmin());
+      allow read: if isUserActive() && (
+        resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || 
+        isAdmin()
+      );
       
       allow create: if isUserActive() && 
         request.resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId &&
-        request.resource.data.status == 'confirmed' &&
-        request.resource.data.office == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.office;
+        request.resource.data.status == 'confirmed';
       
       allow update: if (isSuperAdmin() || isAdmin()) && isUserActive();
       allow delete: if isAdmin() && isUserActive();
