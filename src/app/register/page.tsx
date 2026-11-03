@@ -312,8 +312,8 @@ export default function RegisterPage() {
              </p>
           </CardFooter>
         </Card>
+        <div id="recaptcha-container"></div>
       </div>
-      <div id="recaptcha-container"></div>
-    </Card>
+    </RoleGuard>
   );
 }
