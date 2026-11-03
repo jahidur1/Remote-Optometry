@@ -172,13 +172,13 @@ export default function RosterSolver() {
                   <span className="text-4xl font-black text-primary italic tracking-tighter">{Math.floor(progress)}%</span>
                 </div>
                 <div className="h-4 bg-muted/30 rounded-full overflow-hidden shadow-inner border">
-                   <Progress value={progress} className="h-full bg-primary rounded-full transition-all duration-1000" />
+                   <Progress value={progress} className="h-full bg-primary rounded-full transition-all duration-500" />
                 </div>
               </div>
 
               {solverResult && (
                 <div className={cn(
-                    "p-8 rounded-[2rem] border-2 animate-in zoom-in-95 transition-all duration-700",
+                    "p-8 rounded-[2rem] border-2 animate-in zoom-in-95 transition-all duration-500",
                     solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20 shadow-none' : 
                     solverResult.status === 'OPTIMAL' ? 'bg-emerald-500/5 border-emerald-500/20 shadow-xl' :
                     'bg-secondary/5 border-secondary/20 shadow-lg'
@@ -279,7 +279,7 @@ export default function RosterSolver() {
 
         <div className="lg:col-span-1 space-y-8">
           <Card className="shadow-2xl border-none bg-primary text-primary-foreground rounded-[3rem] overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2000ms] opacity-5">
+            <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2s] opacity-5">
                <Target size={320} />
             </div>
             <CardHeader className="relative z-10 p-10 pb-6 border-b border-white/5">

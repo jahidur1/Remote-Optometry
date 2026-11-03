@@ -231,7 +231,7 @@ export default function RosterReviewWorkspace() {
 
       <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card mx-6">
         <CardHeader className="bg-primary p-10 text-primary-foreground border-none relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-10 transform translate-x-10 -translate-y-10 opacity-5 group-hover:scale-110 transition-transform duration-[2000ms]">
+          <div className="absolute top-0 right-0 p-10 transform translate-x-10 -translate-y-10 opacity-5 group-hover:scale-110 transition-transform duration-[2s]">
             <ShieldCheck size={280} />
           </div>
           <div className="flex flex-row items-center justify-between relative z-10">

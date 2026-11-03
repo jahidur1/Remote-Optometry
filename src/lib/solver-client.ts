@@ -3,19 +3,8 @@
  * Implements GCP IAM authentication and trusted payload handling.
  */
 
-import { GoogleAuth } from 'google-auth-library';
-
 const SOLVER_URL = process.env.SOLVER_URL || 'https://roc-workforce-solver-410101001681.asia-south1.run.app';
 const ENABLE_IAM_AUTH = process.env.ENABLE_IAM_AUTH === 'true';
-
-// Idempotent auth instance for server-side ID token retrieval
-let authInstance: any = null;
-function getAuth() {
-  if (typeof window === 'undefined' && !authInstance) {
-    authInstance = new GoogleAuth();
-  }
-  return authInstance;
-}
 
 /**
  * Retrieves an OIDC ID token for service-to-service authentication on GCP.
@@ -27,18 +16,19 @@ async function getAuthHeaders(targetAudience: string) {
   };
 
   // Only attempt GCP IAM auth if explicitly enabled in environment
-  // This code only runs on the server (Server Actions / Genkit Flows)
+  // and running in a Node.js context (Server Actions / Genkit Flows)
   if (typeof window === 'undefined' && ENABLE_IAM_AUTH) {
     try {
-      const auth = getAuth();
-      // The audience for the ID token is the Service URL
+      // Dynamic import to prevent client-side bundling of google-auth-library
+      const { GoogleAuth } = await import('google-auth-library');
+      const auth = new GoogleAuth();
       const client = await auth.getIdTokenClient(targetAudience);
       const authHeaders = await client.getRequestHeaders();
       if (authHeaders['Authorization']) {
         headers['Authorization'] = authHeaders['Authorization'];
       }
     } catch (e) {
-      console.warn('Solver Client: GCP IAM Token fetch skipped. Ensure Service Account has "Cloud Run Invoker" permissions.', e);
+      console.warn('Solver Client: GCP IAM Token fetch skipped.', e);
     }
   }
 
@@ -68,8 +58,6 @@ export async function checkSolverHealth() {
     const response = await fetch(`${SOLVER_URL}/health`, { 
       method: 'GET',
       cache: 'no-store',
-      // Health check is usually public or handled by internal GCP health checks, 
-      // but we add headers if required by configuration.
     });
     if (!response.ok) return { status: 'offline' };
     return response.json();

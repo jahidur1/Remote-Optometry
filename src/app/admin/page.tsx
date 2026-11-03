@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -10,7 +9,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { DemoBadge } from "@/components/ui/demo-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { checkSolverHealth } from "@/lib/solver-client"
+import { getSolverHealthAction } from "@/services/solver-actions"
 
 export default function AdminDashboard() {
   const db = useFirestore();
@@ -28,7 +27,7 @@ export default function AdminDashboard() {
     async function verifyNode() {
       try {
         const start = Date.now();
-        const health = await checkSolverHealth();
+        const health = await getSolverHealthAction();
         setSolverHealth({ status: health.status, latency: Date.now() - start });
       } catch (e) {
         setSolverHealth({ status: 'offline' });
@@ -203,7 +202,7 @@ export default function AdminDashboard() {
                     />
                     <Bar dataKey="scheduled" radius={[8, 8, 0, 0]} barSize={52}>
                        {chartData.map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill={index % 2 === 0 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'} className="transition-all duration-700 hover:opacity-80" />
+                         <Cell key={`cell-${index}`} fill={index % 2 === 0 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'} className="transition-all duration-500 hover:opacity-80" />
                        ))}
                     </Bar>
                   </BarChart>

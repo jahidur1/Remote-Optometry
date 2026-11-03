@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -248,7 +247,7 @@ export default function BookOffPage() {
                       <div className="flex items-center gap-8">
                          <div className="flex-1 h-3 bg-muted/40 rounded-full overflow-hidden shadow-inner border border-muted">
                             <div className={cn(
-                              "h-full transition-all duration-[2000ms] cubic-bezier(0.4, 0, 0.2, 1)", 
+                              "h-full transition-all duration-[2s] cubic-bezier(0.4, 0, 0.2, 1)", 
                               status.color === 'destructive' ? 'bg-destructive' : 'bg-secondary'
                             )} style={{ width: `${status.percent}%` }} />
                          </div>
