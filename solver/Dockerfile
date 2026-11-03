@@ -1,28 +1,23 @@
-# ROC Workforce Solver: Production Container Definition
-# Optimized for Google Cloud Run and Google OR-Tools CP-SAT
-
+# Use the official Python image.
+# https://hub.docker.com/_/python
 FROM python:3.12-slim
 
-# Install system dependencies required for OR-Tools C++ binaries
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Allow statements and log messages to immediately appear in the logs
+ENV PYTHONUNBUFFERED True
+
+# Install system dependencies required for Google OR-Tools
+RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Copy local code to the container image.
+ENV APP_HOME /app
+WORKDIR $APP_HOME
+COPY . ./
 
-# Pin dependencies for institutional stability
-COPY requirements.txt .
+# Install production dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application logic
-COPY . .
-
-# Set environment variables for production
-ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
-
-# Expose the standard Cloud Run port
-EXPOSE 8080
-
-# Launch Uvicorn on 0.0.0.0 for Cloud Run ingress
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+# Run the web service on container startup.
+# Cloud Run standardizes on port 8080.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
