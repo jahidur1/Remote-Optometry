@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,7 +24,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ShieldAlert, Zap, Lock, Mail, User, Fingerprint } from 'lucide-react';
+import { ShieldAlert, Zap, Lock, Mail, User, Fingerprint, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 interface EmployeeDialogProps {
@@ -69,29 +68,32 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         gender: employee.gender || 'Male',
         age: employee.age?.toString() || '',
         office: employee.office || 'KOLKATA_ROC',
-        whatsappNumber: employee.whatsappNumber || '',
-        department: employee.department || '',
-        designation: employee.designation || '',
+        whatsappNumber: employee.whatsappNumber?.replace('+91', '') || '',
+        department: employee.department || 'Remote Optometry',
+        designation: employee.designation || 'Staff Professional',
       });
     }
   }, [employee, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!employee) return; // Adding new users handled via Provisioning Hub
+    if (!employee) return;
 
     setLoading(true);
     try {
       const employeeRef = doc(db, 'employees', employee.id);
+      const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
+      
       const payload = {
         ...formData,
+        whatsappNumber: phoneFormatted,
         age: parseInt(formData.age) || 0,
         updatedAt: new Date().toISOString(),
       };
 
       await updateDoc(employeeRef, payload);
       
-      // SYNC: Propagate updates to corresponding user profile
+      // SYNC: Propagate role and metadata to user profile
       const userQuery = query(collection(db, 'users'), where('employeeId', '==', employee.id));
       const userSnap = await getDocs(userQuery);
       if (!userSnap.empty) {
@@ -100,11 +102,13 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
           email: formData.email.toLowerCase(),
           role: formData.role,
           office: formData.office,
-          status: formData.status
+          status: formData.status,
+          phoneNumber: phoneFormatted,
+          updatedAt: new Date().toISOString()
         });
       }
 
-      logAudit(db, profile?.uid || 'system', 'ADMIN_UPDATE_IDENTITY', employee.id);
+      logAudit(db, profile?.uid || 'system', 'ADMIN_UPDATE_IDENTITY', employee.id, { role: formData.role });
 
       toast({
         title: 'Registry Synchronized',
@@ -120,55 +124,57 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] rounded-[3rem] border-none shadow-2xl bg-white p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[750px] rounded-[3rem] border-none shadow-2xl bg-white p-0 overflow-hidden">
         <div className="bg-primary p-12 text-white relative">
           <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><User size={200} /></div>
-          <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10">
+          <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10 text-white">
             {employee ? 'Edit Identity Node' : 'Registry Alert'}
           </DialogTitle>
           <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">
-            Identity Management Protocol — v3.0
+            Identity Management Protocol — v3.1
           </DialogDescription>
         </div>
 
-        <ScrollArea className="max-h-[60vh]">
+        <ScrollArea className="max-h-[65vh]">
           {employee ? (
             <form onSubmit={handleSubmit} className="p-12 space-y-10">
               <div className="grid grid-cols-2 gap-8">
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Identity Key</Label>
-                  <div className="h-14 flex items-center px-6 rounded-2xl bg-slate-50 border-2 border-slate-100 font-black text-black/60 uppercase">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Identity Key</Label>
+                  <div className="h-14 flex items-center px-6 rounded-2xl bg-slate-50 border-2 border-slate-100 font-black text-black/80 uppercase">
                      <Fingerprint className="size-4 mr-3 opacity-30" /> {employee.id}
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Full Legal Name</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
                   <Input
-                    className="font-black h-14 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
                     value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value.toUpperCase() })}
                     required
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">ROC Cluster Node</Label>
-                  <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
-                    <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
-                      {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] uppercase py-3 rounded-xl">{o.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Official Email</Label>
+                 <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Mobile Endpoint</Label>
+                    <div className="flex gap-3">
+                      <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-black text-lg">+91</div>
+                      <Input
+                        className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white text-black"
+                        value={formData.whatsappNumber}
+                        onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                        required
+                        placeholder="99999 00000"
+                      />
+                    </div>
+                 </div>
+                 <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email</Label>
                   <Input
                     type="email"
-                    className="font-black h-14 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
                     required
@@ -176,9 +182,36 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-8">
+                 <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
+                    <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
+                      <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
+                        {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] uppercase py-3 rounded-xl">{o.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                 </div>
+                 <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Authorization Role</Label>
+                    <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val as any })}>
+                      <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
+                        <SelectItem value="EMPLOYEE" className="font-bold text-[11px] uppercase py-3">Staff Professional</SelectItem>
+                        <SelectItem value="ADMIN" className="font-bold text-[11px] uppercase py-3">Cluster Admin</SelectItem>
+                        <SelectItem value="SUPER_ADMIN" className="font-bold text-[11px] uppercase py-3">System Super Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                 </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Gender Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender Node</Label>
                     <Select value={formData.gender} onValueChange={(val) => setFormData({ ...formData, gender: val })}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />
@@ -191,16 +224,16 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     </Select>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Age</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Age</Label>
                     <Input
                       type="number"
-                      className="font-black h-14 rounded-2xl border-2 border-slate-100 bg-white text-black"
+                      className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white text-black"
                       value={formData.age}
                       onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                     />
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Registry Status</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Registry Status</Label>
                     <Select value={formData.status} onValueChange={(val) => setFormData({ ...formData, status: val })}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />

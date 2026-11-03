@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeApp } from 'firebase/app';
 import { 
   getAuth,
   createUserWithEmailAndPassword,
@@ -11,7 +11,7 @@ import {
   signOut
 } from 'firebase/auth';
 import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
-import { useAuth, useFirestore, firebaseConfig } from '@/firebase';
+import { useFirestore, firebaseConfig } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -58,7 +58,7 @@ export default function RegisterPage() {
     if (!emailSnap.empty) throw new Error("This email is already bound to an active identity node.");
 
     if (formData.whatsappNumber.length < 10) throw new Error("A valid 10-digit mobile number is required.");
-    const phoneFormatted = `+91${formData.whatsappNumber}`;
+    const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
     const phoneQ = query(collection(mainDb, 'employees'), where('whatsappNumber', '==', phoneFormatted));
     const phoneSnap = await getDocs(phoneQ);
     if (!phoneSnap.empty) throw new Error("This mobile number is already bound to another professional.");
@@ -73,8 +73,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     
-    // SECURITY NODE: To prevent the Admin from being logged out, we use a temporary secondary Firebase instance.
-    // This allows creating a user without affecting the current session.
+    // SECURITY: Use temporary Firebase App to provision new user without logging out the current admin session.
     const tempAppName = `temp-provision-${Date.now()}`;
     let tempApp;
     
@@ -84,28 +83,21 @@ export default function RegisterPage() {
       tempApp = initializeApp(firebaseConfig, tempAppName);
       const tempAuth = getAuth(tempApp);
 
-      // 1. Initialize Auth Node via Secondary Instance
       const userCredential = await createUserWithEmailAndPassword(tempAuth, formData.email, password);
       const newUser = userCredential.user;
       
-      // 2. Secure Metadata
       await updateProfile(newUser, { displayName: formData.fullName });
-      
-      // 3. Dispatch Verification Pulse
       await sendEmailVerification(newUser);
 
-      // 4. Atomic Multi-Commit to main Registry (Users and Employees)
+      // Final identity synchronization
       await commitRecords(newUser.uid);
-
-      // 5. Cleanup temporary auth session
       await signOut(tempAuth);
 
       toast({ 
         title: "Enrollment Successful", 
-        description: "Authentication node initialized. Verification pulse dispatched." 
+        description: `Identity [${formData.employeeId}] provisioned. Verification pulse dispatched.` 
       });
       
-      // Reset form instead of redirecting so Admin stays in the flow
       setFormData({
         fullName: '',
         email: '',
@@ -129,10 +121,10 @@ export default function RegisterPage() {
   const commitRecords = async (uid: string) => {
     const empRef = doc(mainDb, 'employees', formData.employeeId.toUpperCase());
     const userRef = doc(mainDb, 'users', uid);
-    const phoneFormatted = `+91${formData.whatsappNumber}`;
+    const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
 
     const commonData = {
-      fullName: formData.fullName,
+      fullName: formData.fullName.toUpperCase(),
       email: formData.email.toLowerCase(),
       whatsappNumber: phoneFormatted,
       role: formData.role,
@@ -141,7 +133,7 @@ export default function RegisterPage() {
       updatedAt: new Date().toISOString()
     };
 
-    // Master Employee Record commitment
+    // Commit to Master Employee Registry
     await setDoc(empRef, {
       ...commonData,
       id: formData.employeeId.toUpperCase(),
@@ -153,17 +145,17 @@ export default function RegisterPage() {
       authUid: uid
     });
 
-    // Auth Profile Record commitment (Crucial for resolving permission errors)
+    // Commit to Authentication Profile Registry
     await setDoc(userRef, {
       ...commonData,
       uid,
-      displayName: formData.fullName,
+      displayName: formData.fullName.toUpperCase(),
       employeeId: formData.employeeId.toUpperCase(),
       phoneNumber: phoneFormatted,
       lastLogin: new Date().toISOString()
     });
 
-    logAudit(mainDb, 'ADMIN', 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { email: formData.email, phone: phoneFormatted });
+    logAudit(mainDb, 'ADMIN', 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { role: formData.role, email: formData.email });
   };
 
   return (
@@ -179,7 +171,7 @@ export default function RegisterPage() {
                     <UserPlus className="size-7" />
                 </div>
              </div>
-             <CardTitle className="text-4xl font-black uppercase tracking-tight leading-none relative z-10">Enroll Professional</CardTitle>
+             <CardTitle className="text-4xl font-black uppercase tracking-tight leading-none relative z-10 text-white">Enroll Professional</CardTitle>
              <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Institutional Authentication Deployment — v3.1</CardDescription>
              <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none"><Zap size={240} /></div>
           </CardHeader>
@@ -191,21 +183,21 @@ export default function RegisterPage() {
                   <div className="space-y-1">
                     <p className="text-[11px] font-black text-primary uppercase tracking-widest">Administrative Guard</p>
                     <p className="text-[12px] font-bold text-black/60 uppercase leading-relaxed tracking-tight">
-                        Enrollment provisions both the clinical registry and authentication node. Verification pulses are dispatched automatically.
+                        Enrollment provisions both the clinical registry and authentication node. Roles are immutably mapped during deployment.
                     </p>
                   </div>
               </div>
 
               <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Full Legal Name</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
                     <div className="relative group">
                         <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
-                        <Input className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all bg-white" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} required placeholder="JANE DOE" />
+                        <Input className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all bg-white" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value.toUpperCase()})} required placeholder="JANE DOE" />
                     </div>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Target ID Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Target ID Node</Label>
                     <div className="relative group">
                         <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
                         <Input className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all bg-slate-50 uppercase" value={formData.employeeId} onChange={e => setFormData({...formData, employeeId: e.target.value.toUpperCase()})} required placeholder="EMP-0000" />
@@ -215,16 +207,16 @@ export default function RegisterPage() {
 
               <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Official Email</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email</Label>
                     <div className="relative group">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
                         <Input type="email" className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value.toLowerCase()})} required placeholder="PROFESSIONAL@ROC.INTERNAL" />
                     </div>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Mobile (OTP Auth)</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Mobile (OTP Auth)</Label>
                     <div className="flex gap-3">
-                      <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-primary text-lg">+91</div>
+                      <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-black text-lg">+91</div>
                       <div className="relative flex-1 group">
                         <Phone className="absolute left-4 top-5 h-4 w-4 text-black/20 group-focus-within:text-primary transition-colors" />
                         <Input
@@ -241,7 +233,7 @@ export default function RegisterPage() {
 
               <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Institutional Password</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Institutional Password</Label>
                     <div className="relative group">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
                         <Input 
@@ -263,7 +255,7 @@ export default function RegisterPage() {
                     </div>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">ROC Cluster Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
                     <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />
@@ -277,7 +269,7 @@ export default function RegisterPage() {
 
               <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Gender Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender Node</Label>
                     <Select value={formData.gender} onValueChange={v => setFormData({...formData, gender: v})}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />
@@ -290,7 +282,7 @@ export default function RegisterPage() {
                     </Select>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Authorization Role</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Authorization Role</Label>
                     <Select value={formData.role} onValueChange={v => setFormData({...formData, role: v as any})}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />
@@ -316,8 +308,7 @@ export default function RegisterPage() {
                 <ShieldCheck className="size-8" />
              </div>
              <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight">
-                Institutional protocol: Enrollment provisions both the clinical registry and authentication node. Professionals can login via Email or verified Mobile OTP. 
-                All identities are immutably linked to the clinical registry for institutional compliance.
+                Institutional protocol: Enrollment provisions both the clinical registry and authentication node. Every identity is assigned a permanent `role` (SUPER_ADMIN, ADMIN, or EMPLOYEE) that governs platform-wide access logic.
              </p>
           </CardFooter>
         </Card>
