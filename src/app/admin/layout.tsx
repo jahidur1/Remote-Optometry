@@ -20,11 +20,10 @@ export default function AdminLayout({
               <span className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60">Institutional Control</span>
             </div>
             <div className="ml-auto flex items-center gap-4">
-               {/* Global Action Area placeholder */}
-               <div className="size-8 rounded-full bg-muted animate-pulse" />
+               <div className="size-8 rounded-full bg-muted/20 animate-pulse" />
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-4 p-8 overflow-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <main className="flex flex-1 flex-col gap-4 p-8 overflow-auto animate-in fade-in slide-in-from-bottom-1 duration-200">
             {children}
           </main>
         </SidebarInset>

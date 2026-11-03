@@ -30,9 +30,8 @@ export default function AuditLogs() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState('');
   
-  const { data: logs, loading } = useCollection(
-    query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(200))
-  );
+  const q = useMemo(() => query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(200)), [db]);
+  const { data: logs, loading } = useCollection(q);
 
   const filteredLogs = useMemo(() => {
     return logs?.filter(log => {
@@ -41,7 +40,6 @@ export default function AuditLogs() {
     });
   }, [logs, searchTerm]);
 
-  // Derived stats for the Pulse Ledger
   const stats = useMemo(() => {
     if (!logs) return { total: 0, actors: 0, actions: 0 };
     const uniqueActors = new Set(logs.map(l => l.actorId)).size;
@@ -55,7 +53,6 @@ export default function AuditLogs() {
 
   return (
     <div className="space-y-8 pb-40 max-w-[1600px] mx-auto animate-in px-4">
-      {/* High-Intensity Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -92,7 +89,6 @@ export default function AuditLogs() {
         </div>
       </div>
 
-      {/* KPI Ledger */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -139,7 +135,6 @@ export default function AuditLogs() {
         </Card>
       </div>
 
-      {/* Main Ledger Grid */}
       <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary">
         <CardHeader className="bg-white/[0.03] border-b border-white/5 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex items-center gap-6">
@@ -239,7 +234,6 @@ export default function AuditLogs() {
         </CardContent>
       </Card>
 
-      {/* Governance Footer */}
       <div className="grid md:grid-cols-2 gap-8">
           <Card className="bg-primary text-primary-foreground shadow-2xl border border-white/5 rounded-[2.5rem] overflow-hidden relative group">
             <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2s] opacity-[0.03]">

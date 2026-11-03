@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { collection, query, orderBy, where } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,9 +20,7 @@ import {
   Activity, 
   Zap, 
   ShieldCheck, 
-  Globe,
-  Database,
-  ChevronRight
+  Database
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmployeeDialog } from '@/components/admin/employee-dialog';
@@ -43,22 +41,24 @@ export default function EmployeeManagement() {
   
   const firestore = useFirestore();
 
-  const employeesQuery = query(
+  const employeesQuery = useMemo(() => query(
     collection(firestore, 'employees'),
     orderBy('fullName', 'asc')
-  );
+  ), [firestore]);
 
   const { data: employees, loading } = useCollection(employeesQuery);
 
-  const filteredEmployees = employees?.filter(emp => 
-    emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.office?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = useMemo(() => 
+    employees?.filter(emp => 
+      emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.office?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  , [employees, searchTerm]);
 
-  const activeCount = employees?.filter(e => e.status === 'Active').length || 0;
-  const officeCount = new Set(employees?.map(e => e.office)).size || 0;
+  const activeCount = useMemo(() => employees?.filter(e => e.status === 'Active').length || 0, [employees]);
+  const officeCount = useMemo(() => new Set(employees?.map(e => e.office)).size || 0, [employees]);
 
   const handleEdit = (employee: any) => {
     setSelectedEmployee(employee);
@@ -72,7 +72,6 @@ export default function EmployeeManagement() {
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* High-Intensity Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -110,7 +109,6 @@ export default function EmployeeManagement() {
         </div>
       </div>
 
-      {/* KPI Ledger */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass-card border-none overflow-hidden group hover:bg-white/[0.05] transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -157,7 +155,6 @@ export default function EmployeeManagement() {
         </Card>
       </div>
 
-      {/* Main Staff Ledger */}
       <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] glass-card border-t-8 border-t-secondary">
         <CardHeader className="bg-white/[0.03] border-b border-white/5 p-10">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
@@ -287,7 +284,6 @@ export default function EmployeeManagement() {
         </CardContent>
       </Card>
 
-      {/* Governance Footer */}
       <div className="grid md:grid-cols-2 gap-8">
           <Card className="bg-primary text-primary-foreground shadow-2xl border border-white/5 rounded-[2.5rem] overflow-hidden relative group">
             <div className="absolute top-0 right-0 p-10 transform group-hover:scale-125 transition-transform duration-[2s] opacity-[0.03]">
