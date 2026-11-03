@@ -191,34 +191,34 @@ export default function LoginPage() {
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, black 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 
-      <Card className="w-full max-w-md shadow-xl relative z-10 border-border bg-white rounded-2xl overflow-hidden animate-in">
-        <CardHeader className="space-y-4 text-center p-10 pb-6">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
-            <Stethoscope className="size-9" />
+      <Card className="w-full max-w-md shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative z-10 border-white bg-white/95 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden animate-in border-4">
+        <CardHeader className="space-y-6 text-center p-12 pb-8">
+          <div className="mx-auto flex size-20 items-center justify-center rounded-[1.75rem] bg-primary text-white shadow-2xl transform rotate-3 hover:rotate-0 transition-transform">
+            <Stethoscope className="size-11" />
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-3xl font-black tracking-tight font-headline uppercase leading-none text-black">Access <span className="text-primary">Node</span></CardTitle>
-            <CardDescription className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.3em]">Institutional Workforce Pulse</CardDescription>
+            <CardTitle className="text-4xl font-black tracking-tight font-headline uppercase leading-none text-black">Access <span className="text-primary">Node</span></CardTitle>
+            <CardDescription className="text-black/30 font-black uppercase text-[10px] tracking-[0.4em]">Workforce Identity Pulse</CardDescription>
           </div>
         </CardHeader>
         
-        <CardContent className="px-10 pb-10">
+        <CardContent className="px-12 pb-12">
           {step === 'phone' ? (
             <div className="space-y-8">
-              <form onSubmit={handleSendOtp} className="space-y-6">
-                <div className="space-y-3">
-                  <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Verified Mobile Endpoint</Label>
-                  <div className="flex gap-3">
-                    <div className="flex h-12 items-center justify-center rounded-xl border-2 border-border bg-muted px-4 font-black text-primary">
+              <form onSubmit={handleSendOtp} className="space-y-8">
+                <div className="space-y-4">
+                  <Label htmlFor="phone" className="text-[11px] font-black uppercase tracking-widest text-black/40 ml-1">Verified Mobile Endpoint</Label>
+                  <div className="flex gap-4">
+                    <div className="flex h-14 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 px-5 font-black text-primary text-lg">
                       +91
                     </div>
-                    <div className="relative flex-1">
-                      <Phone className="absolute left-4 top-4 h-4 w-4 text-muted-foreground" />
+                    <div className="relative flex-1 group">
+                      <Phone className="absolute left-4 top-5 h-4 w-4 text-black/20 group-focus-within:text-primary transition-colors" />
                       <Input
                         id="phone"
                         type="tel"
                         placeholder="99999 00000"
-                        className="pl-12 h-12 text-base font-bold rounded-xl border-2 border-border bg-white text-black focus:border-primary transition-all"
+                        className="pl-12 h-14 text-xl font-bold rounded-2xl border-2 border-slate-100 bg-white text-black focus:border-primary transition-all shadow-sm"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         required
@@ -226,36 +226,40 @@ export default function LoginPage() {
                     </div>
                   </div>
                 </div>
-                <Button className="w-full bg-primary text-white hover:bg-black h-14 text-sm font-black uppercase tracking-[0.2em] rounded-xl shadow-lg transition-all border-none" type="submit" disabled={loading || phoneNumber.length < 10}>
-                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5 group-hover:translate-x-2 transition-transform" />}
-                  Request OTP Pulse
+                <Button className="w-full bg-primary text-white hover:bg-black h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all border-none group" type="submit" disabled={loading || phoneNumber.length < 10}>
+                  {loading ? <Loader2 className="mr-3 size-6 animate-spin" /> : (
+                    <>
+                      Request OTP Pulse
+                      <ArrowRight className="ml-3 size-6 group-hover:translate-x-2 transition-transform" />
+                    </>
+                  )}
                 </Button>
               </form>
             </div>
           ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-8">
-              <div className="space-y-4">
+            <form onSubmit={handleVerifyOtp} className="space-y-10">
+              <div className="space-y-6">
                 <div className="flex justify-between items-center px-1">
-                  <Label htmlFor="otp" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Verification Key</Label>
-                  <button type="button" onClick={() => setStep('phone')} className="text-[10px] text-primary font-black hover:underline tracking-widest uppercase">Update Number</button>
+                  <Label htmlFor="otp" className="text-[11px] font-black uppercase tracking-widest text-black/40">Verification Key</Label>
+                  <button type="button" onClick={() => setStep('phone')} className="text-[10px] text-primary font-black hover:underline tracking-widest uppercase">Edit Number</button>
                 </div>
                 <div className="relative">
-                  <Key className="absolute left-4 top-5 h-4 w-4 text-muted-foreground" />
+                  <Key className="absolute left-4 top-7 h-5 w-5 text-black/20" />
                   <Input
                     id="otp"
                     type="text"
                     maxLength={6}
                     placeholder="000000"
-                    className="pl-12 h-16 text-3xl text-center font-black tracking-[0.5em] rounded-xl border-2 border-border bg-white text-black focus:border-primary"
+                    className="pl-12 h-20 text-5xl text-center font-black tracking-[0.6em] rounded-3xl border-4 border-slate-100 bg-white text-black focus:border-primary shadow-inner"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     required
                   />
                 </div>
-                <div className="flex justify-between items-center px-2">
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Target: +91 {phoneNumber}</p>
+                <div className="flex justify-between items-center px-4 bg-slate-50 py-3 rounded-xl border border-slate-100">
+                   <p className="text-[10px] text-black/60 uppercase font-black tabular-nums">+91 {phoneNumber}</p>
                    {resendCooldown > 0 ? (
-                     <p className="text-[10px] text-primary font-black uppercase tracking-widest">Resend in {resendCooldown}s</p>
+                     <p className="text-[10px] text-primary font-black uppercase tracking-widest">Resend: {resendCooldown}s</p>
                    ) : (
                      <button type="button" onClick={handleSendOtp} className="text-[10px] text-primary font-black hover:underline flex items-center gap-1.5 uppercase tracking-widest">
                        <RefreshCcw className="size-3" /> Resend Pulse
@@ -263,21 +267,21 @@ export default function LoginPage() {
                    )}
                 </div>
               </div>
-              <Button className="w-full bg-primary text-white hover:bg-black h-14 text-sm font-black uppercase tracking-[0.2em] rounded-xl shadow-lg transition-all border-none" type="submit" disabled={loading || otp.length < 6}>
-                {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Node Access"}
+              <Button className="w-full bg-primary text-white hover:bg-black h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl transition-all border-none" type="submit" disabled={loading || otp.length < 6}>
+                {loading ? <Loader2 className="mr-3 size-6 animate-spin" /> : "Authorize Node Access"}
               </Button>
             </form>
           )}
         </CardContent>
         
-        <CardFooter className="bg-muted p-8 border-t border-border">
-          <div className="flex gap-4 items-start">
-             <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
-                <ShieldCheck className="size-5 text-primary" />
+        <CardFooter className="bg-slate-50 p-10 border-t border-slate-100">
+          <div className="flex gap-5 items-start">
+             <div className="size-10 rounded-xl bg-primary/5 flex items-center justify-center shrink-0 border border-primary/10">
+                <ShieldCheck className="size-6 text-primary" />
              </div>
              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-primary">Zero-Trust Environment</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
+                <p className="text-[11px] font-black uppercase tracking-widest text-black">Zero-Trust Environment</p>
+                <p className="text-[12px] text-black/40 leading-relaxed font-bold uppercase tracking-tight">
                   365-day security deadline active. Access logs are immutable and monitored for institutional compliance.
                 </p>
              </div>

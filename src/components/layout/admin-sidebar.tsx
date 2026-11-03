@@ -95,21 +95,21 @@ export function AdminSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className="h-24 flex justify-center px-6">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-[#0F172A] text-white">
+      <SidebarHeader className="h-28 flex justify-center px-8">
         <SidebarMenu>
           <SidebarMenuItem>
             <div className={cn(
-              "flex items-center gap-3 transition-all duration-300",
+              "flex items-center gap-4 transition-all duration-500",
               state === "collapsed" ? "justify-center" : "justify-start"
             )}>
-              <div className="flex aspect-square size-12 items-center justify-center rounded-xl bg-white text-primary shadow-xl">
-                <Stethoscope className="size-7" />
+              <div className="flex aspect-square size-14 items-center justify-center rounded-2xl bg-white text-primary shadow-2xl transform hover:rotate-6 transition-transform">
+                <Stethoscope className="size-8" />
               </div>
               {state === "expanded" && (
                 <div className="flex flex-col">
-                  <span className="text-base font-black uppercase tracking-tighter text-white leading-none">ROC Workforce</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40 mt-1">Institutional Node</span>
+                  <span className="text-xl font-black uppercase tracking-tighter text-white leading-none">ROC</span>
+                  <span className="text-xs font-black uppercase tracking-[0.3em] text-white/40 mt-1">Workforce</span>
                 </div>
               )}
             </div>
@@ -117,7 +117,7 @@ export function AdminSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       
-      <SidebarContent className="px-4">
+      <SidebarContent className="px-5 mt-4">
         {navGroups.map((group) => {
           const filteredItems = group.items.filter(item => 
             !item.roles || (profile && item.roles.includes(profile.role))
@@ -126,12 +126,12 @@ export function AdminSidebar() {
           if (filteredItems.length === 0) return null
 
           return (
-            <SidebarGroup key={group.label} className="mt-6">
-              <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-4 mb-3">
+            <SidebarGroup key={group.label} className="mt-8">
+              <SidebarGroupLabel className="text-[11px] font-black uppercase tracking-[0.4em] text-white/20 px-4 mb-4">
                 {group.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu className="gap-1.5">
+                <SidebarMenu className="gap-2">
                   {filteredItems.map((item) => {
                     const isActive = pathname === item.url || (item.url !== '/admin' && pathname.startsWith(item.url));
                     return (
@@ -141,16 +141,16 @@ export function AdminSidebar() {
                           isActive={isActive} 
                           tooltip={item.title}
                           className={cn(
-                            "h-12 px-4 rounded-xl transition-all duration-300 group",
+                            "h-14 px-5 rounded-2xl transition-all duration-300 group",
                             isActive 
-                              ? "bg-white text-primary shadow-lg" 
-                              : "text-white/60 hover:text-white hover:bg-white/5"
+                              ? "bg-white text-[#0F172A] shadow-2xl scale-[1.02]" 
+                              : "text-white/50 hover:text-white hover:bg-white/5"
                           )}
                         >
-                          <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-4">
-                            <item.icon className={cn("size-5", isActive ? "text-primary stroke-[2.5px]" : "group-hover:text-white transition-all")} />
-                            <span className="font-bold text-[13px] tracking-tight uppercase">{item.title}</span>
-                            {isActive && <div className="ml-auto size-1.5 rounded-full bg-primary animate-pulse" />}
+                          <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-5">
+                            <item.icon className={cn("size-5", isActive ? "text-[#0F172A] stroke-[3px]" : "group-hover:text-white transition-all duration-300")} />
+                            <span className="font-bold text-[14px] tracking-tight uppercase leading-none">{item.title}</span>
+                            {isActive && <div className="ml-auto size-2 rounded-full bg-secondary animate-pulse" />}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -163,15 +163,15 @@ export function AdminSidebar() {
         })}
       </SidebarContent>
 
-      <SidebarFooter className="p-6">
+      <SidebarFooter className="p-8">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
-              className="h-14 rounded-xl text-white/40 hover:text-white hover:bg-destructive/10 hover:text-destructive px-5 transition-all duration-300 group"
+              className="h-16 rounded-2xl text-white/30 hover:text-white hover:bg-destructive/20 hover:text-destructive px-6 transition-all duration-500 group border-t border-white/5"
               onClick={handleLogout}
             >
               <LogOut className="size-5 group-hover:rotate-12 transition-transform" />
-              <span className="font-black uppercase text-[11px] tracking-widest">De-authorize</span>
+              <span className="font-black uppercase text-[12px] tracking-widest">De-authorize</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

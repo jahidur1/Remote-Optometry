@@ -13,17 +13,19 @@ export default function AdminLayout({
       <SidebarProvider>
         <AdminSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-6 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 bg-white/50 backdrop-blur-md sticky top-0 z-40">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60">Institutional Control</span>
+          <header className="flex h-20 shrink-0 items-center gap-4 border-b border-slate-100 px-8 transition-all ease-in-out bg-white/80 backdrop-blur-3xl sticky top-0 z-40">
+            <SidebarTrigger className="-ml-1 size-10 rounded-xl hover:bg-slate-50" />
+            <Separator orientation="vertical" className="mr-2 h-6" />
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-black uppercase tracking-[0.4em] text-black/30">Institutional Control</span>
             </div>
-            <div className="ml-auto flex items-center gap-4">
-               <div className="size-8 rounded-full bg-muted/20 animate-pulse" />
+            <div className="ml-auto flex items-center gap-6">
+               <div className="size-10 rounded-full bg-slate-50 border-2 border-slate-100 flex items-center justify-center animate-pulse">
+                  <div className="size-2 rounded-full bg-emerald-500" />
+               </div>
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-4 p-8 overflow-auto animate-in fade-in slide-in-from-bottom-1 duration-200">
+          <main className="flex flex-1 flex-col gap-8 p-10 overflow-auto animate-in duration-700">
             {children}
           </main>
         </SidebarInset>
