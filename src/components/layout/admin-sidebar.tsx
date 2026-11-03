@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -73,7 +74,6 @@ const navGroups = [
     items: [
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["SUPER_ADMIN"] },
       { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
-      { title: "Cost Monitor", url: "/admin/auth-costs", icon: CreditCard, roles: ["SUPER_ADMIN"] },
     ]
   }
 ]
