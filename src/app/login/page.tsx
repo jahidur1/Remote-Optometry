@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
@@ -36,6 +36,7 @@ export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
@@ -75,7 +76,6 @@ export default function LoginPage() {
   }, [resendCooldown]);
 
   const handleSyncProfile = async (user: any) => {
-    // HANDSHAKE: Find the employee record matching the verified identity
     const field = user.phoneNumber ? 'whatsappNumber' : 'email';
     const value = user.phoneNumber || user.email;
     
@@ -295,13 +295,20 @@ export default function LoginPage() {
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
                       <Input 
-                        type="password" 
+                        type={showPassword ? "text" : "password"} 
                         placeholder="••••••••" 
-                        className="pl-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary transition-all" 
+                        className="pl-12 pr-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary transition-all" 
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         required
                       />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-primary transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                      </button>
                     </div>
                   </div>
                 </div>

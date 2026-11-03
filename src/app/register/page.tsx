@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint } from 'lucide-react';
+import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { RoleGuard } from '@/components/auth/role-guard';
@@ -30,6 +30,7 @@ const OFFICES = [
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -191,8 +192,23 @@ export default function RegisterPage() {
                  <div className="space-y-3">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/40 ml-1">Institutional Password</Label>
                     <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
-                        <Input type="password" placeholder="MIN 8 CHARACTERS" className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-primary transition-colors" />
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="MIN 8 CHARACTERS" 
+                          className="font-black h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all" 
+                          value={password} 
+                          onChange={e => setPassword(e.target.value)} 
+                          required 
+                          minLength={8} 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-primary transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                        </button>
                     </div>
                  </div>
               </div>
