@@ -68,12 +68,6 @@ export default function Home() {
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #000 1px, transparent 0)', backgroundSize: '40px 40px' }} />
       </div>
 
-      {/* System Status Node */}
-      <div className="fixed top-8 right-8 z-50 hidden md:flex items-center gap-4 bg-white/80 backdrop-blur-xl border border-slate-100 px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.04)] animate-in">
-         <div className="size-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />
-         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80">System Node: Operational</span>
-      </div>
-
       <div className="max-w-4xl w-full space-y-24 text-center relative z-10">
         <div className="space-y-12 animate-slide-up">
           {/* Identity Mark - Logo Integration */}
