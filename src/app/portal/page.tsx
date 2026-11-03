@@ -2,9 +2,11 @@
 'use client';
 
 import { useEffect } from 'react';
+import Image from 'next/image';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 /**
  * Unified Portal Redirector
@@ -14,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 export default function PortalDispatcher() {
   const { user, profile, loading } = useUser();
   const router = useRouter();
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
   useEffect(() => {
     if (loading) return;
@@ -33,9 +36,22 @@ export default function PortalDispatcher() {
   }, [user, profile, loading, router]);
 
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center bg-primary gap-4">
-      <Loader2 className="size-12 animate-spin text-secondary" />
-      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 animate-pulse uppercase">Syncing Unified Portal</p>
+    <div className="flex h-screen w-full flex-col items-center justify-center bg-primary gap-8">
+      {logo && (
+        <div className="relative size-24 animate-pulse">
+          <Image 
+            src={logo.imageUrl} 
+            alt="Remote Optometry" 
+            fill 
+            className="object-contain"
+            data-ai-hint="remote optometry"
+          />
+        </div>
+      )}
+      <div className="flex flex-col items-center gap-2">
+        <Loader2 className="size-10 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 animate-pulse">Syncing Unified Portal</p>
+      </div>
     </div>
   );
 }

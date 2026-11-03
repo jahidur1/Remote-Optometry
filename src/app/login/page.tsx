@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
   RecaptchaVerifier, 
   signInWithPhoneNumber, 
@@ -17,13 +18,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck } from 'lucide-react';
+import { Loader2, Phone, Key, ArrowRight, RefreshCcw, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { addHours } from 'date-fns';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -37,6 +39,7 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
   const initializeRecaptcha = () => {
     if (!auth) return;
@@ -126,7 +129,6 @@ export default function LoginPage() {
         (window as any).recaptchaVerifier = null;
       }
     } finally {
-      // Small delay to prevent layout flicker
       setTimeout(() => setLoading(false), 500);
     }
   };
@@ -166,7 +168,7 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         };
 
-        // Non-blocking profile synchronization (Master Sync)
+        // Non-blocking profile synchronization
         setDoc(userRef, userData, { merge: true }).catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: userRef.path,
@@ -184,7 +186,6 @@ export default function LoginPage() {
           description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
         });
 
-        // Final redirection pulse
         if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
           router.push('/admin');
         } else {
@@ -211,12 +212,20 @@ export default function LoginPage() {
 
       <Card className="w-full max-w-md shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative z-10 border-white bg-white/95 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden animate-in border-4">
         <CardHeader className="space-y-6 text-center p-12 pb-8">
-          <div className="mx-auto flex size-20 items-center justify-center rounded-[1.75rem] bg-primary text-white shadow-2xl transform rotate-3 hover:rotate-0 transition-transform">
-            <Stethoscope className="size-11" />
-          </div>
+          {logo && (
+            <div className="mx-auto relative size-20 transform rotate-3 hover:rotate-0 transition-transform">
+              <Image 
+                src={logo.imageUrl} 
+                alt="Remote Optometry" 
+                fill 
+                className="object-contain"
+                data-ai-hint="remote optometry"
+              />
+            </div>
+          )}
           <div className="space-y-1">
             <CardTitle className="text-4xl font-black tracking-tight font-headline uppercase leading-none text-black">Access <span className="text-primary">Node</span></CardTitle>
-            <CardDescription className="text-black/30 font-black uppercase text-[10px] tracking-[0.4em]">Workforce Identity Pulse</CardDescription>
+            <CardDescription className="text-black/30 font-black uppercase text-[10px] tracking-[0.4em]">Remote Optometry Identity Pulse</CardDescription>
           </div>
         </CardHeader>
         

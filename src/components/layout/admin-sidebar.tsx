@@ -3,6 +3,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useUser } from "@/firebase"
 import {
@@ -13,7 +14,6 @@ import {
   ShieldCheck,
   Activity,
   LogOut,
-  Stethoscope,
   CalendarRange,
   UserCheck,
   Target,
@@ -39,6 +39,7 @@ import {
 import { signOut } from "firebase/auth"
 import { useAuth } from "@/firebase"
 import { cn } from "@/lib/utils"
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 const navGroups = [
   {
@@ -80,6 +81,7 @@ export function AdminSidebar() {
   const { profile } = useUser()
   const auth = useAuth()
   const { state, isMobile, setOpenMobile } = useSidebar()
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
   const handleLogout = async () => {
     await signOut(auth)
@@ -100,13 +102,21 @@ export function AdminSidebar() {
               "flex items-center gap-4 transition-all duration-500",
               state === "collapsed" ? "justify-center" : "justify-start"
             )}>
-              <div className="flex aspect-square size-14 items-center justify-center rounded-2xl bg-white text-primary shadow-2xl transform hover:rotate-6 transition-transform">
-                <Stethoscope className="size-8" />
-              </div>
+              {logo && (
+                <div className="relative size-12 transform hover:rotate-6 transition-transform shrink-0">
+                  <Image 
+                    src={logo.imageUrl} 
+                    alt="Remote Optometry" 
+                    fill 
+                    className="object-contain"
+                    data-ai-hint="remote optometry"
+                  />
+                </div>
+              )}
               {state === "expanded" && (
                 <div className="flex flex-col">
-                  <span className="text-xl font-black uppercase tracking-tighter text-white leading-none">ROC</span>
-                  <span className="text-xs font-black uppercase tracking-[0.3em] text-white/40 mt-1">Workforce</span>
+                  <span className="text-xl font-black uppercase tracking-tighter text-white leading-none">Remote</span>
+                  <span className="text-xs font-black uppercase tracking-[0.3em] text-white/40 mt-1">Optometry</span>
                 </div>
               )}
             </div>

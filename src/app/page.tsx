@@ -1,31 +1,30 @@
+
 "use client"
 
 import { useEffect, useState } from 'react';
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { 
-  Stethoscope, 
   ShieldCheck, 
   ArrowRight, 
   Loader2, 
   Sparkles, 
-  Building2, 
   Terminal, 
   Activity,
   Zap,
   Cpu,
-  Globe,
-  Lock
+  Globe
 } from "lucide-react";
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function Home() {
   const { user, profile, loading } = useUser();
   const router = useRouter();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
   useEffect(() => {
     if (!loading && user && profile) {
@@ -40,9 +39,22 @@ export default function Home() {
 
   if (loading || isRedirecting) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white text-black gap-6">
-        <Loader2 className="size-16 animate-spin text-primary opacity-30" />
-        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Establishing Secure Node Link</p>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-white text-black gap-8">
+        {logo && (
+          <div className="relative size-24 animate-pulse">
+            <Image 
+              src={logo.imageUrl} 
+              alt="Remote Optometry" 
+              fill 
+              className="object-contain"
+              data-ai-hint="remote optometry"
+            />
+          </div>
+        )}
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="size-8 animate-spin text-primary opacity-30" />
+          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground">Establishing Secure Node Link</p>
+        </div>
       </div>
     );
   }
@@ -64,23 +76,32 @@ export default function Home() {
 
       <div className="max-w-4xl w-full space-y-24 text-center relative z-10">
         <div className="space-y-12 animate-slide-up">
-          {/* Identity Mark */}
-          <div className="relative mx-auto size-32 group">
-            <div className="relative h-full w-full rounded-[2.5rem] bg-primary flex items-center justify-center shadow-2xl border-4 border-white transform transition-all duration-700 group-hover:rotate-12 group-hover:scale-110 active:scale-95 cursor-default">
-              <Stethoscope className="size-16 text-white" />
+          {/* Identity Mark - Logo Integration */}
+          <div className="relative mx-auto size-40 group">
+            <div className="relative h-full w-full transform transition-all duration-700 group-hover:rotate-6 group-hover:scale-110 active:scale-95 cursor-default">
+              {logo && (
+                <Image 
+                  src={logo.imageUrl} 
+                  alt="Remote Optometry" 
+                  fill 
+                  className="object-contain"
+                  priority
+                  data-ai-hint="remote optometry"
+                />
+              )}
             </div>
-            <div className="absolute -inset-4 bg-primary/5 rounded-[3rem] blur-3xl -z-10 animate-pulse" />
+            <div className="absolute -inset-8 bg-primary/5 rounded-full blur-3xl -z-10 animate-pulse" />
           </div>
 
           <div className="space-y-8">
              <div className="inline-flex items-center gap-3 px-6 py-2.5 rounded-full bg-slate-50 border border-slate-100 shadow-sm">
                 <Terminal className="size-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-black/60">Node v2.0 • Institutional Protocol</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-black/60">Institutional Protocol • Node v2.1</span>
              </div>
              
              <div className="space-y-4">
-                <h1 className="text-8xl font-black tracking-tight font-headline sm:text-[10rem] uppercase leading-[0.75] text-black">
-                  ROC <br /> <span className="text-primary italic">Workforce</span>
+                <h1 className="text-8xl font-black tracking-tight font-headline sm:text-[10rem] uppercase leading-[0.8] text-black">
+                  Remote <br /> <span className="text-primary italic">Optometry</span>
                 </h1>
                 <p className="text-[11px] font-black uppercase tracking-[1.2em] text-primary/30 mt-6">Intelligent Optimization Node</p>
              </div>
@@ -133,7 +154,7 @@ export default function Home() {
 
       {/* Institutional Footer Trace */}
       <div className="fixed bottom-10 left-0 right-0 flex justify-center pointer-events-none opacity-[0.05]">
-         <p className="text-[10px] font-black uppercase tracking-[2em] text-black">ROC INTELLIGENCE GRID</p>
+         <p className="text-[10px] font-black uppercase tracking-[2em] text-black">REMOTE OPTOMETRY GRID</p>
       </div>
     </div>
   );

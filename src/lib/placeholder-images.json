@@ -1,6 +1,12 @@
 {
   "placeholderImages": [
     {
+      "id": "app-logo",
+      "description": "Official Remote Optometry Application Logo",
+      "imageUrl": "https://firebasestorage.googleapis.com/v0/b/studio-9087637488-aa952.firebasestorage.app/o/remote%20Optometry%20logo.png?alt=media&token=66f95831-f6f3-4ba3-b0e6-b6d9dd485e72",
+      "imageHint": "remote optometry"
+    },
+    {
       "id": "hero-dashboard",
       "description": "Enterprise workforce dashboard overview",
       "imageUrl": "https://picsum.photos/seed/roc1/1200/600",
