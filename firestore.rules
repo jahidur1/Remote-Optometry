@@ -10,6 +10,7 @@ service cloud.firestore {
     }
     
     // Safety check for user identity and status
+    // Ensures doc existence before accessing properties to prevent rule evaluation errors
     function isUserActive() {
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
       return isSignedIn() && exists(path) && get(path).data.status == 'Active';
@@ -17,12 +18,12 @@ service cloud.firestore {
     
     function isAdmin() {
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isSignedIn() && exists(path) && get(path).data.role in ['ADMIN', 'SUPER_ADMIN'];
+      return isUserActive() && get(path).data.role in ['ADMIN', 'SUPER_ADMIN'];
     }
 
     function isSuperAdmin() {
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isSignedIn() && exists(path) && get(path).data.role == 'SUPER_ADMIN';
+      return isUserActive() && get(path).data.role == 'SUPER_ADMIN';
     }
 
     function isOwner(userId) {
@@ -35,7 +36,43 @@ service cloud.firestore {
       return isAdmin() || (exists(path) && get(path).data.office == office);
     }
 
-    // --- GOVERNANCE: OTP REGISTRY (12h Backup Failsafe) ---
+    // --- PHASE 1: IDENTITY & PRIVILEGE PROTECTION ---
+
+    // USERS: Auth Profiles
+    // CRITICAL: Deny all direct client-side write operations.
+    // User profile creation and role/status modification must be handled by trusted backend.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow write: if false; 
+    }
+
+    // EMPLOYEES: Master Registry
+    match /employees/{employeeId} {
+      // Handshake: Allow identity verification if credentials match auth token
+      allow get: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.whatsappNumber == request.auth.token.phone_number ||
+        resource.data.email == request.auth.token.email
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() || 
+        request.query.limit <= 5 
+      );
+
+      // Admin write access: Locked for role-critical fields via client SDK.
+      // Employee self-service: Only 'age' field is permitted through a strict allowlist.
+      allow create: if isAdmin();
+      allow update: if isUserActive() && (
+        (isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'office', 'id', 'joinedAt'])) ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId == employeeId && 
+         request.resource.data.diff(resource.data).affectedKeys().only(['age']))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- PRESERVED OPERATIONS (PHASE 1) ---
+
+    // GOVERNANCE: OTP REGISTRY (12h Backup Failsafe)
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
       allow create: if true; // Publicly writable during login pulse initiation
@@ -43,7 +80,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // --- SECURITY: SESSIONS (365-Day Mandatory Deadline) ---
+    // SECURITY: SESSIONS (365-Day Mandatory Deadline)
     match /sessions/{sessionId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       
@@ -60,29 +97,7 @@ service cloud.firestore {
       allow delete: if false; // Audit integrity
     }
 
-    // --- WORKFORCE: EMPLOYEES (Identity Registry) ---
-    match /employees/{employeeId} {
-      // Handshake: Allow identity verification if credentials match auth token
-      allow get: if isSignedIn() && (
-        isAdmin() || 
-        resource.data.whatsappNumber == request.auth.token.phone_number ||
-        resource.data.email == request.auth.token.email
-      );
-      allow list: if isSignedIn() && (
-        isAdmin() || 
-        request.query.limit <= 5 
-      );
-      allow create, update: if isAdmin();
-      allow delete: if isSuperAdmin();
-    }
-
-    // --- USERS: AUTH PROFILES ---
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || isOwner(userId);
-    }
-
-    // --- OPERATIONS: WEEK-OFFS ---
+    // OPERATIONS: WEEK-OFFS
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && matchesOffice(resource.data.office);
       allow write: if isAdmin() && isUserActive();
@@ -102,7 +117,7 @@ service cloud.firestore {
       allow delete: if isAdmin() && isUserActive();
     }
 
-    // --- OPERATIONS: EXCHANGES (Shift Swaps) ---
+    // OPERATIONS: EXCHANGES (Shift Swaps)
     match /shift_swaps/{swapId} {
       allow read: if isUserActive() && (
         resource.data.requesterId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId || 
@@ -117,13 +132,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // --- OPERATIONS: PREFERENCES ---
+    // OPERATIONS: PREFERENCES
     match /employee_preferences/{prefId} {
       allow read: if isUserActive();
       allow write: if isUserActive() && request.resource.data.employeeId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId;
     }
 
-    // --- AUDIT & MESSAGING ---
+    // AUDIT & MESSAGING
     match /audit_logs/{logId} {
       allow read: if isAdmin() && isUserActive();
       allow create: if isSignedIn(); 
@@ -134,7 +149,7 @@ service cloud.firestore {
       allow create: if isSignedIn(); 
     }
 
-    // --- MASTER DATA & ROSTER ENGINE ---
+    // MASTER DATA & ROSTER ENGINE
     match /shift_master/{shiftId} { 
       allow read: if isUserActive(); 
       allow write: if isAdmin();
