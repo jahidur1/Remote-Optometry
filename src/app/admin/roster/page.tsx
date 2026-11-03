@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
 import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
-import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock } from "lucide-react";
+import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 export default function RosterSolver() {
   const [weekId, setWeekId] = useState('2024-52');
@@ -33,7 +34,7 @@ export default function RosterSolver() {
 
   const handleRunSolver = async () => {
     if (!profile?.office || !profile?.uid) {
-      toast({ variant: "destructive", title: "Identity Error", description: "Node authorization required." });
+      toast({ variant: "destructive", title: "Node Authorization Required", description: "Identity check failed." });
       return;
     }
     
@@ -43,8 +44,7 @@ export default function RosterSolver() {
     setSolverResult(null);
 
     try {
-      // SECURE TRUSTED FLOW: Browser only sends IDs.
-      // Fetching and optimization happen on the secure backend node.
+      // SECURE TRUSTED FLOW: Next.js backend orchestrates the data fetch and solver call.
       const result = await generateWeeklyRoster({
         weekId,
         officeId: profile.office,
@@ -56,17 +56,17 @@ export default function RosterSolver() {
 
       if (result.status === 'INFEASIBLE') {
         setStatus("conflict");
-        toast({ variant: "destructive", title: "Staffing Imbalance", description: result.summary });
+        toast({ variant: "destructive", title: "Headcount Shortfall", description: "Mathematical model could not satisfy exact quotas." });
         return;
       }
 
       if (result.status === 'UNKNOWN') {
         setStatus("conflict");
-        toast({ variant: "destructive", title: "Node Connectivity Failure", description: result.summary });
+        toast({ variant: "destructive", title: "Node Link Failure", description: result.summary });
         return;
       }
 
-      // Save Draft logic: Only happens after validated successful result
+      // Save Draft logic: Only happens after validated successful result from the CP-SAT engine.
       const draftId = `draft_${weekId}_${Date.now()}`;
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
@@ -83,7 +83,7 @@ export default function RosterSolver() {
 
       logAudit(db, profile.uid, 'RUN_ROSTER_SOLVER', draftId, { weekId, status: result.status });
       setStatus("success");
-      toast({ title: "Optimized Draft Prepared", description: "The mathematical model has been saved for review." });
+      toast({ title: "Optimized Model Secured", description: "Deterministic draft saved to institutional registry." });
     } catch (e: any) {
       setStatus("conflict");
       toast({ variant: "destructive", title: "Critical Pipeline Failure", description: e.message });
@@ -93,9 +93,9 @@ export default function RosterSolver() {
   const handleExplain = async () => {
     if (!solverResult) return;
     const result = await explainSchedulingConflicts({
-      problemDescription: `Roster Optimization Node: ${profile?.office} | Cycle: ${weekId}`,
-      hardConstraints: ["Atomic Headcount Quotas", "FCFS Protected Weekly-Offs", "Approved Medical/Clinical Leave", "Fairness Adjacency Matrix"],
-      softConstraints: ["Gender Pod Targets", "Professional Preferences", "Shift History Balancing"],
+      problemDescription: `Deterministic Roster Node: ${profile?.office} | Cycle: ${weekId}`,
+      hardConstraints: ["Atomic Headcount Targets", "FCFS Protected Off-days", "Approved Clinical Absence", "Shift Adjacency Fairness"],
+      softConstraints: ["Gender Pod Balance", "Professional Preferences", "Shift Load Balancing"],
       solverOutcome: solverResult.status,
       detectedConflicts: solverResult.issuesEncountered
     });
@@ -114,7 +114,7 @@ export default function RosterSolver() {
             <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                Mathematical Optimization Hub • CP-SAT Execution <BrainCircuit className="size-3 text-secondary" />
             </p>
-            <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border-emerald-500/20 text-emerald-600 bg-emerald-500/5">GCP IAM Secured</Badge>
+            <Badge variant="outline" className="text-[8px] font-black uppercase px-3 py-0.5 border-emerald-500/20 text-emerald-600 bg-emerald-500/5">Authenticated GCP Link</Badge>
           </div>
         </div>
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border-2 shadow-sm">
@@ -140,18 +140,18 @@ export default function RosterSolver() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-6">
                   <div className="size-16 rounded-[1.5rem] flex items-center justify-center shadow-inner bg-primary text-white">
-                    <Activity className="size-8" />
+                    <Server className="size-8" />
                   </div>
                   <div>
-                    <CardTitle className="text-2xl uppercase font-black tracking-tight">Solver Hub</CardTitle>
-                    <CardDescription className="text-[11px] font-bold uppercase tracking-widest mt-1 opacity-60">
-                       Private Node: {profile?.office} • Secure VPC Link
+                    <CardTitle className="text-2xl uppercase font-black tracking-tight leading-none">CP-SAT Engine Hub</CardTitle>
+                    <CardDescription className="text-[11px] font-bold uppercase tracking-widest mt-2 opacity-60">
+                       Private Node: {profile?.office} • Secure IAM Gateway
                     </CardDescription>
                   </div>
                 </div>
                 {status === 'success' && (
-                  <Badge className="bg-emerald-500 px-6 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">
-                    Solution Secured
+                  <Badge className="bg-emerald-500 px-6 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 animate-in zoom-in-90">
+                    Solution Found
                   </Badge>
                 )}
               </div>
@@ -159,7 +159,7 @@ export default function RosterSolver() {
             <CardContent className="p-10 space-y-10">
               <div className="space-y-6">
                 <div className="flex justify-between items-end">
-                  <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em]">Pipeline Data Integrity</span>
+                  <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.3em]">Institutional Data Stream</span>
                   <span className="text-4xl font-black text-primary italic tracking-tighter">{progress}%</span>
                 </div>
                 <div className="h-4 bg-muted/30 rounded-full overflow-hidden shadow-inner border">
@@ -168,27 +168,51 @@ export default function RosterSolver() {
               </div>
 
               {solverResult && (
-                <div className={`p-8 rounded-[2rem] border-2 animate-in zoom-in-95 ${solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20 shadow-xl'}`}>
+                <div className={cn(
+                    "p-8 rounded-[2rem] border-2 animate-in zoom-in-95 transition-all duration-700",
+                    solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20 shadow-none' : 
+                    solverResult.status === 'OPTIMAL' ? 'bg-emerald-500/5 border-emerald-500/20 shadow-xl' :
+                    'bg-secondary/5 border-secondary/20 shadow-lg'
+                )}>
                   <div className="flex gap-6 items-start">
-                    <div className={`size-14 rounded-2xl flex items-center justify-center shrink-0 ${solverResult.status === 'INFEASIBLE' ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600'}`}>
+                    <div className={cn(
+                        "size-14 rounded-2xl flex items-center justify-center shrink-0",
+                        solverResult.status === 'INFEASIBLE' ? 'bg-destructive/10 text-destructive' : 
+                        solverResult.status === 'OPTIMAL' ? 'bg-emerald-500/10 text-emerald-600' :
+                        'bg-secondary/10 text-secondary'
+                    )}>
                        {solverResult.status === 'INFEASIBLE' ? <AlertTriangle className="size-8" /> : <Sparkles className="size-8" />}
                     </div>
-                    <div className="space-y-2">
-                       <div className="flex items-center gap-3">
-                          <p className="text-[11px] font-black uppercase tracking-[0.25em] opacity-40">Optimization Result</p>
-                          <Badge variant="outline" className="text-[9px] font-black">{solverResult.status}</Badge>
+                    <div className="space-y-3 w-full">
+                       <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                             <p className="text-[10px] font-black uppercase tracking-[0.25em] opacity-40">Optimization State</p>
+                             <Badge variant="outline" className={cn(
+                                 "text-[9px] font-black uppercase tracking-widest",
+                                 solverResult.status === 'OPTIMAL' ? 'border-emerald-500 text-emerald-600' : ''
+                             )}>{solverResult.status}</Badge>
+                          </div>
+                          {solverResult.solverMetadata?.runId && (
+                            <span className="text-[9px] font-mono font-black text-muted-foreground uppercase opacity-40">ID: {solverResult.solverMetadata.runId}</span>
+                          )}
                        </div>
-                       <p className="text-lg font-bold text-foreground leading-relaxed tracking-tight">{solverResult.summary}</p>
+                       <p className="text-lg font-bold text-foreground leading-snug tracking-tight max-w-lg">{solverResult.summary}</p>
                        {solverResult.solverMetadata && (
-                         <div className="flex items-center gap-6 mt-4 pt-4 border-t">
+                         <div className="flex flex-wrap items-center gap-8 mt-6 pt-6 border-t border-muted">
                             <div className="space-y-1">
-                               <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Latency</p>
-                               <p className="text-[11px] font-black">{solverResult.solverMetadata.solveTimeMs.toFixed(0)}ms</p>
+                               <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Execution Pulse</p>
+                               <p className="text-[12px] font-black">{solverResult.solverMetadata.solveTimeMs.toFixed(0)}ms</p>
                             </div>
                             <div className="space-y-1">
                                <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Hard Constraints</p>
-                               <p className="text-[11px] font-black">{solverResult.solverMetadata.constraintsChecked}</p>
+                               <p className="text-[12px] font-black">{solverResult.solverMetadata.constraintsChecked} ACTIVE</p>
                             </div>
+                            {solverResult.solverMetadata.objectiveValue !== undefined && (
+                              <div className="space-y-1">
+                                <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Cost Value</p>
+                                <p className="text-[12px] font-black text-secondary">{solverResult.solverMetadata.objectiveValue.toFixed(2)}</p>
+                              </div>
+                            )}
                          </div>
                        )}
                     </div>
@@ -213,20 +237,28 @@ export default function RosterSolver() {
             </CardHeader>
             <CardContent className="p-0">
                <div className="divide-y divide-muted/30">
-                {recentDrafts?.map(draft => (
+                {recentDrafts?.length === 0 ? (
+                    <div className="py-20 text-center opacity-30 italic font-black uppercase text-xs tracking-widest">No previous runs in cluster record.</div>
+                ) : recentDrafts?.map(draft => (
                   <div key={draft.id} className="flex items-center justify-between p-8 hover:bg-muted/5 transition-colors group">
                     <div className="flex items-center gap-8">
-                       <div className={`size-4 rounded-full ${draft.status === 'published' ? 'bg-emerald-500 shadow-[0_0_15px_emerald]' : 'bg-secondary shadow-[0_0_12px_blue]'}`} />
+                       <div className={cn(
+                           "size-4 rounded-full",
+                           draft.status === 'published' ? 'bg-emerald-500 shadow-[0_0_15px_emerald]' : 'bg-secondary shadow-[0_0_12px_blue]'
+                       )} />
                        <div>
                           <p className="text-lg font-black uppercase tracking-tighter text-primary">Week {draft.weekId}</p>
                           <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-40">{new Date(draft.createdAt).toLocaleString()} • {draft.office}</p>
                        </div>
                     </div>
-                    <Link href={`/admin/roster/review/${draft.id}`}>
-                       <Button variant="outline" className="h-12 px-8 text-[11px] font-black uppercase tracking-[0.2em] border-2 rounded-xl hover:bg-primary hover:text-white hover:border-primary transition-all group">
-                          Review Workspace <ChevronRight className="ml-3 size-4 group-hover:translate-x-1 transition-transform" />
-                       </Button>
-                    </Link>
+                    <div className="flex items-center gap-6">
+                        <Badge variant="outline" className="text-[8px] font-black uppercase hidden sm:inline-flex">{draft.solverStatus}</Badge>
+                        <Link href={`/admin/roster/review/${draft.id}`}>
+                        <Button variant="outline" className="h-12 px-8 text-[11px] font-black uppercase tracking-[0.2em] border-2 rounded-xl hover:bg-primary hover:text-white hover:border-primary transition-all group">
+                            Review Workspace <ChevronRight className="ml-3 size-4 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                        </Link>
+                    </div>
                   </div>
                 ))}
                </div>
@@ -286,26 +318,26 @@ export default function RosterSolver() {
           <Card className="bg-white shadow-xl border-none rounded-[2.5rem] overflow-hidden border-l-4 border-l-secondary">
             <CardHeader className="p-8 pb-4">
                <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-3 text-muted-foreground">
-                <Lock className="size-5 text-secondary" /> Trusted Data Pipeline
+                <Lock className="size-5 text-secondary" /> Trusted Data Flow
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 pt-2 space-y-8">
               <div className="flex gap-6 items-start">
                  <div className="size-2 rounded-full bg-secondary mt-2 shrink-0 shadow-[0_0_12px_blue]" />
                  <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
-                    Trusted Backend context: Authoritative clinical constraints are fetched directly from Firestore, bypassing client-side data.
+                    Trusted Backend Context: Roster data is fetched directly from Firestore on the server to prevent client-side manipulation.
                  </p>
               </div>
               <div className="flex gap-6 items-start">
                  <div className="size-2 rounded-full bg-accent mt-2 shrink-0 shadow-[0_0_12px_teal]" />
                  <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
-                    PII Sanitized: Professionals are identified only by Clinical Unit IDs; names and contacts are never transmitted to the solver.
+                    Deterministic Optimization: No AI is used for assignments. The engine uses Google OR-Tools CP-SAT for 100% mathematical accuracy.
                  </p>
               </div>
               <div className="flex gap-6 items-start">
                  <div className="size-2 rounded-full bg-emerald-500 mt-2 shrink-0 shadow-[0_0_12px_emerald]" />
                  <p className="text-[12px] text-muted-foreground leading-relaxed font-bold uppercase tracking-tight opacity-70">
-                    IAM Gateway: Secure service-to-service communication via Google Cloud OIDC identity tokens.
+                    IAM Authenticated: All communication with the solver is encrypted and protected by Google IAM service-to-service protocols.
                  </p>
               </div>
             </CardContent>

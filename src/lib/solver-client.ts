@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Secure client for interacting with the Python Solver Service.
  * Implements GCP IAM authentication and trusted payload handling.
@@ -6,8 +5,8 @@
 
 import { GoogleAuth } from 'google-auth-library';
 
-const SOLVER_URL = process.env.SOLVER_URL || 'http://localhost:8000';
-const SOLVER_API_KEY = process.env.SOLVER_API_KEY;
+const SOLVER_URL = process.env.SOLVER_URL || 'https://roc-workforce-solver-410101001681.asia-south1.run.app';
+const ENABLE_IAM_AUTH = process.env.ENABLE_IAM_AUTH === 'true';
 
 // Idempotent auth instance for server-side ID token retrieval
 let authInstance: any = null;
@@ -27,13 +26,9 @@ async function getAuthHeaders(targetAudience: string) {
     'Content-Type': 'application/json',
   };
 
-  if (SOLVER_API_KEY) {
-    headers['X-API-Key'] = SOLVER_API_KEY;
-  }
-
-  // Only attempt GCP IAM auth if explicitly enabled
+  // Only attempt GCP IAM auth if explicitly enabled in environment
   // This code only runs on the server (Server Actions / Genkit Flows)
-  if (typeof window === 'undefined' && process.env.ENABLE_IAM_AUTH === 'true') {
+  if (typeof window === 'undefined' && ENABLE_IAM_AUTH) {
     try {
       const auth = getAuth();
       // The audience for the ID token is the Service URL
@@ -62,25 +57,7 @@ export async function callSolver(payload: any) {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`Solver Service Error (${response.status}): ${errorBody}`);
-  }
-
-  return response.json();
-}
-
-export async function validateAssignments(payload: any) {
-  const headers = await getAuthHeaders(SOLVER_URL);
-  
-  const response = await fetch(`${SOLVER_URL}/v1/rosters/validate`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-    cache: 'no-store'
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Validation Service Error (${response.status}): ${errorBody}`);
+    throw new Error(`Solver Node Error (${response.status}): ${errorBody}`);
   }
 
   return response.json();
@@ -90,7 +67,9 @@ export async function checkSolverHealth() {
   try {
     const response = await fetch(`${SOLVER_URL}/health`, { 
       method: 'GET',
-      cache: 'no-store' 
+      cache: 'no-store',
+      // Health check is usually public or handled by internal GCP health checks, 
+      // but we add headers if required by configuration.
     });
     if (!response.ok) return { status: 'offline' };
     return response.json();

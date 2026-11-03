@@ -1,22 +1,22 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, updateDoc, setDoc, collection, query, where, orderBy, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, orderBy } from 'firebase/firestore';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, Save, ArrowLeft, Loader2, AlertTriangle, ShieldCheck, Lock, Info, Send, Target, History, User, Activity } from "lucide-react";
+import { CheckCircle2, Save, ArrowLeft, Loader2, AlertTriangle, ShieldCheck, Lock, Info, Send, Target, Activity, User, Server } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
 import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -58,11 +58,14 @@ export default function RosterReviewWorkspace() {
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
+    // Only show employees matching the draft's office
     return employees.filter(e => 
-      e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      e.id.toLowerCase().includes(searchTerm.toLowerCase())
+      e.office === draft?.office && (
+        e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        e.id.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     );
-  }, [employees, searchTerm]);
+  }, [employees, searchTerm, draft?.office]);
 
   const getConstraintStatus = (employeeId: string, day: string, dateIndex: number) => {
     const isOff = bookings?.some(b => b.employeeId === employeeId && b.dayOfWeek === day);
@@ -70,18 +73,20 @@ export default function RosterReviewWorkspace() {
     const leaf = leaves?.find(l => l.employeeId === employeeId && isDateInRange(date, l.startDate, l.endDate));
     
     if (isOff) return { type: 'WEEKLY_OFF', label: 'WEEK OFF', color: 'text-secondary' };
-    if (leave) return { type: 'LEAVE', label: leave.type.toUpperCase(), color: 'text-accent' };
+    if (leaf) return { type: 'LEAVE', label: leaf.type.toUpperCase(), color: 'text-accent' };
     return null;
   };
 
   const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
     const constraint = getConstraintStatus(employeeId, day, DAYS.indexOf(day));
     
+    // FCFS Protection: Strictly prohibit non-Super Admins from overriding off-days
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role !== 'SUPER_ADMIN') {
-      toast({ title: "Operation Blocked", description: "Only Super Admins can override FCFS Weekly-Offs.", variant: "destructive" });
+      toast({ title: "FCFS Lock Active", description: "Only Super Admins can override clinical weekly-offs.", variant: "destructive" });
       return;
     }
 
+    // Super Admin Override Pulse
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role === 'SUPER_ADMIN') {
       setOverrideData({ employeeId, day, shiftId });
       setOverrideDialogOpen(true);
@@ -111,7 +116,7 @@ export default function RosterReviewWorkspace() {
     
     setOverrideDialogOpen(false);
     setOverrideReason('');
-    toast({ title: "Institutional Override Applied", description: "FCFS reservation bypassed with mandatory audit trace." });
+    toast({ title: "Institutional Override Applied", description: "Manual assignment committed with audit trace." });
   };
 
   const quotaValidation = useMemo(() => {
@@ -149,10 +154,10 @@ export default function RosterReviewWorkspace() {
   const handlePublish = async () => {
     if (!profile) return;
     
-    // Exact Quota Enforcement
+    // Strict Quota Enforcement Gateway
     const hasConflicts = Object.values(quotaValidation).some((v: any) => !v.ok);
     if (hasConflicts) {
-      toast({ variant: "destructive", title: "Institutional Block", description: "Rollout requires 100% headcount compliance for all daily quotas." });
+      toast({ variant: "destructive", title: "Institutional Block", description: "Publication requires 100% compliance with daily clinical quotas." });
       return;
     }
 
@@ -161,6 +166,7 @@ export default function RosterReviewWorkspace() {
       const versionId = `${weekId}_v${Date.now()}`;
       await setDoc(doc(db, 'published_rosters', versionId), {
         weekId,
+        office: draft?.office,
         version: Date.now(),
         assignments,
         publishedAt: new Date().toISOString(),
@@ -170,8 +176,8 @@ export default function RosterReviewWorkspace() {
 
       await updateDoc(doc(db, 'roster_drafts', draftId), { status: 'published' });
       
-      logAudit(db, profile.uid, 'PUBLISH_ROSTER', versionId, { weekId });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast to all professionals via Unified Portal." });
+      logAudit(db, profile.uid, 'PUBLISH_ROSTER', versionId, { weekId, office: draft?.office });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Meta Cloud API Node." });
       router.push('/admin/roster');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -233,10 +239,23 @@ export default function RosterReviewWorkspace() {
               <CardTitle className="text-2xl flex items-center gap-5 font-black uppercase tracking-tight leading-none">
                 <ShieldCheck className="size-10 text-secondary" /> Clinical Assignment Grid
               </CardTitle>
-              <CardDescription className="text-[11px] font-black uppercase text-white/40 tracking-[0.2em] mt-2">Server-enforced validation: All assignments are matched against Daily Quotas and FCFS locks.</CardDescription>
+              <CardDescription className="text-[11px] font-black uppercase text-white/40 tracking-[0.2em] mt-2">
+                Deterministic Model Output: Validated against {draft?.solverMetadata?.constraintsChecked || 0} constraints.
+              </CardDescription>
             </div>
-            <div className="flex gap-3">
-                <Badge className="bg-white/10 text-white border-none font-black text-[9px] uppercase tracking-widest py-1.5 px-5 rounded-full">Node: {draftId.slice(-8)}</Badge>
+            <div className="flex items-center gap-4">
+                {draft?.solverMetadata && (
+                   <div className="flex items-center gap-6 px-8 py-3 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
+                      <div className="flex flex-col">
+                        <span className="text-[8px] font-black uppercase text-white/40 tracking-widest">CP-SAT Status</span>
+                        <span className="text-[11px] font-black text-secondary">{draft.solverStatus}</span>
+                      </div>
+                      <div className="flex flex-col border-l border-white/10 pl-6">
+                        <span className="text-[8px] font-black uppercase text-white/40 tracking-widest">Execution</span>
+                        <span className="text-[11px] font-black">{draft.solverMetadata.solveTimeMs.toFixed(0)}ms</span>
+                      </div>
+                   </div>
+                )}
                 <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1.5 px-5 rounded-full shadow-2xl">Verified Schema</Badge>
             </div>
           </div>
@@ -305,7 +324,7 @@ export default function RosterReviewWorkspace() {
               {filteredEmployees.length === 0 && (
                 <TableRow>
                    <TableCell colSpan={8} className="py-32 text-center opacity-20 italic font-black uppercase text-xs tracking-[0.4em]">
-                      No clinical records matching search criteria.
+                      No clinical records matching search criteria for cluster node.
                    </TableCell>
                 </TableRow>
               )}
@@ -333,11 +352,17 @@ export default function RosterReviewWorkspace() {
                     const dayShifts = shifts?.map(s => quotaValidation[`${day}_${s.id}`]).filter(Boolean);
                     const allOk = dayShifts?.every(v => v.ok);
                     return (
-                      <div key={day} className={`px-8 py-4 rounded-[1.5rem] border-2 flex flex-col items-center min-w-[150px] transition-all duration-500 ${allOk ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.1)]'}`}>
+                      <div key={day} className={cn(
+                          "px-8 py-4 rounded-[1.5rem] border-2 flex flex-col items-center min-w-[150px] transition-all duration-500",
+                          allOk ? "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.1)]"
+                      )}>
                          <span className="text-[10px] font-black uppercase mb-2 tracking-widest text-white/50">{day.substring(0,3)}</span>
                          <div className="flex items-center gap-3">
                             {allOk ? <CheckCircle2 className="size-4 text-emerald-400" /> : <AlertTriangle className="size-4 text-destructive" />}
-                            <span className={`text-[13px] font-black tracking-widest ${allOk ? 'text-emerald-400' : 'text-destructive'}`}>
+                            <span className={cn(
+                                "text-[13px] font-black tracking-widest",
+                                allOk ? "text-emerald-400" : "text-destructive"
+                            )}>
                                {allOk ? 'MATCHED' : 'CONFLICT'}
                             </span>
                          </div>
@@ -349,10 +374,10 @@ export default function RosterReviewWorkspace() {
            
            <div className="hidden lg:flex flex-col justify-center bg-white/5 p-6 rounded-2xl border border-white/10 text-right shrink-0">
               <div className="flex items-center justify-end gap-3 text-[11px] font-black text-secondary uppercase tracking-[0.2em]">
-                 <Activity className="size-4" /> Real-time Node Logic
+                 <Server className="size-4" /> Deterministic Node
               </div>
               <p className="text-[10px] text-white/50 font-bold leading-relaxed mt-3 uppercase tracking-tighter max-w-[240px]">
-                 Rollout is restricted until daily headcount imbalances across all nodes are neutralized.
+                 Rollout is restricted until daily headcount imbalances across all shifts are neutralized.
               </p>
            </div>
         </div>

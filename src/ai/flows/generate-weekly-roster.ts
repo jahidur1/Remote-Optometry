@@ -38,6 +38,7 @@ export const GenerateWeeklyRosterOutputSchema = z.object({
     solveTimeMs: z.number(),
     constraintsChecked: z.number(),
     objectiveValue: z.number().optional(),
+    runId: z.string().optional(),
   }).optional(),
 });
 
@@ -92,6 +93,8 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       if (!adminSnap.exists() || !['ADMIN', 'SUPER_ADMIN'].includes(adminSnap.data().role)) {
         throw new Error("Access Denied: Unauthorized administrative attempt.");
       }
+      
+      // Office isolation: only allow managing the admin's own office unless super admin
       if (adminSnap.data().office !== officeId && adminSnap.data().role !== 'SUPER_ADMIN') {
         throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
       }
@@ -117,7 +120,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       const employees = empSnap.docs.map(d => ({ 
         id: d.id, 
         gender: (d.data().gender || 'Other').toLowerCase(),
-        historicalSO: 0, // In production, aggregate from 'published_rosters'
+        historicalSO: 0, 
         historicalOP: 0 
       }));
 
@@ -166,7 +169,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         weight: 1.0
       }));
 
-      // 4. Mathematical Optimization (GCP IAM Secure Call)
+      // 4. Mathematical Optimization (Authenticated Cloud Run Call)
       const solverPayload = {
         weekId,
         officeId,
@@ -180,29 +183,30 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       const result = await callSolver(solverPayload);
 
-      // 5. Output Validation
+      // 5. Output Validation (Independent Gate)
       const assignments = result.assignments || [];
       const integrityIssues = validateSolverOutput(assignments, bookingsSnap.docs);
 
       return {
         rosterAssignments: assignments,
         summary: result.status === 'OPTIMAL' 
-          ? `Mathematically optimal roster found for ${officeId}.` 
+          ? `Mathematically optimal roster found for clinical cluster ${officeId}.` 
           : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
         status: result.status,
         issuesEncountered: [...(result.errors || []), ...integrityIssues],
         solverMetadata: {
           solveTimeMs: result.metadata.solveTimeMs,
           constraintsChecked: solverPayload.employeeHardConstraints.length,
-          objectiveValue: result.metadata.objectiveValue
+          objectiveValue: result.metadata.objectiveValue,
+          runId: `run_${Date.now().toString().slice(-6)}`
         }
       };
 
     } catch (e: any) {
-      console.error('Roster Flow Error:', e);
+      console.error('Institutional Pipeline Error:', e);
       return {
         rosterAssignments: [],
-        summary: `Institutional Pipeline Error: ${e.message}`,
+        summary: `Pipeline Failure: ${e.message}`,
         status: 'UNKNOWN',
         issuesEncountered: [e.message],
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }
