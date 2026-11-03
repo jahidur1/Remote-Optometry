@@ -1,18 +1,21 @@
 
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { collection, query, where, orderBy, limit } from "firebase/firestore"
 import { useFirestore, useCollection } from "@/firebase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, Calendar, Activity, CheckCircle2, MessageSquare, AlertCircle, BarChart3, TrendingUp, ShieldCheck, ArrowUpRight, Clock } from "lucide-react"
+import { Users, Calendar, Activity, CheckCircle2, MessageSquare, AlertCircle, BarChart3, TrendingUp, ShieldCheck, ArrowUpRight, Clock, Server, Loader2 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts"
 import { DemoBadge } from "@/components/ui/demo-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { checkSolverHealth } from "@/lib/solver-client"
 
 export default function AdminDashboard() {
   const db = useFirestore();
+  const [solverHealth, setSolverHealth] = useState<{ status: string; latency?: number } | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(true);
 
   // Fetch operational data
   const { data: employees, loading: empLoading } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active')));
@@ -20,6 +23,21 @@ export default function AdminDashboard() {
   const { data: logs, loading: logLoading } = useCollection(query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(100)));
   const { data: leaves } = useCollection(query(collection(db, 'employee_leaves'), where('status', '==', 'approved')));
   const { data: currentBookings } = useCollection(query(collection(db, 'weekoff_bookings'), limit(200)));
+
+  useEffect(() => {
+    async function verifyNode() {
+      try {
+        const start = Date.now();
+        const health = await checkSolverHealth();
+        setSolverHealth({ status: health.status, latency: Date.now() - start });
+      } catch (e) {
+        setSolverHealth({ status: 'offline' });
+      } finally {
+        setCheckingHealth(false);
+      }
+    }
+    verifyNode();
+  }, []);
 
   const latestRoster = rosters?.[0];
   const activeWeek = latestRoster?.weekId || 'N/A';
@@ -69,8 +87,11 @@ export default function AdminDashboard() {
           <Badge variant="outline" className="h-10 px-6 border-2 font-black uppercase text-[10px] tracking-widest bg-white/50 backdrop-blur-sm">
             <ShieldCheck className="size-4 mr-2 text-emerald-600" /> System Integrity: Verified
           </Badge>
-          <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg">
-             <Calendar className="size-5" />
+          <div className={`h-10 px-6 rounded-xl flex items-center gap-3 shadow-lg transition-all ${solverHealth?.status === 'healthy' ? 'bg-emerald-500 text-white' : 'bg-destructive text-white'}`}>
+             {checkingHealth ? <Loader2 className="size-4 animate-spin" /> : <Server className="size-4" />}
+             <span className="text-[10px] font-black uppercase tracking-widest">
+                Solver: {solverHealth?.status?.toUpperCase() || 'OFFLINE'}
+             </span>
           </div>
         </div>
       </div>
@@ -256,7 +277,10 @@ export default function AdminDashboard() {
             <div className="pt-10 flex flex-wrap gap-16 border-t border-white/10 mt-10">
                <div className="space-y-3">
                   <span className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 flex items-center gap-3"><Activity className="size-4" /> Solver Latency</span>
-                  <p className="text-xl font-black tracking-tight flex items-center gap-2">42ms Institutional <ArrowUpRight className="size-5 text-emerald-400 opacity-50" /></p>
+                  <p className="text-xl font-black tracking-tight flex items-center gap-2">
+                    {solverHealth?.latency ? `${solverHealth.latency}ms Institutional` : 'Verifying Link...'} 
+                    <ArrowUpRight className="size-5 text-emerald-400 opacity-50" />
+                  </p>
                </div>
                <div className="space-y-3 border-l border-white/10 pl-16">
                   <span className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 flex items-center gap-3"><ShieldCheck className="size-4" /> Secure Protocol</span>
