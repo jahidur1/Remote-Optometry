@@ -40,7 +40,7 @@ export default function RegisterPage() {
     gender: 'Male',
     department: 'Remote Optometry',
     designation: 'Staff Professional',
-    office: 'Kolkata ROC'
+    office: 'KOLKATA_ROC'
   });
   
   const auth = useAuth();
@@ -169,114 +169,129 @@ export default function RegisterPage() {
 
   return (
     <RoleGuard allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
-      <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">
-        <Card className="w-full max-w-xl shadow-xl bg-white border-2">
-          <CardHeader className="text-center space-y-2">
-             <div className="flex items-center justify-between mb-4">
-                <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-[10px] font-black uppercase tracking-widest">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <Card className="w-full max-w-xl shadow-2xl bg-white border-none rounded-[2.5rem] overflow-hidden">
+          <CardHeader className="text-center space-y-2 p-10 bg-primary text-white relative">
+             <div className="flex items-center justify-between mb-4 relative z-10">
+                <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 rounded-xl">
                    <ArrowLeft className="mr-2 size-3" /> Back to Directory
                 </Button>
-                <div className="size-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+                <div className="size-12 rounded-2xl bg-white/10 flex items-center justify-center text-white backdrop-blur-md border border-white/10">
                     <UserPlus className="size-6" />
                 </div>
              </div>
-             <CardTitle className="text-2xl font-black uppercase tracking-tight">Provision Professional</CardTitle>
-             <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Administrative Identity Enrollment Hub</CardDescription>
+             <CardTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10">Provision Professional</CardTitle>
+             <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 relative z-10">Administrative Identity Enrollment Hub</CardDescription>
+             <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><UserPlus size={160} /></div>
           </CardHeader>
           
-          <CardContent>
+          <CardContent className="p-10">
             {step === 'details' ? (
-              <form onSubmit={handleSendOtp} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleSendOtp} className="space-y-8">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Full Name</Label>
-                    <Input className="font-bold h-11" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} required />
+                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Full Name</Label>
+                    <Input className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} required />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Official Email</Label>
-                    <Input type="email" className="font-bold h-11" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
+                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Official Email</Label>
+                    <Input type="email" className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Mobile (+91)</Label>
-                    <Input className="font-bold h-11" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} required />
+                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Mobile (OTP Auth)</Label>
+                    <div className="flex gap-2">
+                      <div className="flex h-12 w-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-slate-50 font-black text-black text-sm shrink-0">
+                        +91
+                      </div>
+                      <Input 
+                        placeholder="10-digit number"
+                        className="font-black h-12 border-2 border-slate-100 rounded-xl flex-1 text-black placeholder:text-slate-300" 
+                        value={formData.phone} 
+                        onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} 
+                        required 
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Office</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Office Node</Label>
                     <Select value={formData.office} onValueChange={(v) => setFormData({...formData, office: v})}>
-                      <SelectTrigger className="h-11 font-bold">
+                      <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Kolkata ROC">Kolkata ROC</SelectItem>
-                        <SelectItem value="Gurgaon ROC">Gurgaon ROC</SelectItem>
-                        <SelectItem value="Lucknow ROC">Lucknow ROC</SelectItem>
+                      <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                        <SelectItem value="KOLKATA_ROC" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Kolkata ROC</SelectItem>
+                        <SelectItem value="GURGAON_ROC" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Gurgaon ROC</SelectItem>
+                        <SelectItem value="LUCKNOW_ROC" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Lucknow ROC</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Role</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Institutional Role</Label>
                       <Select value={formData.role} onValueChange={(v) => setFormData({...formData, role: v})}>
-                        <SelectTrigger className="h-11 font-bold">
+                        <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="EMPLOYEE">Professional</SelectItem>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="SUPER_ADMIN">Executive</SelectItem>
+                        <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                          <SelectItem value="EMPLOYEE" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Professional</SelectItem>
+                          <SelectItem value="ADMIN" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Admin</SelectItem>
+                          <SelectItem value="SUPER_ADMIN" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Executive</SelectItem>
                         </SelectContent>
                       </Select>
                    </div>
                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Gender</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-black/60">Gender Node</Label>
                       <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
-                        <SelectTrigger className="h-11 font-bold">
+                        <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
+                        <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                          <SelectItem value="Male" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Male</SelectItem>
+                          <SelectItem value="Female" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Female</SelectItem>
+                          <SelectItem value="Other" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Other</SelectItem>
                         </SelectContent>
                       </Select>
                    </div>
                 </div>
 
-                <Button className="w-full bg-primary h-14 font-black uppercase tracking-[0.2em] shadow-lg" type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin" /> : "Verify Identity & Provision"}
+                <Button className="w-full bg-primary hover:bg-secondary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl transition-all border-none" type="submit" disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Verify Identity & Provision"}
                 </Button>
               </form>
             ) : (
-              <form onSubmit={handleVerifyAndComplete} className="space-y-6">
-                <div className="space-y-4">
-                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1 text-center block">OTP Verification Required</Label>
+              <form onSubmit={handleVerifyAndComplete} className="space-y-8 text-center">
+                <div className="space-y-6">
+                  <Label className="text-[11px] font-black uppercase tracking-widest ml-1 text-black/40 block">OTP Verification Key</Label>
                   <Input
                     maxLength={6}
                     placeholder="000000"
-                    className="h-14 text-3xl text-center font-black tracking-[0.5em] bg-muted/20"
+                    className="h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-slate-50/50 text-black shadow-inner"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     required
                   />
-                  <p className="text-[10px] text-muted-foreground text-center uppercase font-black">Code sent to: +91 {formData.phone}</p>
+                  <p className="text-[10px] text-black/60 uppercase font-black tabular-nums tracking-widest">Dispatched to: +91 {formData.phone}</p>
                 </div>
-                <Button className="w-full bg-accent text-accent-foreground h-14 font-black uppercase tracking-[0.2em]" type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin" /> : "Confirm Enrollment"}
+                <Button className="w-full bg-secondary text-white h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 transition-all border-none" type="submit" disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : "Confirm Enrollment Pulse"}
                 </Button>
+                <button type="button" onClick={() => setStep('details')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Edit Registration Details</button>
               </form>
             )}
           </CardContent>
           
-          <CardFooter className="bg-muted/30 border-t p-6 flex gap-4 items-start">
-             <ShieldCheck className="size-5 text-emerald-600 shrink-0 mt-0.5" />
-             <p className="text-[10px] text-muted-foreground uppercase leading-relaxed font-bold">
-                Institutional Security: Enrollment requires a unique mobile endpoint and verified administrative authorization. 
-                Provisioning actions are logged to the immutable audit ledger.
+          <CardFooter className="bg-slate-50 p-8 border-t border-slate-100 flex gap-6 items-start">
+             <div className="size-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 shadow-inner">
+                <ShieldCheck className="size-7" />
+             </div>
+             <p className="text-[11px] text-black/50 uppercase leading-relaxed font-bold tracking-tight">
+                Institutional Security: Enrollment requires a unique 10-digit mobile endpoint and verified administrative authorization. 
+                All provisioning pulses are immutably ledgered in the audit registry.
              </p>
           </CardFooter>
         </Card>

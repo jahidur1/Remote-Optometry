@@ -174,10 +174,10 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[640px] rounded-[2rem] border-none shadow-2xl">
-        <DialogHeader className="pb-4 border-b">
-          <DialogTitle className="uppercase font-black tracking-tight text-primary text-xl">Identity Enrollment</DialogTitle>
-          <DialogDescription className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">
+      <DialogContent className="sm:max-w-[640px] rounded-[2rem] border-none shadow-2xl bg-white">
+        <DialogHeader className="pb-4 border-b border-slate-100">
+          <DialogTitle className="uppercase font-black tracking-tight text-black text-xl">Identity Enrollment</DialogTitle>
+          <DialogDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
             Mandatory clinical fields are locked for self-modification by professionals.
           </DialogDescription>
         </DialogHeader>
@@ -185,10 +185,10 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
           <form onSubmit={handleSubmit} className="space-y-6 pb-6">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Professional ID</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Professional ID</Label>
                 <Input
                   placeholder="EMP000"
-                  className="font-black h-12 rounded-xl border-2"
+                  className="font-black h-12 rounded-xl border-2 border-slate-100 bg-slate-50/30 text-black placeholder:text-slate-300"
                   value={formData.id}
                   onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
                   disabled={!!employee}
@@ -196,10 +196,10 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Full Legal Name</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
                 <Input
                   placeholder="Clinical Professional"
-                  className="font-black h-12 rounded-xl border-2"
+                  className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   required
@@ -209,82 +209,90 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">ROC Cluster Node</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
                 <Select
                   value={formData.office}
                   onValueChange={(val) => setFormData({ ...formData, office: val })}
                 >
-                  <SelectTrigger className="h-12 font-black rounded-xl border-2">
+                  <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-none shadow-2xl">
-                    {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold">{o.name}</SelectItem>)}
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                    {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] uppercase py-2.5 rounded-lg">{o.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Mobile (OTP Auth)</Label>
-                <Input
-                  placeholder="+91"
-                  className="font-black h-12 rounded-xl border-2"
-                  value={formData.whatsappNumber}
-                  onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                  required
-                />
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Mobile (OTP Auth)</Label>
+                <div className="flex gap-2">
+                  <div className="flex h-12 w-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-slate-50 font-black text-black text-sm shrink-0">
+                    +91
+                  </div>
+                  <Input
+                    placeholder="10-digit number"
+                    className="font-black h-12 rounded-xl border-2 border-slate-100 flex-1 text-black placeholder:text-slate-300"
+                    value={formData.whatsappNumber.startsWith('+91') ? formData.whatsappNumber.slice(3) : formData.whatsappNumber}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData({ ...formData, whatsappNumber: val ? `+91${val}` : '' });
+                    }}
+                    required
+                  />
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Gender</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender</Label>
                 <Select
                   value={formData.gender}
                   onValueChange={(val) => setFormData({ ...formData, gender: val })}
                 >
-                  <SelectTrigger className="h-12 font-black rounded-xl border-2">
+                  <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-none shadow-2xl">
-                    <SelectItem value="Male" className="font-bold">Male</SelectItem>
-                    <SelectItem value="Female" className="font-bold">Female</SelectItem>
-                    <SelectItem value="Other" className="font-bold">Other</SelectItem>
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                    <SelectItem value="Male" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Male</SelectItem>
+                    <SelectItem value="Female" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Female</SelectItem>
+                    <SelectItem value="Other" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Age</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Age</Label>
                 <Input
                   type="number"
                   placeholder="25"
-                  className="font-black h-12 rounded-xl border-2"
+                  className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300"
                   value={formData.age}
                   onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Account Status</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Account Status</Label>
                 <Select
                   value={formData.status}
                   onValueChange={(val) => setFormData({ ...formData, status: val })}
                 >
-                  <SelectTrigger className="h-12 font-black rounded-xl border-2">
+                  <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-none shadow-2xl">
-                    <SelectItem value="Active" className="font-bold text-emerald-600">Active</SelectItem>
-                    <SelectItem value="Inactive" className="font-bold">Inactive</SelectItem>
-                    <SelectItem value="Suspended" className="font-bold text-destructive">Suspended</SelectItem>
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                    <SelectItem value="Active" className="font-bold text-[11px] uppercase py-2.5 rounded-lg text-emerald-600">Active</SelectItem>
+                    <SelectItem value="Inactive" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Inactive</SelectItem>
+                    <SelectItem value="Suspended" className="font-bold text-[11px] uppercase py-2.5 rounded-lg text-destructive">Suspended</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Official Email Address</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email Address</Label>
               <Input
                 type="email"
                 placeholder="professional@roc.internal"
-                className="font-black h-12 rounded-xl border-2"
+                className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
                 required
@@ -293,34 +301,34 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Unit Department</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Unit Department</Label>
                 <Input
                   placeholder="Remote Optometry"
-                  className="font-black h-12 rounded-xl border-2"
+                  className="font-black h-12 rounded-xl border-2 border-slate-100 text-black placeholder:text-slate-300"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Institutional Role</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Institutional Role</Label>
                 <Select
                   value={formData.role}
                   onValueChange={(val) => setFormData({ ...formData, role: val })}
                 >
-                  <SelectTrigger className="h-12 font-black rounded-xl border-2">
+                  <SelectTrigger className="h-12 font-black rounded-xl border-2 border-slate-100 text-black bg-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-none shadow-2xl">
-                    <SelectItem value="EMPLOYEE" className="font-bold">Clinical Professional</SelectItem>
-                    <SelectItem value="ADMIN" className="font-bold">Administrator</SelectItem>
-                    <SelectItem value="SUPER_ADMIN" className="font-bold">Executive Board</SelectItem>
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                    <SelectItem value="EMPLOYEE" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Clinical Professional</SelectItem>
+                    <SelectItem value="ADMIN" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Administrator</SelectItem>
+                    <SelectItem value="SUPER_ADMIN" className="font-bold text-[11px] uppercase py-2.5 rounded-lg">Executive Board</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <DialogFooter className="pt-8">
-              <Button type="submit" disabled={loading} className="w-full h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl bg-primary hover:bg-secondary transition-all">
+              <Button type="submit" disabled={loading} className="w-full h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl bg-primary hover:bg-secondary transition-all text-white border-none">
                 {loading ? 'Committing Registry...' : employee ? 'Update Audit Trail' : 'Enroll Professional'}
               </Button>
             </DialogFooter>
