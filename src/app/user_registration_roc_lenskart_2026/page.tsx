@@ -221,7 +221,7 @@ export default function PublicRegistrationPage() {
                <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Institutional Password</Label>
                   <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-secondary transition-colors" />
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-secondary transition-colors" />
                       <Input 
                         type={showPassword ? "text" : "password"} 
                         placeholder="MIN 8 CHARACTERS" 
@@ -234,7 +234,7 @@ export default function PublicRegistrationPage() {
                       <button 
                         type="button" 
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-secondary transition-colors"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-primary transition-colors"
                       >
                         {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                       </button>

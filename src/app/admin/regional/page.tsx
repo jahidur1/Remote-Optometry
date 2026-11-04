@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -458,8 +458,8 @@ export default function RegionalAnalytics() {
             <div className="space-y-4">
                <p className="text-[11px] font-black uppercase text-primary tracking-[0.4em]">Regional Governance Hub</p>
                <p className="text-lg font-bold text-black/70 leading-relaxed max-w-4xl tracking-tight">
-                  "The Regional Command Hub consolidates clinical deployment metrics across the ROC network. 
-                  Calculations for 'Roster Coverage' explicitly identify hubs where weekly cycle configurations 
+                  "The Regional Command Center consolidates clinical deployment metrics across the ROC network. 
+                  Calculations for 'Roster Coverage' explicitly identify centers where weekly cycle configurations 
                   are absent to maintain institutional compliance standards."
                </p>
             </div>
