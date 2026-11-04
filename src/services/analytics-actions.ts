@@ -6,6 +6,7 @@ import { logAuditServer } from './audit-service';
 /**
  * Institutional Regional Analytics Node.
  * Exclusively for SUPER_ADMIN access.
+ * Performs server-side aggregation to protect employee PII.
  */
 
 async function getAuthorizedSuperAdmin(idToken: string) {
@@ -27,10 +28,11 @@ export async function getRegionalStatsAction(idToken: string) {
   if (!caller) throw new Error("Unauthorized: Regional access restricted to Super Admin.");
 
   try {
-    const [officesSnap, empSnap, rosterSnap] = await Promise.all([
+    const [officesSnap, empSnap, rosterSnap, draftSnap] = await Promise.all([
       adminDb.collection('offices').get(),
       adminDb.collection('employees').where('status', '==', 'Active').get(),
-      adminDb.collection('published_rosters').get()
+      adminDb.collection('published_rosters').get(),
+      adminDb.collection('roster_drafts').where('status', '==', 'draft').get()
     ]);
 
     const offices = officesSnap.docs.map(d => d.data());
@@ -40,7 +42,9 @@ export async function getRegionalStatsAction(idToken: string) {
 
     let totalAssignments = 0;
     rosterSnap.docs.forEach(d => {
-      totalAssignments += (d.data().assignments || []).length;
+      // Filter for valid shift assignments only (excluding markers like 'none')
+      const validAssignments = (d.data().assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
+      totalAssignments += validAssignments.length;
     });
 
     return {
@@ -51,6 +55,7 @@ export async function getRegionalStatsAction(idToken: string) {
         inactiveOffices: totalOffices - activeOffices,
         totalActiveStaff,
         publishedRostersCount: rosterSnap.size,
+        draftRostersCount: draftSnap.size,
         totalAssignments,
       }
     };
@@ -71,12 +76,12 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
       const officeId = office.officeId;
       const localizedQuotaId = `${weekId}_${officeId}`;
 
-      const [empSnap, rosterSnap, quotaSnap, bookSnap, leaveSnap] = await Promise.all([
+      const [empSnap, rosterSnap, quotaSnap, bookSnap, draftSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
         adminDb.collection('published_rosters').where('weekId', '==', weekId).where('office', '==', officeId).limit(1).get(),
         adminDb.collection('roster_quotas').doc(localizedQuotaId).get(),
         adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
-        adminDb.collection('employee_leaves').where('status', '==', 'approved').get() // Simplified leave check
+        adminDb.collection('roster_drafts').where('weekId', '==', weekId).where('office', '==', officeId).get()
       ]);
 
       const staffCount = empSnap.size;
@@ -85,11 +90,16 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
       
       let requiredCount = 0;
       if (quota?.quotas) {
-        requiredCount = Object.values(quota.quotas as Record<string, number>).reduce((a, b) => a + b, 0);
+        requiredCount = Object.values(quota.quotas as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
       }
 
-      const assignedCount = roster?.assignments?.length || 0;
-      const coverage = requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : (assignedCount > 0 ? 100 : 0);
+      const assignments = (roster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
+      const assignedCount = assignments.length;
+      
+      // Calculate coverage accurately (null indicates config missing)
+      const coverage = quotaSnap.exists 
+        ? (requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : (assignedCount > 0 ? 100 : 0))
+        : null;
 
       return {
         officeId,
@@ -102,6 +112,7 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
         coverage,
         shortfall: Math.max(0, requiredCount - assignedCount),
         bookingsCount: bookSnap.size,
+        draftCount: draftSnap.size,
       };
     }));
 
@@ -129,19 +140,20 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
 
       quotas.forEach(q => {
         Object.entries(q.quotas || {}).forEach(([key, val]) => {
-          if (key.startsWith(day)) dayRequired += (val as number);
+          if (key.split('_')[0] === day) dayRequired += (Number(val) || 0);
         });
       });
 
       rosters.forEach(r => {
-        dayAssigned += (r.assignments || []).filter((a: any) => a.dayOfWeek === day).length;
+        const dayAssignments = (r.assignments || []).filter((a: any) => a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none');
+        dayAssigned += dayAssignments.length;
       });
 
       return {
-        day,
+        day: day.substring(0, 3),
         required: dayRequired,
         assigned: dayAssigned,
-        coverage: dayRequired > 0 ? Math.round((dayAssigned / dayRequired) * 100) : 0
+        coverage: dayRequired > 0 ? Math.round((dayAssigned / dayRequired) * 100) : (dayAssigned > 0 ? 100 : 0)
       };
     });
 

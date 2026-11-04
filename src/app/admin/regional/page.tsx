@@ -14,16 +14,15 @@ import {
   BarChart3, 
   TrendingUp, 
   PieChart as PieChartIcon, 
-  Download, 
   CalendarDays, 
   MapPin, 
   ShieldCheck, 
   Clock, 
+  Loader2, 
+  Database, 
+  FileSpreadsheet,
   AlertTriangle,
-  Loader2,
-  Database,
-  ArrowUpRight,
-  FileSpreadsheet
+  FileText
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -35,7 +34,8 @@ import {
   Tooltip, 
   Cell,
   PieChart,
-  Pie
+  Pie,
+  Legend
 } from "recharts";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
@@ -90,18 +90,31 @@ export default function RegionalAnalytics() {
     fetchRegionalPulse();
   }, [weekId]);
 
-  const COLORS = ['hsl(var(--secondary))', 'hsl(var(--primary))', 'hsl(var(--accent))', '#10b981', '#f59e0b', '#ef4444'];
+  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   const handleExport = () => {
     if (!comparison.length) return;
-    const filename = `ROC_Regional_Report_${weekId}`;
-    exportToCSV(filename, comparison);
-    toast({ title: "Export Dispatched", description: "Regional ledger successfully generated." });
+    const filename = `ROC_Regional_Ledger_${weekId}`;
+    // Flatten comparison for a professional CSV ledger
+    const ledgerData = comparison.map(c => ({
+      'Office Name': c.officeName,
+      'Office ID': c.officeId,
+      'Short Code': c.shortCode,
+      'Active Staff': c.staffCount,
+      'Required Shifts': c.requiredCount,
+      'Assigned Shifts': c.assignedCount,
+      'Coverage %': c.coverage === null ? 'MISSING_CONFIG' : `${c.coverage}%`,
+      'Shortfall': c.shortfall,
+      'Draft Count': c.draftCount,
+      'FCFS Bookings': c.bookingsCount
+    }));
+    exportToCSV(filename, ledgerData);
+    toast({ title: "Ledger Dispatched", description: "Consolidated regional data exported to CSV." });
   };
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* Dynamic Regional Header */}
+      {/* Institutional Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -112,7 +125,7 @@ export default function RegionalAnalytics() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Regional Command</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Consolidated Operational View <Activity className="size-3 text-secondary animate-pulse" />
+                  Multi-ROC Governance Hub <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -122,7 +135,7 @@ export default function RegionalAnalytics() {
 
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cycle</label>
               <div className="flex items-center gap-2">
                  <Input 
                    className="w-24 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
@@ -133,10 +146,10 @@ export default function RegionalAnalytics() {
               </div>
            </div>
            <Button 
-            className="bg-secondary text-white h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20" 
+            className="bg-secondary text-white h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
             onClick={handleExport}
            >
-             <FileSpreadsheet className="mr-2 h-4 w-4" /> EXPORT REGIONAL LEDGER
+             <FileSpreadsheet className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" /> EXPORT REGIONAL LEDGER
            </Button>
         </div>
       </div>
@@ -145,7 +158,7 @@ export default function RegionalAnalytics() {
         <div className="flex h-96 items-center justify-center">
            <div className="flex flex-col items-center gap-4">
               <Loader2 className="size-12 animate-spin text-secondary opacity-30" />
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Aggregating Regional Pulse</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Aggregating Regional Node Data</p>
            </div>
         </div>
       ) : (
@@ -154,8 +167,9 @@ export default function RegionalAnalytics() {
             {[
               { id: 'overview', label: 'Executive Pulse', icon: BarChart3 },
               { id: 'comparison', label: 'Cluster Heatmap', icon: Activity },
-              { id: 'roster', label: 'Scheduling Intelligence', icon: CalendarDays },
-              { id: 'leaves', label: 'Workforce Pressure', icon: PieChartIcon }
+              { id: 'roster', label: 'Roster Intelligence', icon: CalendarDays },
+              { id: 'leaves', label: 'Workforce Pressure', icon: PieChartIcon },
+              { id: 'reports', label: 'Reports & Export', icon: FileText }
             ].map(tab => (
               <TabsTrigger key={tab.id} value={tab.id} className="h-full rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white transition-all">
                 <tab.icon className="size-3.5 mr-3" /> {tab.label}
@@ -166,10 +180,10 @@ export default function RegionalAnalytics() {
           <TabsContent value="overview" className="space-y-10 animate-in">
              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                {[
-                 { label: 'Registered Nodes', value: stats?.totalOffices, sub: `${stats?.activeOffices} Active Pulses`, icon: MapPin, color: 'text-primary' },
-                 { label: 'Active Capacity', value: stats?.totalActiveStaff, sub: 'Authorized Professionals', icon: Users, color: 'text-secondary' },
-                 { label: 'Deployment Load', value: stats?.totalAssignments, sub: 'Assigned Shifts (Week)', icon: Zap, color: 'text-secondary' },
-                 { label: 'Regional Sync', value: '100%', sub: 'Node Integrity Verified', icon: ShieldCheck, color: 'text-black' }
+                 { label: 'Registered Nodes', value: stats?.totalOffices, sub: `${stats?.activeOffices} Operational`, icon: MapPin, color: 'text-primary' },
+                 { label: 'Active Capacity', value: stats?.totalActiveStaff, sub: 'Verified Professionals', icon: Users, color: 'text-secondary' },
+                 { label: 'Shift Deployment', value: stats?.totalAssignments, sub: 'Assigned (Cycle)', icon: Zap, color: 'text-secondary' },
+                 { label: 'Review Queue', value: stats?.draftRostersCount, sub: 'Draft Rosters', icon: ShieldCheck, color: 'text-black' }
                ].map((kpi, i) => (
                  <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -187,12 +201,8 @@ export default function RegionalAnalytics() {
              <div className="grid gap-8 lg:grid-cols-7">
                 <Card className="lg:col-span-4 shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                   <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Cluster Coverage</CardTitle>
-                        <CardDescription className="text-[10px] font-black uppercase mt-2 text-muted-foreground tracking-[0.2em]">Institutional Quota Fulfillment by ROC Node.</CardDescription>
-                      </div>
-                    </div>
+                    <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Cluster Coverage Heatmap</CardTitle>
+                    <CardDescription className="text-[10px] font-black uppercase mt-2 text-muted-foreground tracking-[0.2em]">Institutional Quota Fulfillment per ROC Node (Week {weekId}).</CardDescription>
                   </CardHeader>
                   <CardContent className="p-10">
                     <div className="h-[400px] w-full">
@@ -229,9 +239,9 @@ export default function RegionalAnalytics() {
                    <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white border-l-4 border-l-secondary">
                      <CardHeader className="p-10 pb-6 border-b border-slate-100 bg-slate-50/50">
                         <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
-                          <TrendingUp className="size-6 text-secondary" /> Shortfall Matrix
+                          <TrendingUp className="size-6 text-secondary" /> Staffing Shortfall
                         </CardTitle>
-                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Regional Staffing Deficit Tracker</CardDescription>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Unfulfilled Roster Positions</CardDescription>
                      </CardHeader>
                      <CardContent className="p-10 space-y-6">
                         {comparison.map((c, i) => (
@@ -245,8 +255,11 @@ export default function RegionalAnalytics() {
                                   "text-lg font-black tabular-nums",
                                   c.shortfall > 0 ? "text-destructive" : "text-emerald-500"
                                 )}>-{c.shortfall}</span>
-                                <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">
-                                   {c.coverage}% Coverage
+                                <Badge variant="outline" className={cn(
+                                  "text-[9px] font-black uppercase border-secondary/20",
+                                  c.coverage === null ? "text-muted-foreground bg-muted/20" : "text-secondary bg-secondary/5"
+                                )}>
+                                   {c.coverage === null ? 'N/A' : `${c.coverage}%`}
                                 </Badge>
                              </div>
                           </div>
@@ -260,8 +273,8 @@ export default function RegionalAnalytics() {
           <TabsContent value="comparison" className="space-y-10 animate-in">
              <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
-                   <CardTitle className="text-2xl font-black uppercase tracking-tight text-black">Cluster Comparison Matrix</CardTitle>
-                   <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Verified operational delta for Cycle {weekId}.</CardDescription>
+                   <CardTitle className="text-2xl font-black uppercase tracking-tight text-black">Regional Performance Matrix</CardTitle>
+                   <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Cycle {weekId} Cluster Comparison.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0 overflow-x-auto no-scrollbar">
                    <table className="w-full border-collapse">
@@ -269,9 +282,9 @@ export default function RegionalAnalytics() {
                         <tr className="border-b border-slate-100">
                           <th className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left">ROC Node</th>
                           <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Active Pool</th>
-                          <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Quotas</th>
+                          <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Requirements</th>
                           <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Assignments</th>
-                          <th className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Compliance</th>
+                          <th className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Coverage</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -280,7 +293,7 @@ export default function RegionalAnalytics() {
                               <td className="pl-10 py-8 border-r border-slate-100">
                                  <div className="flex flex-col gap-1">
                                     <span className="font-black text-[15px] text-black uppercase tracking-tight">{c.officeName}</span>
-                                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">{c.officeId}</span>
+                                    <code className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">{c.officeId}</code>
                                  </div>
                               </td>
                               <td className="py-8 border-r border-slate-100 text-center font-black text-lg text-black/60 tabular-nums">{c.staffCount}</td>
@@ -288,16 +301,22 @@ export default function RegionalAnalytics() {
                               <td className="py-8 border-r border-slate-100 text-center font-black text-lg text-black/60 tabular-nums">{c.assignedCount}</td>
                               <td className="text-right pr-12 py-8">
                                  <div className="flex flex-col items-end gap-1.5">
-                                    <span className={cn(
-                                      "text-2xl font-black tabular-nums",
-                                      c.coverage < 90 ? "text-destructive" : "text-emerald-500"
-                                    )}>{c.coverage}%</span>
-                                    <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                       <div className={cn(
-                                         "h-full rounded-full transition-all duration-1000",
-                                         c.coverage < 90 ? "bg-destructive" : "bg-emerald-500"
-                                       )} style={{ width: `${c.coverage}%` }} />
-                                    </div>
+                                    {c.coverage === null ? (
+                                      <Badge variant="outline" className="text-[10px] font-black uppercase text-muted-foreground animate-pulse">Configuration Missing</Badge>
+                                    ) : (
+                                      <>
+                                        <span className={cn(
+                                          "text-2xl font-black tabular-nums",
+                                          c.coverage < 90 ? "text-destructive" : "text-emerald-500"
+                                        )}>{c.coverage}%</span>
+                                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                           <div className={cn(
+                                             "h-full rounded-full transition-all duration-1000",
+                                             c.coverage < 90 ? "bg-destructive" : "bg-emerald-500"
+                                           )} style={{ width: `${c.coverage}%` }} />
+                                        </div>
+                                      </>
+                                    )}
                                  </div>
                               </td>
                            </tr>
@@ -312,8 +331,8 @@ export default function RegionalAnalytics() {
              <div className="grid gap-8 lg:grid-cols-2">
                 <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                    <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
-                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Daily Coverage Intensity</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Regional quota fulfillment by weekday.</CardDescription>
+                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Daily Deployment Intensity</CardTitle>
+                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Regional coverage rate by day of week.</CardDescription>
                    </CardHeader>
                    <CardContent className="p-10">
                       <div className="h-[400px] w-full">
@@ -323,7 +342,7 @@ export default function RegionalAnalytics() {
                                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900 }} />
                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 800 }} />
                                <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} />
-                               <Bar dataKey="coverage" radius={[8, 8, 0, 0]} fill="hsl(var(--secondary))" barSize={32} />
+                               <Bar dataKey="coverage" radius={[8, 8, 0, 0]} fill="#3B82F6" barSize={32} />
                             </BarChart>
                          </ResponsiveContainer>
                       </div>
@@ -332,8 +351,8 @@ export default function RegionalAnalytics() {
 
                 <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                    <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
-                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Staffing Pressure</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Required vs Assigned shifts across region.</CardDescription>
+                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Staffing Pressure Profile</CardTitle>
+                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Required vs Actual assignments across Cycle {weekId}.</CardDescription>
                    </CardHeader>
                    <CardContent className="p-10">
                       <div className="h-[400px] w-full">
@@ -343,8 +362,9 @@ export default function RegionalAnalytics() {
                                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900 }} />
                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 800 }} />
                                <Tooltip />
-                               <Bar dataKey="required" fill="rgba(0,0,0,0.05)" radius={[8, 8, 0, 0]} barSize={24} />
-                               <Bar dataKey="assigned" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={24} />
+                               <Legend verticalAlign="top" height={36}/>
+                               <Bar name="Institutional Target" dataKey="required" fill="rgba(0,0,0,0.05)" radius={[8, 8, 0, 0]} barSize={24} />
+                               <Bar name="Actual Scheduled" dataKey="assigned" fill="#3B82F6" radius={[8, 8, 0, 0]} barSize={24} />
                             </BarChart>
                          </ResponsiveContainer>
                       </div>
@@ -357,8 +377,8 @@ export default function RegionalAnalytics() {
              <div className="grid gap-8 lg:grid-cols-2">
                 <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                    <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 text-center">
-                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Unavailability Mix</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Regional leave distribution by status pulse.</CardDescription>
+                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Unavailability Profile</CardTitle>
+                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Regional absence distribution by authorization status.</CardDescription>
                    </CardHeader>
                    <CardContent className="p-10 flex flex-col items-center">
                       <div className="h-[300px] w-full">
@@ -367,7 +387,7 @@ export default function RegionalAnalytics() {
                                <Pie
                                  data={[
                                    { name: 'Authorized', value: leaveStats?.approved || 0 },
-                                   { name: 'Pending', value: leaveStats?.pending || 0 },
+                                   { name: 'Pending Review', value: leaveStats?.pending || 0 },
                                    { name: 'Rejected', value: leaveStats?.rejected || 0 }
                                  ]}
                                  innerRadius={80}
@@ -375,18 +395,18 @@ export default function RegionalAnalytics() {
                                  paddingAngle={10}
                                  dataKey="value"
                                >
-                                  <Cell fill="#10b981" />
-                                  <Cell fill="#f59e0b" />
-                                  <Cell fill="#ef4444" />
+                                  <Cell fill="#10B981" />
+                                  <Cell fill="#F59E0B" />
+                                  <Cell fill="#EF4444" />
                                </Pie>
                                <Tooltip />
                             </PieChart>
                          </ResponsiveContainer>
                       </div>
                       <div className="flex gap-8 mt-10">
-                         <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-[#10b981]" /> <span className="text-[10px] font-black uppercase">Approved</span></div>
-                         <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-[#f59e0b]" /> <span className="text-[10px] font-black uppercase">Pending</span></div>
-                         <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-[#ef4444]" /> <span className="text-[10px] font-black uppercase">Rejected</span></div>
+                         <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-[#10B981]" /> <span className="text-[10px] font-black uppercase">Approved</span></div>
+                         <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-[#F59E0B]" /> <span className="text-[10px] font-black uppercase">Pending</span></div>
+                         <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-[#EF4444]" /> <span className="text-[10px] font-black uppercase">Rejected</span></div>
                       </div>
                    </CardContent>
                 </Card>
@@ -398,10 +418,10 @@ export default function RegionalAnalytics() {
                          <Activity className="size-8" />
                       </div>
                       <div className="space-y-2 relative z-10">
-                         <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Operational Pulse</p>
-                         <h3 className="text-3xl font-black text-black leading-none">{leaveStats?.approved || 0} Professionals</h3>
+                         <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Capacity Pulse</p>
+                         <h3 className="text-3xl font-black text-black leading-none">{leaveStats?.approved || 0} Professionals Absent</h3>
                          <p className="text-[13px] font-bold text-muted-foreground uppercase leading-relaxed max-w-sm tracking-tight">
-                            Total institutional unavailabilities currently reducing regional clinical capacity.
+                            Institutional unavailabilities currently reducing regional capacity.
                          </p>
                       </div>
                    </Card>
@@ -413,15 +433,61 @@ export default function RegionalAnalytics() {
                             <ShieldCheck className="size-8 text-white" />
                          </div>
                          <div className="space-y-1">
-                            <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Integrity Protocol node</p>
+                            <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Audit Protocol node</p>
                             <p className="text-[14px] font-medium leading-relaxed uppercase tracking-tight">
-                               Analytical metrics are derived from verified `status` pulses within the clinical registry. 
-                               Approximations are explicitly excluded from institutional governance matrices.
+                               Analytical metrics are derived from verified registry records. 
+                               Draft or provisional data is explicitly excluded from executive coverage metrics.
                             </p>
                          </div>
                       </div>
                    </div>
                 </div>
+             </div>
+          </TabsContent>
+
+          <TabsContent value="reports" className="space-y-10 animate-in">
+             <div className="grid gap-8 md:grid-cols-2">
+                <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
+                   <CardHeader className="p-10">
+                      <CardTitle className="text-2xl font-black uppercase tracking-tight">Institutional Ledger</CardTitle>
+                      <CardDescription className="text-sm font-medium mt-2">Consolidated ROC performance comparison for stake holders.</CardDescription>
+                   </CardHeader>
+                   <CardContent className="px-10 pb-10">
+                      <div className="p-8 rounded-[2rem] bg-slate-50 border-2 border-slate-100 mb-8">
+                         <ul className="space-y-4">
+                            {[
+                              { label: 'Active Staff Capacity', icon: Users },
+                              { label: 'Shift Coverage Metrics', icon: ShieldCheck },
+                              { label: 'Quota Fulfillment delta', icon: TrendingUp },
+                              { label: 'FCFS Booking Statistics', icon: Zap }
+                            ].map((item, i) => (
+                              <li key={i} className="flex items-center gap-4 text-[11px] font-black uppercase tracking-widest text-black/60">
+                                 <item.icon className="size-4 text-secondary" /> {item.label}
+                              </li>
+                            ))}
+                         </ul>
+                      </div>
+                      <Button className="w-full h-16 bg-primary hover:bg-black text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl transition-all" onClick={handleExport}>
+                         <FileSpreadsheet className="mr-3 h-5 w-5" /> Generate Regional CSV
+                      </Button>
+                   </CardContent>
+                </Card>
+
+                <Card className="bg-secondary/5 border-2 border-secondary/10 shadow-xl rounded-[2.5rem] p-12 space-y-8 relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform duration-700"><Database size={120} /></div>
+                   <div className="flex items-center gap-4 text-secondary">
+                      <AlertTriangle className="size-6" />
+                      <p className="text-[11px] font-black uppercase tracking-[0.3em]">Governance Note</p>
+                   </div>
+                   <div className="space-y-6">
+                      <p className="text-lg font-black text-primary uppercase leading-tight tracking-tight">
+                        Report generation utilizes server-side aggregation pulses.
+                      </p>
+                      <p className="text-[13px] text-muted-foreground leading-relaxed font-medium uppercase tracking-widest opacity-60">
+                        Exports are filtered to remove employee PII (Phone Numbers/Personal Emails) to maintain institutional privacy standards while providing high-fidelity operational visibility.
+                      </p>
+                   </div>
+                </Card>
              </div>
           </TabsContent>
         </Tabs>
@@ -434,11 +500,11 @@ export default function RegionalAnalytics() {
                <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Regional Governance node</p>
+               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Regional Governance Node</p>
                <p className="text-lg font-bold text-black/70 leading-relaxed max-w-4xl tracking-tight">
-                  "ROC Workforce Regional Command enforces institutional transparency across the clinical network. 
-                  Aggregation nodes strictly follow the zero-trust identity architecture, ensuring that cross-office 
-                  intelligence is isolated to authorized system super administrators."
+                  "ROC Workforce Regional Command provides consolidated clinical intelligence across the network. 
+                  Aggregation algorithms strictly enforce institutional security boundaries, ensuring that comparative analytics 
+                  are isolated from cluster-level administration pulses."
                </p>
             </div>
          </div>
