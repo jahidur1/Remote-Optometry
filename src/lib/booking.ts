@@ -45,7 +45,6 @@ export async function bookWeeklyOff(
       const employee = employeeDoc.data();
 
       // 1. Office Identity Verification (Server-Side)
-      // An employee from Kolkata ROC must never book a Gurgaon ROC slot.
       if (config.office !== employee.office) {
         return { success: false, message: `Unauthorized: Your profile is assigned to ${employee.office}. You cannot book for ${config.office}.` };
       }
@@ -103,15 +102,12 @@ export async function bookWeeklyOff(
   } catch (error: any) {
     console.error("Booking transaction failed:", error);
     
-    // Catch security rule rejections specifically
-    if (error.code === 'permission-denied') {
-       const permissionError = new FirestorePermissionError({
-          path: configRef.path,
-          operation: 'update',
-          requestResourceData: { dayOfWeek, increment: 1 }
-       } satisfies SecurityRuleContext);
-       errorEmitter.emit('permission-error', permissionError);
-    }
+    const permissionError = new FirestorePermissionError({
+      path: configRef.path,
+      operation: 'update',
+      requestResourceData: { dayOfWeek, increment: 1 }
+    } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
 
     return { success: false, message: "A network conflict occurred during reservation. Please refresh and try again." };
   }

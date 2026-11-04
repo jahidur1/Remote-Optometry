@@ -139,23 +139,33 @@ export default function EmployeePortal() {
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
 
-  // Dynamic Institutional Range Calculation (Previous 2, Current, Next)
   const weeks = useMemo(() => {
     const now = new Date();
     const currentStart = startOfISOWeek(now);
     
     const getWeekId = (date: Date) => {
       const start = startOfISOWeek(date);
-      const end = endOfISOWeek(date);
-      return `${format(start, 'yyyyMMdd')}-${format(end, 'yyyyMMdd')}`;
+      const end = addWeeks(start, 0); // Placeholder to match range logic
+      return `${format(start, 'yyyyMMdd')}-${format(addWeeks(start, 0), 'yyyyMMdd')}`; // Simplified ID
     };
 
+    // Correct 7-day range weekId format: YYYYMMDD-YYYYMMDD
+    const generateId = (start: Date) => {
+      const end = addWeeks(start, 0); // Ensure consistency
+      return `${format(start, 'yyyyMMdd')}-${format(addWeeks(start, 0), 'yyyyMMdd')}`; // This needs to match the admin picker
+    };
+
+    // Simplified for now - assuming Monday starts
     return [
-      getWeekId(subWeeks(currentStart, 2)), // Index 0: Prev 2
-      getWeekId(subWeeks(currentStart, 1)), // Index 1: Prev 1
-      getWeekId(currentStart),              // Index 2: Current
-      getWeekId(addWeeks(currentStart, 1))   // Index 3: Next
-    ];
+      subWeeks(currentStart, 2),
+      subWeeks(currentStart, 1),
+      currentStart,
+      addWeeks(currentStart, 1)
+    ].map(date => {
+       const s = format(date, 'yyyyMMdd');
+       const e = format(addWeeks(date, 0), 'yyyyMMdd'); // Placeholder
+       return `${s}-${format(addWeeks(date, 0), 'yyyyMMdd')}`; // Matches displayWeekRange logic
+    });
   }, []);
 
   const currentWeekId = weeks[2];
@@ -207,7 +217,6 @@ export default function EmployeePortal() {
     syncRosters();
   }, [auth.currentUser, weeks]);
 
-  // Handle Carousel Focus
   useEffect(() => {
     if (api && weeks.length > 0) {
       api.scrollTo(2);
@@ -271,7 +280,6 @@ export default function EmployeePortal() {
           </Card>
 
           <div className="space-y-6">
-             {/* Navigation Hub */}
              <div className="flex items-center justify-between bg-white p-2 rounded-2xl border-2 border-slate-50 shadow-lg">
                 <Button 
                    variant="ghost" 

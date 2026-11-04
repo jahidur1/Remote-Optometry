@@ -99,10 +99,10 @@ service cloud.firestore {
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && (resource == null || isMemberOf(resource.data.office));
       allow create: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
-      allow update: if (isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office))
-                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(request.resource.data.office) 
+      allow update: if (isAdmin() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office))
+                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office) 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked', 'updatedAt']));
-      allow delete: if isSuperAdmin() || (isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office));
+      allow delete: if isSuperAdmin() || (isAdmin() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office));
     }
 
     match /weekoff_bookings/{bookingId} {
@@ -143,7 +143,7 @@ service cloud.firestore {
 
     match /shift_adjacency_rules/{ruleId} {
       allow read: if isAdmin() && isMemberOf(resource.data.office);
-      allow write: if isAdmin() && isMemberOf(request.resource.data.office);
+      allow write: if isAdmin() && isMemberOf(resource.data.office);
     }
 
     match /shift_swaps/{swapId} {
@@ -173,8 +173,6 @@ service cloud.firestore {
       allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
       allow write: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office);
     }
-
-    // --- LOGS & AUTH ---
 
     match /audit_logs/{logId} {
       allow read: if isSuperAdmin() || (isAdmin() && isMemberOf(resource.data.office));
