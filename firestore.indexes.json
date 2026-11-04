@@ -1,0 +1,50 @@
+
+{
+  "indexes": [
+    {
+      "collectionGroup": "employees",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "office", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "fullName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "published_rosters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "office", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "roster_drafts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "office", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "weekoff_configs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "office", "order": "ASCENDING" },
+        { "fieldPath": "weekId", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "rosterVersion", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -1,25 +1,23 @@
+
 /**
  * @fileOverview Secure client for interacting with the Python Solver Service.
  * Implements GCP IAM authentication and trusted payload handling.
  */
 
-const SOLVER_URL = process.env.SOLVER_URL || 'https://roc-workforce-solver-410101001681.asia-south1.run.app';
+const SOLVER_URL = process.env.SOLVER_URL;
 const ENABLE_IAM_AUTH = process.env.ENABLE_IAM_AUTH === 'true';
+const SOLVER_TIMEOUT_MS = 60000; // 60s for complex clinical models
 
 /**
  * Retrieves an OIDC ID token for service-to-service authentication on GCP.
- * This ensures only the authorized Next.js backend can call the private Solver API.
  */
 async function getAuthHeaders(targetAudience: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  // Only attempt GCP IAM auth if explicitly enabled in environment
-  // and running in a Node.js context (Server Actions / Genkit Flows)
   if (typeof window === 'undefined' && ENABLE_IAM_AUTH) {
     try {
-      // Dynamic import to prevent client-side bundling of google-auth-library
       const { GoogleAuth } = await import('google-auth-library');
       const auth = new GoogleAuth();
       const client = await auth.getIdTokenClient(targetAudience);
@@ -36,28 +34,47 @@ async function getAuthHeaders(targetAudience: string) {
 }
 
 export async function callSolver(payload: any) {
-  const headers = await getAuthHeaders(SOLVER_URL);
-  
-  const response = await fetch(`${SOLVER_URL}/v1/rosters/solve`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-    cache: 'no-store'
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Solver Node Error (${response.status}): ${errorBody}`);
+  if (!SOLVER_URL) {
+    throw new Error('Solver Node Failure: SOLVER_URL is not configured in the environment.');
   }
 
-  return response.json();
+  const headers = await getAuthHeaders(SOLVER_URL);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SOLVER_TIMEOUT_MS);
+  
+  try {
+    const response = await fetch(`${SOLVER_URL}/v1/rosters/solve`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Solver Node Error (${response.status}): ${errorBody}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Optimization Timeout: The clinical model exceeded the 60s processing threshold.');
+    }
+    throw err;
+  }
 }
 
 export async function checkSolverHealth() {
+  if (!SOLVER_URL) return { status: 'unconfigured' };
   try {
     const response = await fetch(`${SOLVER_URL}/health`, { 
       method: 'GET',
       cache: 'no-store',
+      next: { revalidate: 300 } // Cache health check for 5 mins
     });
     if (!response.ok) return { status: 'offline' };
     return response.json();

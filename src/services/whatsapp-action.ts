@@ -1,14 +1,15 @@
+
 'use server';
 
 /**
  * @fileOverview Meta WhatsApp Cloud API Server Action.
  * 
  * Handles secure communication with Meta's Graph API using institutional credentials.
- * Credentials are stored on the server and never exposed to the client.
+ * Credentials must be provided via environment variables.
  */
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '1143569695505848';
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || 'EAASX13nmmYgBRmCXnh6JLT56PQdMrqQTA5CQM9ITn988OHZBv0KltEsJIndy2ZCxBAEfAZAtlCGaEFJWLhl8F7kYMxkAbWrEZAnDIPZCYFwtHCos5Gq6NU7s1yFDZAgW65FTZCJLPICNgKsiM4ZCMzPlh8giYYsO5nnCA60ZBB9Btry6iv2ZAedsVs2xYG0wVBbAZDZD';
+const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const API_VERSION = 'v21.0';
 
 export type WhatsAppSendResult = {
@@ -18,8 +19,16 @@ export type WhatsAppSendResult = {
 };
 
 /**
+ * Validates that API credentials are provisioned in the environment.
+ */
+function verifyCredentials() {
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+    throw new Error('Meta API Error: WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN not configured in environment.');
+  }
+}
+
+/**
  * Sends a WhatsApp message via Meta Cloud API using an approved template.
- * Parameters: Name, Date, Shift Name, Shift Time.
  */
 export async function sendWhatsAppShiftBriefing(
   to: string,
@@ -28,34 +37,35 @@ export async function sendWhatsAppShiftBriefing(
   shiftTime: string,
   date: string
 ): Promise<WhatsAppSendResult> {
-  const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
-  
-  // Normalize phone: remove +, ensure country code (default +91)
-  let formattedTo = to.replace(/\D/g, '');
-  if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
-
-  const payload = {
-    messaging_product: 'whatsapp',
-    to: formattedTo,
-    type: 'template',
-    template: {
-      name: 'shift_briefing',
-      language: { code: 'en_US' },
-      components: [
-        {
-          type: 'body',
-          parameters: [
-            { type: 'text', text: employeeName },
-            { type: 'text', text: date },
-            { type: 'text', text: shiftName },
-            { type: 'text', text: shiftTime }
-          ]
-        }
-      ]
-    }
-  };
-
   try {
+    verifyCredentials();
+    const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+    
+    // Normalize phone: remove +, ensure country code (default +91)
+    let formattedTo = to.replace(/\D/g, '');
+    if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: formattedTo,
+      type: 'template',
+      template: {
+        name: 'shift_briefing',
+        language: { code: 'en_US' },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: employeeName },
+              { type: 'text', text: date },
+              { type: 'text', text: shiftName },
+              { type: 'text', text: shiftTime }
+            ]
+          }
+        ]
+      }
+    };
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -79,6 +89,7 @@ export async function sendWhatsAppShiftBriefing(
       messageId: data.messages?.[0]?.id 
     };
   } catch (err: any) {
+    console.error('WhatsApp Action critical failure:', err.message);
     return { success: false, error: err.message };
   }
 }
@@ -87,18 +98,19 @@ export async function sendWhatsAppShiftBriefing(
  * Verification of API connectivity using a simple text message.
  */
 export async function sendWhatsAppTestMessage(to: string): Promise<WhatsAppSendResult> {
-  const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
-  let formattedTo = to.replace(/\D/g, '');
-  if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
-
-  const payload = {
-    messaging_product: 'whatsapp',
-    to: formattedTo,
-    type: 'text',
-    text: { body: 'ROC Workforce: System Connectivity Verified. Meta Cloud API is online.' }
-  };
-
   try {
+    verifyCredentials();
+    const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+    let formattedTo = to.replace(/\D/g, '');
+    if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: formattedTo,
+      type: 'text',
+      text: { body: 'ROC Workforce: System Connectivity Verified. Meta Cloud API is online.' }
+    };
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
