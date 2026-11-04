@@ -69,7 +69,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       if (!adminSnap.exists) throw new Error("Access Denied: Administrative profile not found.");
       const adminData = adminSnap.data()!;
       
-      if (adminData.status !== 'Active' || !['ADMIN', 'SUPER_ADMIN'].includes(adminData.role)) {
+      if (adminData.status !== 'Active' || !['admin', 'super_admin'].includes(adminData.role)) {
         throw new Error("Access Denied: Unauthorized administrative identity.");
       }
       
@@ -77,7 +77,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       await assertOfficeActive(officeId);
       
       const authorizedOffices = adminData.officeIds || (adminData.office ? [adminData.office] : []);
-      if (adminData.role === 'ADMIN' && !authorizedOffices.includes(officeId)) {
+      if (adminData.role === 'admin' && !authorizedOffices.includes(officeId)) {
         throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
       }
 
@@ -195,7 +195,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     } catch (e: any) {
       return {
         rosterAssignments: [],
-        summary: `Deterministic Node Failure: ${e.message}`,
+        summary: `Deterministic Pipeline Failure: ${e.message}`,
         status: 'UNKNOWN',
         issuesEncountered: [e.message],
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }

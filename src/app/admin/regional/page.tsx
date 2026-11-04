@@ -261,7 +261,7 @@ export default function RegionalAnalytics() {
                      <CardHeader className="p-10 pb-6 border-b border-slate-100 bg-slate-50/50">
                         <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
                           <TrendingUp className="size-6 text-secondary" /> Staffing Shortfall
-                        </Target>
+                        </CardTitle>
                         <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Gap identification per Hub.</CardDescription>
                      </CardHeader>
                      <CardContent className="p-10 space-y-6">

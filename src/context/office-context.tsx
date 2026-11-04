@@ -28,7 +28,7 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   const authorizedOffices = useMemo(() => {
     if (!profile || !allOffices) return [];
     
-    if (profile.role === 'SUPER_ADMIN') return allOffices;
+    if (profile.role === 'super_admin') return allOffices;
     
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
     return allOffices.filter(o => allowedIds.includes(o.officeId));
