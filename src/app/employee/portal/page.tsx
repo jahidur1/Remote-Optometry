@@ -18,7 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
-  RotateCcw
+  RotateCcw,
+  ShieldCheck
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -158,9 +159,17 @@ export default function EmployeePortal() {
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);
   
-  const bookingId = useMemo(() => profile?.employeeId ? `${currentWeekId}_${profile.employeeId}` : null, [currentWeekId, profile?.employeeId]);
-  const bookingRef = useMemo(() => bookingId ? doc(db, 'weekoff_bookings', bookingId) : null, [db, bookingId]);
-  const { data: userBooking } = useDoc(bookingRef);
+  // Fetch confirmed bookings for all visible weeks to show "WEEK-OFF" status
+  const bookingsQuery = useMemo(() => {
+    if (!profile?.employeeId) return null;
+    return query(
+      collection(db, 'weekoff_bookings'), 
+      where('employeeId', '==', profile.employeeId),
+      where('weekId', 'in', weeks)
+    );
+  }, [db, profile?.employeeId, weeks]);
+
+  const { data: userBookings } = useCollection(bookingsQuery);
 
   useEffect(() => {
     if (!db || userLoading || !profile?.office) return;
@@ -224,6 +233,7 @@ export default function EmployeePortal() {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const todayShift = rosterData[currentWeekId]?.assignments.find(a => a.dayOfWeek === today);
   const todayShiftDetails = shifts?.find(s => s.id === todayShift?.shiftId);
+  const todayBooking = userBookings?.find(b => b.weekId === currentWeekId && b.dayOfWeek === today);
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8 md:space-y-12 pb-32 md:pb-40 px-2 sm:px-6 pt-4 md:pt-6 animate-in text-black">
@@ -250,9 +260,15 @@ export default function EmployeePortal() {
              <CardContent className="p-8 md:p-14 relative z-10 text-center md:text-left">
                 <p className="text-[9px] font-black uppercase tracking-[0.3em] text-secondary">Today's Pulse</p>
                 <h2 className="text-4xl md:text-7xl font-black uppercase tracking-tighter leading-none italic mt-2">{today}</h2>
-                {todayShift ? (
+                {todayBooking ? (
+                   <div className="flex items-center gap-3 mt-6">
+                      <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase px-8 py-3 rounded-xl shadow-2xl">
+                         <ShieldCheck className="size-4 mr-2" /> PROTECTED WEEK-OFF
+                      </Badge>
+                   </div>
+                ) : todayShift ? (
                    <div className="flex flex-col md:flex-row items-center gap-3 mt-6">
-                      <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase px-6 py-2 rounded-xl">
+                      <Badge className="bg-secondary text-white text-[10px] font-black uppercase px-6 py-2 rounded-xl">
                          {todayShiftDetails?.name || todayShift.shiftId}
                       </Badge>
                       <span className="text-[14px] font-black tracking-widest text-white/60">
@@ -324,11 +340,13 @@ export default function EmployeePortal() {
                            const dateStr = date ? format(date, 'MMM dd') : '-- --';
                            const assignment = weekData.assignments.find(a => a.dayOfWeek === day);
                            const shift = shifts?.find(s => s.id === assignment?.shiftId);
+                           const isOff = userBookings?.some(b => b.weekId === week && b.dayOfWeek === day);
 
                            return (
                              <Card key={day} className={cn(
                                "border-none shadow-md overflow-hidden rounded-2xl bg-white transition-all group hover:scale-[1.01] hover:shadow-xl",
-                               isCurrent ? "border-l-4 border-l-secondary" : ""
+                               isCurrent ? "border-l-4 border-l-secondary" : "",
+                               isOff ? "bg-emerald-50/30" : ""
                              )}>
                                <CardContent className="p-5 flex items-center justify-between">
                                   <div className="flex items-center gap-5">
@@ -338,7 +356,11 @@ export default function EmployeePortal() {
                                      </div>
                                      <div className="flex flex-col">
                                         <span className="text-[11px] font-black uppercase tracking-widest text-primary leading-tight">{day}</span>
-                                        {weekData.published ? (
+                                        {isOff ? (
+                                           <div className="flex items-center gap-2 mt-1">
+                                              <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-md border-none animate-in">PROTECTED WEEK-OFF</Badge>
+                                           </div>
+                                        ) : weekData.published ? (
                                            shift ? (
                                              <div className="flex items-center gap-2 mt-1">
                                                 <Badge className="bg-secondary/10 text-secondary text-[8px] font-black uppercase px-2 py-0.5 rounded-md border-none">{shift.id}</Badge>
@@ -355,9 +377,9 @@ export default function EmployeePortal() {
                                         )}
                                      </div>
                                   </div>
-                                  {weekData.published && shift && (
+                                  {(isOff || (weekData.published && shift)) && (
                                      <div className="size-8 rounded-full bg-emerald-50 flex items-center justify-center">
-                                        <CheckCircle2 className="size-4 text-emerald-500" />
+                                        <CheckCircle2 className={cn("size-4 text-emerald-500", isOff && "animate-pulse")} />
                                      </div>
                                   )}
                                </CardContent>
@@ -381,7 +403,7 @@ export default function EmployeePortal() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-10 pt-8 space-y-12">
-               <WeekOffMatrixStatus config={activeConfig} userBooking={userBooking} weekId={currentWeekId} />
+               <WeekOffMatrixStatus config={activeConfig} userBooking={userBookings?.find(b => b.weekId === currentWeekId)} weekId={currentWeekId} />
             </CardContent>
           </Card>
         </div>
