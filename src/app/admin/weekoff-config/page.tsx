@@ -247,7 +247,7 @@ export default function WeekOffConfiguration() {
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Reservation Matrix</CardTitle>
-                  <CardDescription className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
+                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
                      Maximum daily FCFS slot limits for {authorizedOffices.find(o => o.officeId === office)?.officeName || '---'}.
                   </CardDescription>
                 </div>
