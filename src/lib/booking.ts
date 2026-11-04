@@ -6,6 +6,8 @@ import {
   serverTimestamp,
   increment
 } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export type BookingResult = {
   success: boolean;
@@ -100,6 +102,17 @@ export async function bookWeeklyOff(
     });
   } catch (error: any) {
     console.error("Booking transaction failed:", error);
+    
+    // Catch security rule rejections specifically
+    if (error.code === 'permission-denied') {
+       const permissionError = new FirestorePermissionError({
+          path: configRef.path,
+          operation: 'update',
+          requestResourceData: { dayOfWeek, increment: 1 }
+       } satisfies SecurityRuleContext);
+       errorEmitter.emit('permission-error', permissionError);
+    }
+
     return { success: false, message: "A network conflict occurred during reservation. Please refresh and try again." };
   }
 }
