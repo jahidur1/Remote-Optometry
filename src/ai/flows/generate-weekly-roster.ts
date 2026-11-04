@@ -3,22 +3,20 @@
 
 /**
  * @fileOverview Trusted Coordinator Flow for Clinical Roster Generation.
+ * Migrated to Firebase Admin SDK for server-side security and institutional authorization.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { callSolver } from '@/lib/solver-client';
 import { isDateInRange, getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 
-const { firestore } = initializeFirebase();
-
 export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
   officeId: z.string(),
-  adminUid: z.string().describe('The UID of the administrator performing the action for permission verification.'),
+  idToken: z.string().describe('Firebase ID token for administrative authentication and office verification.'),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
@@ -56,33 +54,44 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   },
   async (input) => {
     const start = Date.now();
-    const { weekId, officeId, adminUid } = input;
+    const { weekId, officeId, idToken } = input;
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const weekDates = getDatesForWeek(weekId);
 
     try {
-      // 1. Institutional Permission Gate
-      const adminSnap = await getDoc(doc(firestore, 'users', adminUid));
-      if (!adminSnap.exists() || !['ADMIN', 'SUPER_ADMIN'].includes(adminSnap.data().role)) {
+      // 1. Institutional Permission Gate (Server-Side Authorization)
+      if (!idToken) throw new Error("Access Denied: Authentication token missing.");
+      
+      // Verify token and check revocation for high-security operation
+      const decoded = await adminAuth.verifyIdToken(idToken, true);
+      const adminSnap = await adminDb.collection('users').doc(decoded.uid).get();
+      
+      if (!adminSnap.exists) {
+        throw new Error("Access Denied: Administrative profile not found.");
+      }
+      
+      const adminData = adminSnap.data()!;
+      if (adminData.status !== 'Active' || !['ADMIN', 'SUPER_ADMIN'].includes(adminData.role)) {
         throw new Error("Access Denied: Unauthorized administrative identity.");
       }
       
-      if (adminSnap.data().office !== officeId && adminSnap.data().role !== 'SUPER_ADMIN') {
+      // Office Isolation: Admins can only solve for their own cluster
+      if (adminData.role === 'ADMIN' && adminData.office !== officeId) {
         throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
       }
 
-      // 2. Data Synchronization (Authoritative Fetch)
+      // 2. Data Synchronization (Authoritative Fetch via Admin SDK)
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
-        getDocs(query(collection(firestore, 'employees'), where('office', '==', officeId), where('status', '==', 'Active'))),
-        getDocs(query(collection(firestore, 'shift_master'), orderBy('displayOrder'))),
-        getDoc(doc(firestore, 'roster_quotas', weekId)),
-        getDocs(query(collection(firestore, 'weekoff_bookings'), where('weekId', '==', weekId), where('office', '==', officeId))),
-        getDocs(query(collection(firestore, 'employee_leaves'), where('status', '==', 'approved'))),
-        getDocs(query(collection(firestore, 'shift_adjacency_rules'), where('weekId', '==', weekId))),
-        getDocs(query(collection(firestore, 'employee_preferences'), where('weekId', '==', weekId)))
+        adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
+        adminDb.collection('shift_master').orderBy('displayOrder').get(),
+        adminDb.collection('roster_quotas').doc(weekId).get(),
+        adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
+        adminDb.collection('employee_leaves').where('status', '==', 'approved').get(),
+        adminDb.collection('shift_adjacency_rules').where('weekId', '==', weekId).get(),
+        adminDb.collection('employee_preferences').where('weekId', '==', weekId).get()
       ]);
 
-      if (!quotaSnap.exists()) {
+      if (!quotaSnap.exists) {
         throw new Error(`Configuration Missing: Clinical quotas for Week ${weekId} have not been defined.`);
       }
 
@@ -90,8 +99,8 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       const employees = empSnap.docs.map(d => ({ 
         id: d.id, 
         gender: (d.data().gender || 'Other').toLowerCase(),
-        historicalSO: 0, 
-        historicalOP: 0 
+        historicalSO: d.data().historicalSO || 0, 
+        historicalOP: d.data().historicalOP || 0 
       }));
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: d.data().name }));

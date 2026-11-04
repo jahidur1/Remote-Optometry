@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { collection, query, orderBy, limit, doc, setDoc } from 'firebase/firestore';
-import { useFirestore, useUser, useCollection } from '@/firebase';
+import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ export default function RosterSolver() {
   const [lastDraftId, setLastDraftId] = useState<string | null>(null);
 
   const db = useFirestore();
+  const auth = useAuth();
   const { profile } = useUser();
   const { toast } = useToast();
 
@@ -73,10 +75,14 @@ export default function RosterSolver() {
     }, 1000);
 
     try {
+      // Fetch fresh ID Token for secure server handshake
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("Session expired. Please re-authenticate.");
+
       const result = await generateWeeklyRoster({
         weekId,
         officeId: targetOffice,
-        adminUid: profile.uid
+        idToken: idToken
       });
       
       clearInterval(interval);
@@ -231,7 +237,7 @@ export default function RosterSolver() {
                     </div>
                     <div className="space-y-4 flex-1">
                        <div className="flex justify-between items-center">
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40">Status Update</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Status Update</p>
                           <span className="text-[9px] font-mono font-black text-black/20 uppercase tracking-widest">TRACE_{solverResult.solverMetadata?.runId || 'SYS'}</span>
                        </div>
                        <p className="text-lg font-black text-black leading-snug">{solverResult.summary}</p>
