@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,6 +6,8 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '../provider';
 import { getLocalSessionId } from '@/lib/session-utils';
+import { errorEmitter } from '../error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '../errors';
 
 export type UserProfile = {
   uid: string;
@@ -60,8 +63,12 @@ export function useUser() {
       } else {
         setProfile(null);
       }
-    }, (error) => {
-      console.error("Profile subscription failed:", error);
+    }, async (error) => {
+      const permissionError = new FirestorePermissionError({
+        path: userDocRef.path,
+        operation: 'get',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
       setProfile(null);
     });
 
@@ -87,8 +94,12 @@ export function useUser() {
         setSessionValid(false);
       }
       setLoading(false);
-    }, (error) => {
-      console.error("Session integrity check failed:", error);
+    }, async (error) => {
+      const permissionError = new FirestorePermissionError({
+        path: sessionDocRef.path,
+        operation: 'get',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
       setSessionValid(false);
       setLoading(false);
     });

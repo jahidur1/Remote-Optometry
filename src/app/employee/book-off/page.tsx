@@ -2,16 +2,16 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
-import { useFirestore, useUser, useDoc } from '@/firebase';
+import { collection, query, where, orderBy, limit, doc } from 'firebase/firestore';
+import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
-import { CalendarDays, Clock, CheckCircle2, AlertTriangle, Loader2, Info, Lock, Sparkles, Zap, ArrowRight, ArrowLeft } from "lucide-react";
+import { CalendarDays, Clock, CheckCircle2, Loader2, Zap, ArrowRight, ArrowLeft, Sparkles } from "lucide-react";
 import { bookWeeklyOff } from '@/lib/booking';
-import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 /**
  * Institutional Countdown Matrix
@@ -52,8 +52,6 @@ export default function BookOffPage() {
   const { profile, loading: profileLoading } = useUser();
   const { toast } = useToast();
   
-  const [activeConfig, setActiveConfig] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [bookingInProgress, setBookingInProgress] = useState(false);
   const [now, setNow] = useState(new Date());
 
@@ -62,36 +60,21 @@ export default function BookOffPage() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!db || profileLoading) return;
-    
-    if (!profile?.office) {
-      setLoading(false);
-      return;
-    }
-
-    const q = query(
+  // Stable Config Query
+  const configQuery = useMemo(() => {
+    if (!profile?.office) return null;
+    return query(
       collection(db, 'weekoff_configs'), 
       where('office', '==', profile.office),
       orderBy('weekId', 'desc'), 
       limit(1)
     );
+  }, [db, profile?.office]);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        setActiveConfig(snapshot.docs[0].data());
-      } else {
-        setActiveConfig(null);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Registry sync failed:", error);
-      setLoading(false);
-    });
+  const { data: configs, loading: configLoading } = useCollection(configQuery);
+  const activeConfig = configs?.[0] || null;
 
-    return () => unsubscribe();
-  }, [db, profile?.office, profileLoading]);
-
+  // Stable Booking Doc
   const bookingId = activeConfig && profile?.employeeId ? `${activeConfig.weekId}_${profile.employeeId}` : null;
   const { data: userBooking, loading: bookingLoading } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
 
@@ -140,7 +123,7 @@ export default function BookOffPage() {
     return (openTime.getTime() - now.getTime()) / (1000 * 60);
   }, [openTime, now]);
 
-  if (loading || bookingLoading || profileLoading) return (
+  if (profileLoading || configLoading || bookingLoading) return (
     <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
       <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
       <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Syncing Clinical Registry</p>
