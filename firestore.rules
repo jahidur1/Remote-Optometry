@@ -98,7 +98,8 @@ service cloud.firestore {
 
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && matchesOffice(resource.data.office);
-      allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
+      allow create, update: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
+      allow delete: if isSuperAdmin() || (isAdmin() && matchesOffice(resource.data.office) && isOfficeActive(resource.data.office));
     }
 
     match /weekoff_bookings/{bookingId} {

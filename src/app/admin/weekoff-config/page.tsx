@@ -163,7 +163,7 @@ export default function WeekOffConfiguration() {
     const idToDelete = targetConfigId || `${weekId}_${office}`;
     if (!idToDelete) return;
 
-    if (!confirm(`DECOMMISSION ALERT: Remove clinical cycle ${idToDelete}?`)) return;
+    if (!confirm(`DECOMMISSION ALERT: Remove clinical cycle ${idToDelete}? This will purge all associated FCFS preferences.`)) return;
 
     setLoading(true);
     try {
@@ -171,7 +171,7 @@ export default function WeekOffConfiguration() {
       logAudit(db, profile?.uid || 'system', 'DELETE_WEEKOFF_CONFIG', idToDelete, { office, weekId });
       toast({ title: "Registry Decommissioned" });
       
-      if (!targetConfigId) {
+      if (!targetConfigId || targetConfigId === `${weekId}_${office}`) {
         setOpenTime('');
         setCloseTime('');
         setExists(false);
@@ -219,7 +219,7 @@ export default function WeekOffConfiguration() {
               </Select>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle (7 Days)</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle (Strict 7-Day)</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
