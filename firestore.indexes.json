@@ -59,27 +59,6 @@
         { "fieldPath": "employeeId", "order": "ASCENDING" },
         { "fieldPath": "weekId", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "audit_logs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "sessions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "deadlineAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "otp_registry",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

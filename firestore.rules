@@ -39,8 +39,8 @@ service cloud.firestore {
       return isUserActive() && (
         user.role == 'SUPER_ADMIN' ||
         (user.role == 'ADMIN' && (
-          (user.keys().contains('officeIds') && officeId in user.officeIds) ||
-          (!user.keys().contains('officeIds') && user.office == officeId)
+          (user.keys().hasAny(['officeIds']) && officeId in user.officeIds) ||
+          (!user.keys().hasAny(['officeIds']) && user.office == officeId)
         )) ||
         (user.role == 'EMPLOYEE' && user.office == officeId)
       );
@@ -85,7 +85,7 @@ service cloud.firestore {
       allow create: if false;
       allow update: if isUserActive() && (
         (isAdmin() && matchesOffice(resource.data.office)) ||
-        (getEmployeeId() == employeeId && request.resource.data.diff(resource.data).affectedKeys().only(['age']))
+        (getEmployeeId() == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age']))
       );
       allow delete: if isSuperAdmin();
     }
@@ -109,7 +109,7 @@ service cloud.firestore {
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive() && (!quotaId.contains('_') || matchesOffice(resource.data.officeId));
+      allow read: if isUserActive() && (!quotaId.matches('.*_.*') || matchesOffice(resource.data.officeId));
       allow write: if isAdmin() && matchesOffice(request.resource.data.officeId) && isOfficeActive(request.resource.data.officeId);
     }
 
@@ -140,7 +140,7 @@ service cloud.firestore {
     }
 
     match /employee_preferences/{prefId} {
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId || (prefId.contains('_') && matchesOffice(resource.data.office)));
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId || (prefId.matches('.*_.*') && matchesOffice(resource.data.office)));
       allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId && matchesOffice(request.resource.data.office);
     }
 
@@ -169,5 +169,5 @@ service cloud.firestore {
     }
   }
 }
-// Deployment Pulse: Institutional Rules Finalized
-// Timestamp: 2024-05-20T10:00:00Z
+// Deployment Pulse: Institutional Rules Finalized & Hardened
+// Timestamp: 2024-05-20T11:30:00Z
