@@ -105,8 +105,6 @@ service cloud.firestore {
     }
 
     match /published_rosters/{versionId} { 
-      // SECURITY HARDEN: Employees must use Server Actions for secure projection.
-      // Direct client reads are restricted to Admins for cluster monitoring.
       allow read: if isAdmin() && matchesOffice(resource.data.office); 
       allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
@@ -122,7 +120,7 @@ service cloud.firestore {
     }
 
     match /employee_leaves/{leaveId} {
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId);
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId || matchesOffice(resource.data.office));
       allow write: if isAdmin() && matchesOffice(request.resource.data.office);
     }
 
@@ -138,13 +136,13 @@ service cloud.firestore {
         resource.data.requesterId == getUserData().employeeId || 
         resource.data.targetEmployeeId == getUserData().employeeId
       );
-      allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId;
-      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getUserData().employeeId || isAdmin());
+      allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId && matchesOffice(request.resource.data.office);
+      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getUserData().employeeId || (isAdmin() && matchesOffice(resource.data.office)));
     }
 
     match /employee_preferences/{prefId} {
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId);
-      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId || (prefId.contains('_') && matchesOffice(resource.data.office)));
+      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId && matchesOffice(request.resource.data.office);
     }
 
     // --- LOGS & AUTH ---

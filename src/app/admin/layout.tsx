@@ -28,7 +28,7 @@ export default function AdminLayout({
                  </div>
               </div>
             </header>
-            <main className="flex flex-1 flex-col gap-8 p-10 overflow-auto animate-in duration-700">
+            <main className="flex-1 flex-col gap-8 p-10 overflow-auto animate-in duration-700">
               {children}
             </main>
           </SidebarInset>

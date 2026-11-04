@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useUser } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 
 type OfficeContextType = {
@@ -22,7 +22,7 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   
   // Fetch only active offices for the registry
   const { data: allOffices, loading: officesLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'))
+    query(collection(db, 'offices'), where('status', '==', 'Active'), orderBy('officeName', 'asc'))
   );
 
   const authorizedOffices = useMemo(() => {
