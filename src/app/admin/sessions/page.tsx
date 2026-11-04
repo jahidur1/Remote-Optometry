@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useUser } from '@/firebase';
-import { collection, query, doc, updateDoc, orderBy, limit, where, getDocs } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, orderBy, limit, where, getDocs, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { Timestamp } from 'firebase/firestore';
 
 export default function AdminSessionManager() {
   const db = useFirestore();
@@ -105,7 +104,7 @@ export default function AdminSessionManager() {
   const filteredSessions = useMemo(() => {
     return sessions?.filter(s => {
       const emp = employees?.find(e => e.id === s.employeeId);
-      const text = `${emp?.fullName} ${s.employeeId} ${s.label} ${s.status}`.toLowerCase();
+      const text = `${emp?.fullName || ''} ${s.employeeId} ${s.label || ''} ${s.status || ''}`.toLowerCase();
       return text.includes(searchTerm.toLowerCase());
     });
   }, [sessions, employees, searchTerm]);

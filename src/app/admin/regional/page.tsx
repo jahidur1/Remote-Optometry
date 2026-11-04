@@ -21,8 +21,7 @@ import {
   Loader2, 
   Database, 
   FileSpreadsheet,
-  AlertTriangle,
-  Info
+  AlertTriangle
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -33,9 +32,6 @@ import {
   CartesianGrid, 
   Tooltip, 
   Cell,
-  PieChart,
-  Pie,
-  Legend
 } from "recharts";
 import { Input } from '@/components/ui/input';
 import { 
