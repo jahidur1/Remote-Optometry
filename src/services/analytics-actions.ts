@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -15,23 +16,23 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
  * This is the primary security gate for all regional analytics.
  */
 async function getAuthorizedSuperAdmin(idToken: string) {
-  if (!idToken) return null;
+  if (!idToken) throw new Error("Authentication token missing.");
   try {
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     
-    if (!userSnap.exists) return null;
+    if (!userSnap.exists) throw new Error("Administrative profile not found.");
     const profile = userSnap.data()!;
     
     // STRICT REQUIREMENT: Must be Active AND SUPER_ADMIN
     if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') {
-      return null;
+      throw new Error("Unauthorized: Access restricted to active Super Admin nodes.");
     }
     
     return { uid: decoded.uid, ...profile };
-  } catch (e) {
-    console.error('Regional Auth Pulse Failure:', e);
-    return null;
+  } catch (e: any) {
+    console.error('Regional Auth Pulse Failure:', e.message);
+    throw new Error(e.message || "Unauthorized.");
   }
 }
 
@@ -40,8 +41,7 @@ async function getAuthorizedSuperAdmin(idToken: string) {
  * Consolidates global KPIs for the executive regional pulse.
  */
 export async function getRegionalStatsAction(idToken: string) {
-  const caller = await getAuthorizedSuperAdmin(idToken);
-  if (!caller) throw new Error("Unauthorized: Regional intelligence restricted to active Super Admin nodes.");
+  await getAuthorizedSuperAdmin(idToken);
 
   try {
     const [officesSnap, empSnap, rosterSnap, draftSnap] = await Promise.all([
@@ -87,10 +87,10 @@ export async function getRegionalStatsAction(idToken: string) {
 /**
  * getOfficeComparisonAction
  * Generates the performance comparison matrix across all ROC nodes for a specific week.
+ * Missing quota configuration is explicitly identified.
  */
 export async function getOfficeComparisonAction(idToken: string, weekId: string) {
-  const caller = await getAuthorizedSuperAdmin(idToken);
-  if (!caller) throw new Error("Unauthorized.");
+  await getAuthorizedSuperAdmin(idToken);
 
   try {
     const officesSnap = await adminDb.collection('offices').get();
@@ -130,6 +130,7 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
       const assignedCount = validAssignments.length;
       
       // COVERAGE LOGIC: Handle missing configs distinctly from zero demand
+      // If quota doc doesn't exist, we report 'null' so UI can show 'CONFIG_MISSING'
       const coverage = quotaSnap.exists 
         ? (requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : (assignedCount > 0 ? 100 : 0))
         : null; 
@@ -156,11 +157,11 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
 
 /**
  * getRegionalRosterAnalyticsAction
- * Provides day-wise trend analysis across the region.
+ * Provides day-wise trend analysis and shift demand analysis across the region.
+ * Distinguishes between Required shifts and Scheduled assignments.
  */
 export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: string) {
-  const caller = await getAuthorizedSuperAdmin(idToken);
-  if (!caller) throw new Error("Unauthorized.");
+  await getAuthorizedSuperAdmin(idToken);
 
   try {
     const [rosterSnap, quotaSnap] = await Promise.all([
@@ -209,11 +210,10 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
 
 /**
  * getRegionalLeaveAnalyticsAction
- * Absence and unavailability pressure analysis.
+ * Absence and unavailability pressure analysis across all cluster nodes.
  */
 export async function getRegionalLeaveAnalyticsAction(idToken: string) {
-  const caller = await getAuthorizedSuperAdmin(idToken);
-  if (!caller) throw new Error("Unauthorized.");
+  await getAuthorizedSuperAdmin(idToken);
 
   try {
     const leaveSnap = await adminDb.collection('employee_leaves').get();
@@ -231,12 +231,20 @@ export async function getRegionalLeaveAnalyticsAction(idToken: string) {
       other: leaves.filter(l => l.type === 'other').length
     };
 
+    // Calculate office-wise pressure (Total approved leaves per office)
+    const officePressure: Record<string, number> = {};
+    leaves.filter(l => l.status === 'approved').forEach(l => {
+      const off = l.office || 'UNMAPPED';
+      officePressure[off] = (officePressure[off] || 0) + 1;
+    });
+
     return {
       success: true,
       data: {
         total: leaves.length,
         statusBreakdown,
         typeBreakdown,
+        officePressure,
         timestamp: new Date().toISOString()
       }
     };
