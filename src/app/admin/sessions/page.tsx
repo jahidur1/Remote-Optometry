@@ -139,7 +139,7 @@ export default function AdminSessionManager() {
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
@@ -233,7 +233,7 @@ export default function AdminSessionManager() {
                     )}>
                       <TableCell className="pl-10 py-8 border-r border-slate-100">
                         <div className="flex flex-col gap-1.5">
-                          <span className="font-black text-[17px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp?.fullName || 'Unmapped Node'}</span>
+                          <span className="font-black text-[17px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp?.fullName || 'Unmapped Identity'}</span>
                           <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {s.employeeId}</Badge>
                         </div>
                       </TableCell>
@@ -316,8 +316,8 @@ export default function AdminSessionManager() {
                   );
                 })
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -328,7 +328,7 @@ export default function AdminSessionManager() {
                <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Governance Protocol</p>
+               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Governance Protocol Hub</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
                   "Device sessions are immutably linked to the clinical registry. Revocation is immediate across all cluster hubs. 
                   Mandatory 365-day security deadlines ensure that dormant or compromised sessions are automatically neutralized within the solar cycle."

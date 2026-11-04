@@ -190,11 +190,11 @@ export default function QuotaConfiguration() {
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
                   {authorizedOffices.map(o => (
                     <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
-                      {o.officeName} [{o.shortCode}]
+                      {o.officeName} [{o.shortCode}] Hub
                     </SelectItem>
                   ))}
                   {authorizedOffices.length === 0 && !registryLoading && (
-                    <div className="p-4 text-[10px] font-black uppercase text-destructive">No Authorized Centers</div>
+                    <div className="p-4 text-[10px] font-black uppercase text-destructive text-center">No Authorized Centers</div>
                   )}
                 </SelectContent>
               </Select>

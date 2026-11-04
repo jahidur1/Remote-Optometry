@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -176,12 +177,12 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Center</Label>
                     <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                        <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Center"} />
+                        <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
                         {registryOffices?.map(o => (
                           <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] uppercase py-3 rounded-xl">
-                            {o.officeName} [{o.shortCode}]
+                            {o.officeName} [{o.shortCode}] Hub
                           </SelectItem>
                         ))}
                       </SelectContent>

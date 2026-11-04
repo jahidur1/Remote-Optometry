@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -51,7 +52,7 @@ export default function AuditLogs() {
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4">
-      {/* Precision Header Node */}
+      {/* Precision Header Hub */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -99,7 +100,7 @@ export default function AuditLogs() {
           { label: 'Trace Volume', value: stats.total, sub: 'Cached Events', icon: Database, color: 'text-primary' },
           { label: 'Active Actors', value: stats.actors, sub: 'Authorized IDs', icon: User, color: 'text-secondary' },
           { label: 'Sync Integrity', value: '100%', sub: 'Compliance Verified', icon: ShieldCheck, color: 'text-secondary' },
-          { label: 'Protocol Node', value: 'V2.0', sub: 'Enterprise Standard', icon: Zap, color: 'text-black' }
+          { label: 'Protocol Hub', value: 'V2.0', sub: 'Enterprise Standard', icon: Zap, color: 'text-black' }
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -149,7 +150,7 @@ export default function AuditLogs() {
               <tr className="border-b border-slate-100">
                 <th className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left">Actor Identity</th>
                 <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left px-8">Administrative Action</th>
-                <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left px-8">Target Node</th>
+                <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left px-8">Target Hub</th>
                 <th className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Execution Pulse (IST)</th>
               </tr>
             </thead>
@@ -176,7 +177,7 @@ export default function AuditLogs() {
                           </div>
                           <div className="flex flex-col gap-1">
                              <span className="font-black text-[14px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{log.actorId}</span>
-                             <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">{log.details?.platform || 'NODE_SYS'}</span>
+                             <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">{log.details?.platform || 'SYS_AUTH'}</span>
                           </div>
                        </div>
                     </td>
@@ -221,7 +222,7 @@ export default function AuditLogs() {
                <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Registry Protocol node</p>
+               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Registry Protocol Hub</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
                   "Audit logs are immutably linked to the clinical cluster pulse. Every administrative transaction—including 
                   roster publication and session revocation—is strictly recorded with temporal integrity markers."

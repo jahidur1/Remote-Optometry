@@ -140,12 +140,12 @@ export default function WeekOffConfiguration() {
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={office} onValueChange={setOffice}>
                 <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
-                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Node..."} />
+                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
                   {authorizedOffices.map(o => (
                     <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
-                      {o.officeName} [{o.shortCode}]
+                      {o.officeName} [{o.shortCode}] Hub
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -163,7 +163,7 @@ export default function WeekOffConfiguration() {
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">LIVE SYNC</span>
@@ -190,7 +190,7 @@ export default function WeekOffConfiguration() {
                 </div>
                 <div>
                   <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Unit Parameters</CardTitle>
-                  <CardDescription className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-2">Node Assignment</CardDescription>
+                  <CardDescription className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-2">Unit Assignment</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -294,7 +294,7 @@ export default function WeekOffConfiguration() {
                     <TableHead className="py-6 px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">ROC Cluster</TableHead>
                     <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Cycle</TableHead>
                     <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Execution Window (IST)</TableHead>
-                    <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Node Status</TableHead>
+                    <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Hub Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">

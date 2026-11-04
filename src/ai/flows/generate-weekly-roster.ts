@@ -3,7 +3,7 @@
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Refactored: Uses dynamic Office Registry for node validation.
+ * Refactored: Uses dynamic Office Registry for center validation.
  */
 
 import { ai } from '@/ai/genkit';

@@ -27,7 +27,7 @@ To provision the first Super Admin account without using automated scripts, foll
    - `gender`: "Male"
    - `id`: "ROC-SADMIN-001"
 
-### Phase C: Governance Node Binding
+### Phase C: Governance Profile Binding
 1. Create a collection named `users`.
 2. Create a document with **ID**: [PASTE THE UID FROM PHASE A].
 3. Add the following fields:

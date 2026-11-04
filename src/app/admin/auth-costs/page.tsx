@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -14,11 +15,11 @@ import {
   Activity, 
   Database, 
   Zap, 
-  ArrowUpRight,
-  Clock,
-  Terminal,
-  Server,
-  BarChart3
+  ArrowUpRight, 
+  Clock, 
+  Terminal, 
+  Server, 
+  BarChart3 
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
 import { DemoBadge } from '@/components/ui/demo-badge';
@@ -92,7 +93,7 @@ export default function AuthCostDashboard() {
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Billing Node</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Billing Hub</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
@@ -149,7 +150,7 @@ export default function AuthCostDashboard() {
                           dataKey="name" 
                           axisLine={false} 
                           tickLine={false} 
-                          tick={{ fontSize: 10, fontWeight: 900, fill: 'rgba(0,0,0,0.4)' }} 
+                          tick={{ fontSize: 10, fontWeights: 900, fill: 'rgba(0,0,0,0.4)' }} 
                         />
                         <YAxis 
                           axisLine={false} 
@@ -200,7 +201,7 @@ export default function AuthCostDashboard() {
                         <Server className="size-6" />
                     </div>
                     <div className="space-y-1">
-                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Gateway Node</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Gateway Hub</p>
                         <p className="text-lg font-black text-black uppercase tracking-tight leading-none">+91 Endpoint Only</p>
                     </div>
                 </div>
@@ -216,7 +217,7 @@ export default function AuthCostDashboard() {
                <ArrowUpRight className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Protocol node</p>
+               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Protocol Hub</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
                   "Cost estimates are derived from verified `AUTH_OTP_REQUEST` pulses within the immutable trace ledger. 
                   SMS pricing is subject to regional carrier adjustments and is synchronized with the Meta Cloud API distribution metrics."

@@ -120,7 +120,7 @@ export default function AvailabilitySummary() {
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
@@ -171,7 +171,7 @@ export default function AvailabilitySummary() {
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-b border-slate-100">
-                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Daily Clinical Node</TableHead>
+                <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Daily Clinical Unit</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Active Pool</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Confirmed Off</TableHead>
                 <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Net Capacity</TableHead>
@@ -234,9 +234,9 @@ export default function AvailabilitySummary() {
                <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Guard node</p>
+               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Guard Hub</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "Availability calculations serve as the mathematical **ceiling** for the CP-SAT optimization node. 
+                  "Availability calculations serve as the mathematical **ceiling** for the CP-SAT optimization logic. 
                   Any staffing quota exceeding this threshold will trigger an INFEASIBLE state to prevent clinical 
                   double-assignments and protect professional off-time integrity."
                </p>
