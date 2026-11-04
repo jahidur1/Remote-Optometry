@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -169,5 +170,3 @@ service cloud.firestore {
     }
   }
 }
-// Deployment Pulse: Institutional Rules Finalized & Hardened
-// Timestamp: 2024-05-20T11:30:00Z
