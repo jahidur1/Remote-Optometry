@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,8 @@ import {
   ShieldAlert,
   ArrowRightLeft,
   Key,
-  Network
+  Network,
+  Globe
 } from "lucide-react"
 
 import {
@@ -47,6 +47,7 @@ const navGroups = [
     label: "Intelligence",
     items: [
       { title: "Command Center", url: "/admin", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Regional Hub", url: "/admin/regional", icon: Globe, roles: ["SUPER_ADMIN"] },
       { title: "Analytics Hub", url: "/admin/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN"] },
     ]
   },
