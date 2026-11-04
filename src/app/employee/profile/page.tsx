@@ -9,15 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, Phone, ShieldCheck, Loader2, LogOut, Building2, Calendar, Lock, ArrowLeft, Laptop } from "lucide-react";
+import { User, Mail, Phone, ShieldCheck, Loader2, LogOut, Building2, Calendar, Lock, ArrowLeft, Laptop, Key } from "lucide-react";
 import { logAudit } from '@/lib/audit';
-import { signOut } from 'firebase/auth';
+import { signOut, linkWithPhoneNumber, PhoneAuthProvider, PhoneMultiFactorGenerator, RecaptchaVerifier } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function EmployeeProfile() {
-  const { profile, loading: userLoading } = useUser();
+  const { user, profile, loading: userLoading } = useUser();
   const db = useFirestore();
   const auth = useAuth();
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function EmployeeProfile() {
   
   const [empData, setEmpData] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [linkingPhone, setLinkingPhone] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -50,8 +51,6 @@ export default function EmployeeProfile() {
     if (!profile?.employeeId) return;
     setSaving(true);
     try {
-      // CRITICAL: Filter fields to satisfy the 'only(['age'])' security rule for employees.
-      // Email updates must be initiated via administrative identity pulse.
       const empRef = doc(db, 'employees', profile.employeeId);
       await updateDoc(empRef, {
         age: parseInt(formData.age) || 0
@@ -136,12 +135,24 @@ export default function EmployeeProfile() {
             </div>
           </div>
           
-          <div className="pt-6 border-t border-dashed">
-            <Link href="/employee/sessions" className="block">
-              <Button variant="outline" className="w-full h-14 border-2 border-primary/5 hover:bg-muted font-black uppercase text-[10px] tracking-[0.3em] rounded-2xl transition-all">
-                <Laptop className="size-4 mr-3 text-secondary" /> Manage Authorized Devices
-              </Button>
-            </Link>
+          <div className="pt-10 border-t border-dashed space-y-6">
+            <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase text-black/40 tracking-[0.2em] ml-1">Governance Protocols</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <Link href="/employee/sessions">
+                        <Button variant="outline" className="w-full h-14 border-2 border-slate-100 hover:bg-slate-50 font-black uppercase text-[9px] tracking-[0.2em] rounded-2xl transition-all">
+                            <Laptop className="size-4 mr-3 text-secondary" /> Authorized Devices
+                        </Button>
+                    </Link>
+                    <Button 
+                        variant="outline" 
+                        className="w-full h-14 border-2 border-slate-100 hover:bg-slate-50 font-black uppercase text-[9px] tracking-[0.2em] rounded-2xl transition-all"
+                        onClick={() => toast({ title: "Institutional Guard", description: "Consolidated login identities are managed by server-side registry sync." })}
+                    >
+                        <ShieldCheck className="size-4 mr-3 text-emerald-500" /> Identity Consolidated
+                    </Button>
+                </div>
+            </div>
           </div>
         </CardContent>
         <CardFooter className="bg-muted/20 p-10 flex flex-col sm:flex-row justify-between items-center gap-8 border-t">
@@ -154,7 +165,7 @@ export default function EmployeeProfile() {
                   <p className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest opacity-60">Audit Protection Level 4</p>
                </div>
             </div>
-            <Button className="w-full sm:w-auto bg-primary h-16 px-14 font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:scale-105 transition-all" onClick={handleSave} disabled={saving}>
+            <Button className="w-full sm:w-auto bg-primary h-16 px-14 font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:scale-105 transition-all text-white" onClick={handleSave} disabled={saving}>
                 {saving ? 'Syncing...' : 'Update Records'}
             </Button>
         </CardFooter>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -16,7 +15,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,12 +72,20 @@ export default function LoginPage() {
       const snap = await getDocs(q);
       
       if (!snap.empty) {
-        const employee = snap.docs[0].data();
+        const employeeDoc = snap.docs[0];
+        const employee = employeeDoc.data();
         
         if (employee.status === 'Suspended' || employee.status === 'Inactive') {
           await signOut(auth);
           throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
         }
+
+        // CONSOLIDATION LOGIC: Update employee record with latest auth UID
+        // This ensures the person is treated as one professional even with fragmented Auth records.
+        await updateDoc(doc(db, 'employees', employee.id), {
+          authUid: user.uid,
+          updatedAt: new Date().toISOString()
+        });
 
         const userRef = doc(db, 'users', user.uid);
         const userData = {
@@ -93,9 +100,7 @@ export default function LoginPage() {
           lastLogin: new Date().toISOString()
         };
 
-        setDoc(userRef, userData, { merge: true }).catch(err => {
-            console.error("Registry Sync Delayed:", err);
-        });
+        await setDoc(userRef, userData, { merge: true });
         
         await createOrUpdateSession(db, user.uid, employee.id);
         logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
@@ -126,13 +131,6 @@ export default function LoginPage() {
     try {
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      if (!userCredential.user.emailVerified) {
-        toast({ title: "Email Unverified", description: "Please check your inbox for the verification pulse." });
-        setLoading(false);
-        return;
-      }
-
       await handleSyncProfile(userCredential.user);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Auth Failure", description: "Invalid credentials or unauthorized identity." });

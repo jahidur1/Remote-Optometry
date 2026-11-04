@@ -101,7 +101,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         throw new Error(result.error);
       }
     } catch (error: any) {
-      toast({ title: 'Registry Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Registry Error', description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
