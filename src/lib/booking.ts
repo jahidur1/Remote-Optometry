@@ -16,6 +16,7 @@ export type BookingResult = {
 
 /**
  * Performs an atomic weekly-off booking using Firestore Transactions.
+ * Hardened to ensure strict quota enforcement under high concurrency.
  */
 export async function bookWeeklyOff(
   db: Firestore,
@@ -39,6 +40,7 @@ export async function bookWeeklyOff(
       const config = configDoc.data();
       const employee = employeeDoc.data();
 
+      // 1. Authorization Pulse
       if (config.office !== employee.office) {
         return { success: false, message: `Unauthorized: Your profile is assigned to ${employee.office}.` };
       }
@@ -47,6 +49,7 @@ export async function bookWeeklyOff(
         return { success: false, message: "Access Denied: Your account is suspended." };
       }
 
+      // 2. Window Integrity Check
       const now = new Date();
       if (now < new Date(config.bookingOpen)) {
         return { success: false, message: "The booking pulse has not yet initiated." };
@@ -63,13 +66,15 @@ export async function bookWeeklyOff(
         return { success: false, message: "A reservation already exists for your ID this week." };
       }
 
-      const totalQuota = config.quotas?.[dayOfWeek] || 0;
-      const currentBooked = config.booked?.[dayOfWeek] || 0;
+      // 3. Strict Quota Enforcement (Deterministic Read-Check)
+      const totalQuota = Number(config.quotas?.[dayOfWeek]) || 0;
+      const currentBooked = Number(config.booked?.[dayOfWeek]) || 0;
 
       if (currentBooked >= totalQuota) {
         return { success: false, message: "sorry currently no slot available in this day you choice, you can select different day as a week off" };
       }
 
+      // 4. Atomic Commit
       transaction.set(bookingRef, {
         id: bookingId,
         weekId: config.weekId,
@@ -81,20 +86,24 @@ export async function bookWeeklyOff(
         actorId,
       });
 
+      // Update the counter in the config document using the read-verified value
       transaction.update(configRef, {
-        [`booked.${dayOfWeek}`]: increment(1),
+        [`booked.${dayOfWeek}`]: currentBooked + 1,
         updatedAt: serverTimestamp()
       });
 
       return { success: true, message: `successfully booking week off on ${dayOfWeek}` };
     });
   } catch (error: any) {
-    const permissionError = new FirestorePermissionError({
-      path: configRef.path,
-      operation: 'update',
-      requestResourceData: { dayOfWeek, increment: 1 }
-    } satisfies SecurityRuleContext);
-    errorEmitter.emit('permission-error', permissionError);
+    // If we have a permission error, emit for debugging
+    if (error.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+          path: configRef.path,
+          operation: 'update',
+          requestResourceData: { dayOfWeek, action: 'increment' }
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+    }
 
     return { success: false, message: "A network conflict occurred during reservation. Please refresh and try again." };
   }

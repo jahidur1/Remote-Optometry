@@ -50,6 +50,7 @@ export default function WeekOffConfiguration() {
   const [quotas, setQuotas] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [exists, setExists] = useState(false);
+  const [currentBookedMap, setCurrentBookedMap] = useState<Record<string, number>>({});
 
   const db = useFirestore();
   const { profile } = useUser();
@@ -100,10 +101,13 @@ export default function WeekOffConfiguration() {
         setOpenTime(data.bookingOpen || '');
         setCloseTime(data.bookingClose || '');
         setQuotas(data.quotas || {});
+        setCurrentBookedMap(data.booked || {});
         setExists(true);
       } else {
         setOpenTime('');
         setCloseTime('');
+        setQuotas({});
+        setCurrentBookedMap({});
         setExists(false);
       }
     });
@@ -136,6 +140,12 @@ export default function WeekOffConfiguration() {
     const configId = `${weekId}_${office}`;
     const configRef = doc(db, 'weekoff_configs', configId);
     
+    // Ensure all active days have a booked entry to prevent NaN in UI
+    const finalBookedMap = { ...currentBookedMap };
+    activeDays.forEach(day => {
+      if (finalBookedMap[day] === undefined) finalBookedMap[day] = 0;
+    });
+
     const payload = {
       id: configId,
       weekId,
@@ -143,7 +153,7 @@ export default function WeekOffConfiguration() {
       bookingOpen: openTime,
       bookingClose: closeTime,
       quotas,
-      booked: exists ? {} : activeDays.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
+      booked: finalBookedMap,
       status: 'scheduled',
       updatedAt: new Date().toISOString(),
       actorId: profile?.uid,

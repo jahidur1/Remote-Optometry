@@ -60,7 +60,7 @@ export default function BookOffPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Stable Config Query - Using instrumented hook
+  // Stable Config Query - Using instrumented hook for reactivity
   const configQuery = useMemo(() => {
     if (!profile?.office) return null;
     return query(
@@ -74,9 +74,9 @@ export default function BookOffPage() {
   const { data: configs, loading: configLoading } = useCollection(configQuery);
   const activeConfig = configs?.[0] || null;
 
-  // Stable Booking Doc
+  // Stable Booking Doc to verify existing reservation
   const bookingId = activeConfig && profile?.employeeId ? `${activeConfig.weekId}_${profile.employeeId}` : null;
-  const { data: userBooking, loading: bookingLoading } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
+  const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
 
   const handleBook = async (day: string) => {
     if (!profile?.employeeId || !activeConfig) return;
@@ -91,7 +91,7 @@ export default function BookOffPage() {
     );
 
     if (result.success) {
-      toast({ title: "Reservation Locked", description: result.message });
+      toast({ title: "Reservation Pulse Locked", description: result.message });
     } else {
       toast({ variant: "destructive", title: "Conflict Encountered", description: result.message });
     }
@@ -100,12 +100,12 @@ export default function BookOffPage() {
 
   const getDayStatus = (day: string) => {
     if (!activeConfig) return null;
-    const quota = activeConfig.quotas?.[day] || 0;
-    const booked = activeConfig.booked?.[day] || 0;
+    const quota = Number(activeConfig.quotas?.[day]) || 0;
+    const booked = Number(activeConfig.booked?.[day]) || 0;
     const remaining = Math.max(0, quota - booked);
     const percent = quota > 0 ? (booked / quota) * 100 : 100;
 
-    if (remaining === 0) return { label: "FULL", color: "destructive", disabled: true, remaining, percent };
+    if (remaining <= 0) return { label: "FULL", color: "destructive", disabled: true, remaining: 0, percent: 100 };
     if (percent > 80) return { label: "CRITICAL", color: "secondary", disabled: false, remaining, percent };
     return { label: "AVAILABLE", color: "default", disabled: false, remaining, percent };
   };
