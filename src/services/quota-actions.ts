@@ -2,6 +2,7 @@
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { logAuditServer } from './audit-service';
 import { assertOfficeActive } from '@/lib/office-utils';
 

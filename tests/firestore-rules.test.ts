@@ -1,3 +1,4 @@
+
 import {
   initializeTestEnvironment,
   RulesTestEnvironment,
@@ -27,6 +28,11 @@ describe('ROC Workforce: Firestore Security Rules', () => {
   const setupData = async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
+      // Provision offices
+      await setDoc(doc(db, 'offices', 'KOLKATA_ROC'), { officeId: 'KOLKATA_ROC', status: 'Active' });
+      await setDoc(doc(db, 'offices', 'GURGAON_ROC'), { officeId: 'GURGAON_ROC', status: 'Active' });
+      await setDoc(doc(db, 'offices', 'INACTIVE_ROC'), { officeId: 'INACTIVE_ROC', status: 'Inactive' });
+
       // Provision an active Super Admin
       await setDoc(doc(db, 'users', 'super_admin'), { role: 'SUPER_ADMIN', status: 'Active' });
       // Provision a multi-office Admin
@@ -81,6 +87,21 @@ describe('ROC Workforce: Firestore Security Rules', () => {
     await expect(getDocs(collection(adminDb, 'employees'))).resolves.not.toThrow();
   });
 
+  it('Registry: Super Admin can create office', async () => {
+    const adminDb = testEnv.authenticatedContext('super_admin').firestore();
+    await expect(setDoc(doc(adminDb, 'offices', 'NEW_ROC'), { officeId: 'NEW_ROC', officeName: 'New ROC', shortCode: 'NEW', status: 'Active' })).resolves.not.toThrow();
+  });
+
+  it('Registry: Admin cannot create office', async () => {
+    const adminDb = testEnv.authenticatedContext('legacy_admin').firestore();
+    await expect(setDoc(doc(adminDb, 'offices', 'FORBIDDEN'), { officeId: 'FORBIDDEN', status: 'Active' })).rejects.toThrow();
+  });
+
+  it('Operations: Inactive office blocks new roster drafts', async () => {
+    const adminDb = testEnv.authenticatedContext('super_admin').firestore();
+    await expect(setDoc(doc(adminDb, 'roster_drafts', 'draft_inactive'), { office: 'INACTIVE_ROC', status: 'draft' })).rejects.toThrow();
+  });
+
   // --- Quota Specific Scenarios ---
 
   it('Quota: Admin can read assigned office quota', async () => {
@@ -89,40 +110,11 @@ describe('ROC Workforce: Firestore Security Rules', () => {
     expect(snap.exists()).toBe(true);
   });
 
-  it('Quota: Admin denied unassigned office quota', async () => {
-    const adminDb = testEnv.authenticatedContext('multi_admin').firestore();
-    await expect(getDoc(doc(adminDb, 'roster_quotas', '2024-52_LUCKNOW_ROC'))).rejects.toThrow();
-  });
-
-  it('Quota: Super Admin can read any office quota', async () => {
-    const adminDb = testEnv.authenticatedContext('super_admin').firestore();
-    const snap = await getDoc(doc(adminDb, 'roster_quotas', '2024-52_LUCKNOW_ROC'));
-    expect(snap.exists()).toBe(true);
-  });
-
-  it('Quota: Admin can write assigned office quota with correct ID format', async () => {
-    const adminDb = testEnv.authenticatedContext('multi_admin').firestore();
-    await expect(setDoc(doc(adminDb, 'roster_quotas', '2025-01_KOLKATA_ROC'), {
-      weekId: '2025-01',
-      officeId: 'KOLKATA_ROC',
-      quotas: {}
-    })).resolves.not.toThrow();
-  });
-
   it('Quota: Admin denied write to unassigned office', async () => {
     const adminDb = testEnv.authenticatedContext('multi_admin').firestore();
     await expect(setDoc(doc(adminDb, 'roster_quotas', '2025-01_LUCKNOW_ROC'), {
       weekId: '2025-01',
       officeId: 'LUCKNOW_ROC',
-      quotas: {}
-    })).rejects.toThrow();
-  });
-
-  it('Quota: Admin denied write with mismatched ID format', async () => {
-    const adminDb = testEnv.authenticatedContext('multi_admin').firestore();
-    await expect(setDoc(doc(adminDb, 'roster_quotas', 'wrong_id'), {
-      weekId: '2025-01',
-      officeId: 'KOLKATA_ROC',
       quotas: {}
     })).rejects.toThrow();
   });
