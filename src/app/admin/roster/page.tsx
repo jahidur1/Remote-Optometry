@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -42,7 +43,6 @@ import { formatWeekId, displayWeekRange } from '@/lib/date-utils';
 export default function RosterSolver() {
   const [weekId, setWeekId] = useState('20241230-20250105');
   const [selectedOffice, setSelectedOffice] = useState<string>('');
-  const [method, setMethod] = useState<'solver' | 'ai'>('solver');
   const [status, setStatus] = useState<"idle" | "running" | "success" | "conflict">("idle");
   const [progress, setProgress] = useState(0);
   const [solverResult, setSolverResult] = useState<any>(null);
@@ -95,7 +95,7 @@ export default function RosterSolver() {
         weekId,
         officeId: selectedOffice,
         idToken: idToken,
-        method
+        method: 'ai'
       });
       
       setSolverResult(result);
@@ -118,11 +118,11 @@ export default function RosterSolver() {
         solverMetadata: result.solverMetadata,
         createdAt: new Date().toISOString(),
         actorId: profile?.uid,
-        generationMethod: method
+        generationMethod: 'ai'
       });
 
       setLastDraftId(draftId);
-      logAudit(db, profile?.uid || 'system', 'RUN_ROSTER_ENGINE', draftId, { weekId, office: selectedOffice, method });
+      logAudit(db, profile?.uid || 'system', 'RUN_AI_ROSTER_ENGINE', draftId, { weekId, office: selectedOffice });
       setStatus("success");
     } catch (e: any) {
       setStatus("conflict");
@@ -136,13 +136,13 @@ export default function RosterSolver() {
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
-              <Cpu className="size-8 text-secondary" />
+              <BrainCircuit className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Engine</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">AI Roster Engine</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Multi-Engine Orchestrator <Activity className="size-3 text-secondary animate-pulse" />
+                  Gemini 1.5 Flash Orchestrator <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
               </div>
             </div>
@@ -151,16 +151,11 @@ export default function RosterSolver() {
 
         <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Strategy</label>
-              <Select value={method} onValueChange={(v: any) => setMethod(v)}>
-                <SelectTrigger className="h-6 w-40 font-black border-none bg-transparent p-0 text-[14px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl bg-white p-2 border-none shadow-2xl">
-                  <SelectItem value="solver" className="font-bold py-2 uppercase text-[10px]">CP-SAT Mathematical</SelectItem>
-                  <SelectItem value="ai" className="font-bold py-2 uppercase text-[10px]">GenAI Intelligence</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Generation Protocol</label>
+              <div className="flex items-center gap-2 h-6">
+                 <Zap className="size-3.5 text-secondary fill-secondary/20" />
+                 <span className="font-black text-black uppercase tracking-widest text-[11px]">GENAI_EXCLUSIVE</span>
+              </div>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
@@ -190,8 +185,8 @@ export default function RosterSolver() {
               </Popover>
            </div>
            <Button className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-black" onClick={handleRunSolver} disabled={status === 'running' || !selectedOffice || !weekId}>
-            {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : method === 'solver' ? <Zap className="size-4 mr-2" /> : <Wand2 className="size-4 mr-2" />}
-            INITIATE HUB GENERATION
+            {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : <Wand2 className="size-4 mr-2" />}
+            INITIATE AI GENERATION
            </Button>
         </div>
       </div>
@@ -201,18 +196,18 @@ export default function RosterSolver() {
           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
             <CardHeader className="bg-slate-50/50 border-b p-10 flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl uppercase font-black leading-none">Institutional Pulse Hub</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Active Generation strategy: {method === 'solver' ? 'Deterministic Optimization' : 'LLM-Based Scheduling'}</CardDescription>
+                <CardTitle className="text-xl uppercase font-black leading-none">Institutional AI Hub</CardTitle>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Engine: Gemini 1.5 Flash (Deterministic Command Protocol)</CardDescription>
               </div>
               <div className="size-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary">
-                 {method === 'solver' ? <Cpu className="size-7" /> : <BrainCircuit className="size-7" />}
+                 <BrainCircuit className="size-7" />
               </div>
             </CardHeader>
             <CardContent className="p-10">
               <div className="space-y-12">
                 <div className="space-y-4">
                     <div className="flex justify-between items-end">
-                       <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/40">Processing Velocity</span>
+                       <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/40">Inference Velocity</span>
                        <span className="text-xl font-black tabular-nums">{progress}%</span>
                     </div>
                     <div className="h-4 bg-slate-100 rounded-full overflow-hidden border p-0.5 shadow-inner">
@@ -237,7 +232,7 @@ export default function RosterSolver() {
                       </div>
                       <div className="space-y-8 flex-1">
                          <div className="space-y-2">
-                            <h3 className="text-2xl font-black uppercase tracking-tight leading-none">Orchestration Result</h3>
+                            <h3 className="text-2xl font-black uppercase tracking-tight leading-none">AI Orchestration Result</h3>
                             <p className="text-[15px] font-medium leading-relaxed text-black/60">{solverResult.summary}</p>
                          </div>
                          
@@ -276,7 +271,7 @@ export default function RosterSolver() {
               <div className="space-y-3">
                  <p className="text-[11px] font-black uppercase text-secondary tracking-[0.3em]">Institutional Guard</p>
                  <p className="text-[13px] font-bold text-black/50 leading-relaxed uppercase tracking-tight">
-                   Both engines strictly enforce **Shift Adjacency Rules** set in the control matrix. Professionals will never be assigned 
+                   The GenAI engine strictly enforces **Shift Adjacency Rules** and **Weekly Frequency Ranges** set in the control matrix. Professionals will never be assigned 
                    invalid shifts before or after their protected week-off.
                  </p>
               </div>

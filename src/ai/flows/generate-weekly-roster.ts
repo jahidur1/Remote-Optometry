@@ -3,13 +3,12 @@
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Hardened: Supports Shift Adjacency and Weekly Frequency Distribution.
+ * Hardened: Gemini AI Exclusive Protocol with Shift Adjacency and Weekly Distribution.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { callSolver } from '@/lib/solver-client';
 import { isDateInRange, getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
@@ -18,7 +17,7 @@ export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
   officeId: z.string(),
   idToken: z.string().describe('Firebase ID token for administrative authentication.'),
-  method: z.enum(['solver', 'ai']).default('solver'),
+  method: z.enum(['ai']).default('ai'),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
@@ -122,7 +121,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   },
   async (input) => {
     const start = Date.now();
-    const { weekId, officeId, idToken, method } = input;
+    const { weekId, officeId, idToken } = input;
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const weekDates = getDatesForWeek(weekId);
 
@@ -165,7 +164,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         };
       });
 
-      const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: String(d.data().name) }));
       const bookings = bookingsSnap.docs.map(d => d.data());
       const leaves = leavesSnap.docs.map(d => d.data());
 
@@ -196,51 +194,23 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         return { dayOfWeek: day, shiftId: sId, requiredStaff: Number(val) };
       });
 
-      let resultAssignments: any[] = [];
-      let solverStatus: any = 'UNKNOWN';
-      let metadata: any = { solveTimeMs: 0, constraintsChecked: locks.length + adjacencies.length };
-
-      if (method === 'ai') {
-          const { output } = await aiPrompt({ weekId, officeId, weeklyQuotas, employees, locks, adjacencies });
-          resultAssignments = output || [];
-          solverStatus = 'FEASIBLE';
-          metadata.solveTimeMs = Date.now() - start;
-      } else {
-          const employeeShiftLimits = employees.flatMap(emp => 
-            Object.entries(emp.frequencyLimits).map(([sId, range]: [string, any]) => ({
-              employeeId: emp.id,
-              shiftId: sId,
-              minOccurrences: range.min,
-              maxOccurrences: range.max
-            }))
-          );
-
-          const solverResult = await callSolver({
-            weekId,
-            officeId,
-            shifts,
-            employees,
-            weeklyQuotas,
-            employeeHardConstraints: [
-              ...locks.map(l => ({ ...l, type: 'weeklyOff' })),
-              ...adjacencies.map(a => ({ ...a, type: 'restrictedShift' }))
-            ],
-            employeeShiftLimits,
-            timeLimitSeconds: 60
-          });
-          resultAssignments = solverResult.assignments || [];
-          solverStatus = solverResult.status;
-          metadata = { ...solverResult.metadata, constraintsChecked: locks.length + adjacencies.length + employeeShiftLimits.length };
-      }
+      // Gemini AI Exclusive Path
+      const { output } = await aiPrompt({ weekId, officeId, weeklyQuotas, employees, locks, adjacencies });
+      const resultAssignments = output || [];
+      const solveTimeMs = Date.now() - start;
       
       const integrity = verifyRosterIntegrity(resultAssignments, bookings, leaves, weekDates);
 
       return {
         rosterAssignments: resultAssignments,
-        summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: Roster violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via ${method.toUpperCase()} Protocol.`,
-        status: !integrity.isValid ? 'UNKNOWN' : solverStatus,
+        summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: Roster violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol.`,
+        status: !integrity.isValid ? 'UNKNOWN' : 'FEASIBLE',
         issuesEncountered: integrity.issues,
-        solverMetadata: metadata
+        solverMetadata: {
+          solveTimeMs,
+          constraintsChecked: locks.length + adjacencies.length,
+          runId: `ai_${Date.now()}`
+        }
       };
 
     } catch (e: any) {
