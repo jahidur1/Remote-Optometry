@@ -140,7 +140,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       password,
       displayName: formData.fullName,
       phoneNumber: phoneFormatted,
-      emailVerified: false
+      emailVerified: false // Forces verification on first login
     });
 
     const commonData = {

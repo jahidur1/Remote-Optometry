@@ -105,6 +105,6 @@ export function useUser() {
     sessionData,
     sessionValid,
     loading, 
-    emailVerified: true 
+    emailVerified: user?.emailVerified || false 
   };
 }

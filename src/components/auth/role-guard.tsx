@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Loader2, Clock } from 'lucide-react';
+import { Loader2, Clock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '@/firebase';
@@ -15,7 +14,7 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
-  const { user, profile, sessionValid, loading } = useUser();
+  const { user, profile, sessionValid, emailVerified, loading } = useUser();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -35,12 +34,20 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
       return;
     }
 
-    // 3. Authorization Check (Roles)
+    // 3. Email Verification Gate
+    // Skip if login is strictly via Phone (which doesn't have an email verification link flow)
+    const isEmailUser = user.providerData.some(p => p.providerId === 'password' || p.providerId === 'google.com');
+    if (isEmailUser && !emailVerified && pathname !== '/verify-email' && pathname !== '/login') {
+      router.push('/verify-email');
+      return;
+    }
+
+    // 4. Authorization Check (Roles)
     if (profile && !allowedRoles.includes(profile.role)) {
       router.push('/unauthorized');
       return;
     }
-  }, [user, profile, sessionValid, loading, allowedRoles, router, pathname]);
+  }, [user, profile, sessionValid, emailVerified, loading, allowedRoles, router, pathname]);
 
   if (loading) {
     return (
@@ -51,8 +58,8 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
-  // 4. Session Integrity Check (Server Revocation or 365-day Expired)
-  if (user && !sessionValid && pathname !== '/login') {
+  // 5. Session Integrity Check (Server Revocation or 365-day Expired)
+  if (user && !sessionValid && pathname !== '/login' && pathname !== '/verify-email') {
     return (
       <div className="flex h-screen items-center justify-center bg-primary p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 text-center space-y-6 shadow-2xl">
@@ -74,7 +81,7 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
 
   const isAuthorized = user && profile && sessionValid && allowedRoles.includes(profile.role) && profile.status !== 'Suspended';
 
-  if (!isAuthorized && pathname !== '/login' && pathname !== '/account-disabled' && pathname !== '/unauthorized') {
+  if (!isAuthorized && pathname !== '/login' && pathname !== '/account-disabled' && pathname !== '/unauthorized' && pathname !== '/verify-email') {
     return null;
   }
 
