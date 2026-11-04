@@ -44,6 +44,7 @@ export default function AdminSessionManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [revokingAll, setRevokingAll] = useState(false);
 
+  // Stable Authoritative Fetch (Latest 200 pulses)
   const sessionsQuery = useMemo(() => query(
     collection(db, 'sessions'), 
     orderBy('deadlineAt', 'desc'), 
@@ -54,7 +55,7 @@ export default function AdminSessionManager() {
   const { data: employees } = useCollection(query(collection(db, 'employees')));
 
   const stats = useMemo(() => {
-    if (!sessions) return null;
+    if (!sessions) return { active: 0, revoked: 0 };
     const active = sessions.filter(s => s.status === 'active').length;
     const revoked = sessions.filter(s => s.status === 'revoked').length;
     return { active, revoked };
@@ -150,8 +151,8 @@ export default function AdminSessionManager() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Authorized Devices', value: stats?.active || 0, sub: 'Active Pulse', icon: Monitor, color: 'text-primary' },
-          { label: 'Revoked Trace', value: stats?.revoked || 0, sub: 'Access Blocked', icon: ShieldX, color: 'text-destructive' },
+          { label: 'Authorized Devices', value: stats.active, sub: 'Active Pulse', icon: Monitor, color: 'text-primary' },
+          { label: 'Revoked Trace', value: stats.revoked, sub: 'Access Blocked', icon: ShieldX, color: 'text-destructive' },
           { label: 'Security Cycle', value: '365D', sub: 'Standard Persistent', icon: RefreshCcw, color: 'text-secondary' },
           { label: 'Auth Efficiency', value: '100%', sub: 'Integrity Verified', icon: ShieldCheck, color: 'text-black' }
         ].map((kpi, i) => (
@@ -220,7 +221,7 @@ export default function AdminSessionManager() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredSessions?.map((s) => {
+                filteredSessions?.map((s: any) => {
                   const emp = employees?.find(e => e.id === s.employeeId);
                   const deadline = s.deadlineAt instanceof Timestamp ? s.deadlineAt.toDate() : new Date(s.deadlineAt);
                   const expired = new Date() > deadline;
@@ -317,7 +318,7 @@ export default function AdminSessionManager() {
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </CardContent>
       </Card>
 

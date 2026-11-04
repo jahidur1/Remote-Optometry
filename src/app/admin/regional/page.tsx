@@ -22,7 +22,8 @@ import {
   Database, 
   FileSpreadsheet,
   AlertTriangle,
-  Info
+  Info,
+  Target
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
