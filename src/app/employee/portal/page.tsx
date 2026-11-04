@@ -12,14 +12,11 @@ import {
   CalendarDays, 
   CheckCircle2, 
   Loader2, 
-  Building2, 
-  Settings, 
   Activity, 
   Zap, 
   User, 
   ChevronLeft,
   ChevronRight,
-  History,
   Lock,
   RotateCcw
 } from "lucide-react"
@@ -33,7 +30,7 @@ import {
 } from "@/components/ui/carousel"
 import { getMyRosterAction } from "@/services/roster-actions"
 import { displayWeekRange, getDatesForWeek } from "@/lib/date-utils";
-import { format, startOfISOWeek, endOfISOWeek, subWeeks, addWeeks } from "date-fns";
+import { format, startOfISOWeek, subWeeks, addWeeks, addDays } from "date-fns";
 
 const DAYS_LIST = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -143,29 +140,17 @@ export default function EmployeePortal() {
     const now = new Date();
     const currentStart = startOfISOWeek(now);
     
-    const getWeekId = (date: Date) => {
-      const start = startOfISOWeek(date);
-      const end = addWeeks(start, 0); // Placeholder to match range logic
-      return `${format(start, 'yyyyMMdd')}-${format(addWeeks(start, 0), 'yyyyMMdd')}`; // Simplified ID
-    };
-
-    // Correct 7-day range weekId format: YYYYMMDD-YYYYMMDD
     const generateId = (start: Date) => {
-      const end = addWeeks(start, 0); // Ensure consistency
-      return `${format(start, 'yyyyMMdd')}-${format(addWeeks(start, 0), 'yyyyMMdd')}`; // This needs to match the admin picker
+      const end = addDays(start, 6);
+      return `${format(start, 'yyyyMMdd')}-${format(end, 'yyyyMMdd')}`;
     };
 
-    // Simplified for now - assuming Monday starts
     return [
       subWeeks(currentStart, 2),
       subWeeks(currentStart, 1),
       currentStart,
       addWeeks(currentStart, 1)
-    ].map(date => {
-       const s = format(date, 'yyyyMMdd');
-       const e = format(addWeeks(date, 0), 'yyyyMMdd'); // Placeholder
-       return `${s}-${format(addWeeks(date, 0), 'yyyyMMdd')}`; // Matches displayWeekRange logic
-    });
+    ].map(date => generateId(date));
   }, []);
 
   const currentWeekId = weeks[2];

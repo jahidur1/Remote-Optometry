@@ -99,10 +99,10 @@ service cloud.firestore {
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && (resource == null || isMemberOf(resource.data.office));
       allow create: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
-      allow update: if (isAdmin() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office))
-                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office) 
+      allow update: if (isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office))
+                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(request.resource.data.office) 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked', 'updatedAt']));
-      allow delete: if isSuperAdmin() || (isAdmin() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office));
+      allow delete: if isSuperAdmin();
     }
 
     match /weekoff_bookings/{bookingId} {
