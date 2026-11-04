@@ -111,7 +111,7 @@ export default function AdminSessionManager() {
   }, [sessions, employees, searchTerm]);
 
   return (
-    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">

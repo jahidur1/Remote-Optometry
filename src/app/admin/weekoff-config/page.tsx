@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, orderBy, doc, setDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, doc, setDoc, where, onSnapshot } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,6 @@ import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -45,6 +44,7 @@ export default function WeekOffConfiguration() {
     DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {})
   );
   const [loading, setLoading] = useState(false);
+  const [exists, setExists] = useState(false);
 
   const db = useFirestore();
   const { profile } = useUser();
@@ -68,6 +68,28 @@ export default function WeekOffConfiguration() {
       setOffice(authorizedOffices[0].officeId);
     }
   }, [authorizedOffices, office]);
+
+  // Load existing configuration if it exists for modification
+  useEffect(() => {
+    if (!db || !weekId || !office) return;
+    
+    const configId = `${weekId}_${office}`;
+    const unsub = onSnapshot(doc(db, 'weekoff_configs', configId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setOpenTime(data.bookingOpen || '');
+        setCloseTime(data.bookingClose || '');
+        setQuotas(data.quotas || DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {}));
+        setExists(true);
+      } else {
+        setOpenTime('');
+        setCloseTime('');
+        setQuotas(DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {}));
+        setExists(false);
+      }
+    });
+    return () => unsub();
+  }, [db, weekId, office]);
 
   const configsQuery = useMemo(() => {
     if (!office) return null;
@@ -98,16 +120,16 @@ export default function WeekOffConfiguration() {
         bookingOpen: openTime,
         bookingClose: closeTime,
         quotas,
-        booked: DAYS.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
+        booked: exists ? {} : DAYS.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}), // Preserve booked counts if updating
         status: 'scheduled',
         updatedAt: new Date().toISOString(),
         actorId: profile?.uid,
       };
 
-      await setDoc(configRef, payload);
-      logAudit(db, profile?.uid || 'system', 'CONFIGURE_WEEKOFF_OFFICE', configId, payload);
+      await setDoc(configRef, payload, { merge: true });
+      logAudit(db, profile?.uid || 'system', exists ? 'UPDATE_WEEKOFF_CONFIG' : 'CONFIGURE_WEEKOFF_OFFICE', configId, payload);
 
-      toast({ title: "Pulse Matrix Established", description: `FCFS window for ${office} secured in the registry.` });
+      toast({ title: exists ? "Registry Updated" : "Pulse established", description: `FCFS window for ${office} secured.` });
     } catch (e: any) {
       toast({ title: "Sync Failure", description: e.message, variant: "destructive" });
     } finally {
@@ -129,7 +151,6 @@ export default function WeekOffConfiguration() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   FCFS Pulse Control <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
@@ -162,20 +183,13 @@ export default function WeekOffConfiguration() {
                  <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
               </div>
            </div>
-           <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
-              <div className="flex items-center gap-2">
-                 <Database className="size-3 text-secondary" />
-                 <span className="font-black text-black uppercase tracking-widest text-[11px]">LIVE SYNC</span>
-              </div>
-           </div>
            <Button 
              className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
              onClick={handleSave} 
              disabled={loading || !office}
            >
             {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
-            {loading ? 'SYNCING...' : 'PUBLISH WINDOW'}
+            {loading ? 'SYNCING...' : exists ? 'UPDATE MATRIX' : 'PUBLISH WINDOW'}
            </Button>
         </div>
       </div>
