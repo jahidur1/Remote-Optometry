@@ -126,7 +126,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         adminDb.collection('shift_master').orderBy('displayOrder').get(),
         adminDb.collection('roster_quotas').doc(quotaId).get(),
         adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
-        adminDb.collection('employee_leaves').where('status', '==', 'approved').get(),
+        adminDb.collection('employee_leaves').where('office', '==', officeId).where('status', '==', 'approved').get(),
         adminDb.collection('shift_adjacency_rules').where('weekId', '==', weekId).where('office', '==', officeId).get(),
         adminDb.collection('employee_preferences').where('weekId', '==', weekId).where('office', '==', officeId).get()
       ]);
@@ -150,7 +150,15 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: String(d.data().name) }));
       const bookings = bookingsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
-      const leaves = leavesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      const leaves = leavesSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          ...data,
+          id: d.id,
+          startDate: String(data.startDate || ''),
+          endDate: String(data.endDate || '')
+        };
+      });
       const adjacencyRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
 
       // 4. Hard Constraint Synthesis (Including Adjacency Options)
@@ -187,7 +195,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         employees,
         weeklyQuotas,
         employeeHardConstraints,
-        employeeSoftPreferences: prefsSnap.docs.map(d => ({ employeeId: d.data().employeeId, dayOfWeek: d.data().dayOfWeek, shiftId: d.data().shiftId, weight: 1.0 })),
+        employeeSoftPreferences: prefsSnap.docs.map(d => ({ employeeId: String(d.data().employeeId), dayOfWeek: String(d.data().dayOfWeek), shiftId: String(d.data().shiftId), weight: 1.0 })),
         timeLimitSeconds: 60
       };
 

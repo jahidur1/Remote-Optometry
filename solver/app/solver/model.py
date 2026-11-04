@@ -53,55 +53,60 @@ class RosterSolver:
             )
 
         # --- 1. HARD CONSTRAINTS ---
+        
+        # A. Quota Fulfillment: Sum of assigned employees must match required quota for each shift-day
         for d in self.days:
             for s in self.shift_ids:
                 quota = next((q.requiredStaff for q in self.request.weeklyQuotas 
                              if q.dayOfWeek == d and q.shiftId == s), 0)
                 self.model.Add(sum(self.x[e.id, d, s] for e in self.employees) == quota)
 
+        # B. Single Shift Limit: Each professional can have at most one shift per day
         for e in self.employees:
             for d in self.days:
                 self.model.Add(sum(self.x[e.id, d, s] for s in self.shift_ids) <= 1)
 
+        # C. Mandatory Offs / Absences / Adjacency Rules
         for c in self.request.employeeHardConstraints:
             if c.type in ['weeklyOff', 'unavailable']:
+                # Professional cannot work any shift on these days
                 for s in self.shift_ids:
-                    self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
-            elif c.type == 'restrictedShift' and c.restrictedToShifts:
+                    if (c.employeeId, c.dayOfWeek, s) in self.x:
+                        self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
+            
+            elif c.type == 'restrictedShift' and c.restrictedToShifts is not None:
+                # Institutional Adjacency Rule: Professional MUST only work these specific shifts
                 allowed = set(c.restrictedToShifts)
                 for s in self.shift_ids:
-                    if s not in allowed:
+                    if s not in allowed and (c.employeeId, c.dayOfWeek, s) in self.x:
                         self.model.Add(self.x[c.employeeId, c.dayOfWeek, s] == 0)
 
         # --- 2. SOFT OBJECTIVES (Linear Weighted Sum) ---
         obj_terms = []
         
         # A. Historical Fairness (Minimize assigning demand shifts to high-count staff)
-        # Weight historical counts by the 'fairness' parameter
         fairness_weight = int(self.request.weights.fairness * 100)
         for e in self.employees:
             for d in self.days:
+                # We specifically track and balance SO (Super Opening) and OP (Opening)
                 if (e.id, d, "SO") in self.x:
                     obj_terms.append(self.x[e.id, d, "SO"] * (e.historicalSO + 1) * fairness_weight)
                 if (e.id, d, "OP") in self.x:
                     obj_terms.append(self.x[e.id, d, "OP"] * (e.historicalOP + 1) * fairness_weight)
 
-        # B. Preferences (Minimize dissatisfaction = Maximize satisfaction)
+        # B. Preferences (Maximize satisfaction = Subtract from minimization objective)
         pref_weight = int(self.request.weights.preferences * 100)
         for p in self.request.employeeSoftPreferences:
             if (p.employeeId, p.dayOfWeek, p.shiftId) in self.x:
-                # Maximize satisfaction: subtract from objective (minimization)
                 obj_terms.append(self.x[p.employeeId, p.dayOfWeek, p.shiftId] * (-10 * pref_weight))
 
-        # C. Gender Balance (Minimize deviation from targets)
+        # C. Gender Balance (Minimize deviation from target counts per shift)
         balance_weight = int(self.request.weights.genderBalance * 100)
         for target in self.request.genderTargets:
             for d in self.days:
-                # Variables for slack (deviation)
                 male_assigned = [self.x[e.id, d, target.shiftId] for e in self.employees if e.gender.lower() == 'male']
                 female_assigned = [self.x[e.id, d, target.shiftId] for e in self.employees if e.gender.lower() == 'female']
                 
-                # Soft target logic: Penalize deviation from target counts
                 if male_assigned:
                     m_slack = self.model.NewIntVar(0, len(self.employees), f'm_slack_{d}_{target.shiftId}')
                     self.model.Add(sum(male_assigned) - target.maleTarget <= m_slack)
@@ -122,8 +127,13 @@ class RosterSolver:
         status = solver.Solve(self.model)
         
         solve_duration_ms = (time.time() - start_time) * 1000
-        status_map = {cp_model.OPTIMAL: 'OPTIMAL', cp_model.FEASIBLE: 'FEASIBLE', 
-                      cp_model.INFEASIBLE: 'INFEASIBLE', cp_model.MODEL_INVALID: 'UNKNOWN', cp_model.UNKNOWN: 'UNKNOWN'}
+        status_map = {
+            cp_model.OPTIMAL: 'OPTIMAL', 
+            cp_model.FEASIBLE: 'FEASIBLE', 
+            cp_model.INFEASIBLE: 'INFEASIBLE', 
+            cp_model.MODEL_INVALID: 'UNKNOWN', 
+            cp_model.UNKNOWN: 'UNKNOWN'
+        }
 
         assignments = []
         pref_satisfied = 0
@@ -134,7 +144,6 @@ class RosterSolver:
                         if solver.Value(self.x[e.id, d, s]):
                             assignments.append(Assignment(employeeId=e.id, dayOfWeek=d, shiftId=s))
             
-            # Post-solve metrics
             for p in self.request.employeeSoftPreferences:
                 if solver.Value(self.x[p.employeeId, p.dayOfWeek, p.shiftId]):
                     pref_satisfied += 1
