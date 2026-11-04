@@ -16,7 +16,6 @@ import {
   ArrowRightLeft,
   Loader2
 } from "lucide-react"
-import { DemoBadge } from "@/components/ui/demo-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSolverHealthAction } from "@/services/solver-actions"
 import { getRegionalStatsAction, getOfficeDashboardStatsAction } from "@/services/analytics-actions"
@@ -65,7 +64,7 @@ export default function AdminDashboard() {
     if (isSuperAdmin) {
       return [
         { label: 'Cluster Centers', value: stats.totalOffices, sub: `${stats.activeOffices} Active`, icon: Globe, color: 'text-primary' },
-        { label: 'Workforce Pool', value: stats.totalEmployees, sub: `${stats.activeEmployees} Active`, icon: Users, color: 'text-secondary' },
+        { label: 'User Registry', value: stats.totalEmployees, sub: `${stats.activeEmployees} Active`, icon: Users, color: 'text-secondary' },
         { label: 'Global Deployment', value: stats.totalAssignments, sub: 'Scheduled Shifts', icon: Zap, color: 'text-secondary' },
         { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Awaiting Review', icon: PlaneTakeoff, color: 'text-destructive' }
       ];
@@ -77,6 +76,17 @@ export default function AdminDashboard() {
       { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Center Overrides', icon: PlaneTakeoff, color: 'text-destructive' }
     ];
   }, [stats, isSuperAdmin]);
+
+  const solverIndicator = useMemo(() => {
+    const status = solverHealth?.status;
+    if (status === 'healthy') {
+      return { label: 'ONLINE', color: 'bg-emerald-500 shadow-[0_0_10px_emerald]', pulse: false };
+    }
+    if (status === 'unconfigured') {
+      return { label: 'AWAITING SETUP', color: 'bg-slate-300', pulse: false };
+    }
+    return { label: 'OFFLINE', color: 'bg-destructive shadow-[0_0_10px_destructive]', pulse: true };
+  }, [solverHealth]);
 
   return (
     <div className="space-y-6 md:space-y-10 animate-in max-w-[1600px] mx-auto pb-24 md:pb-40 px-2 sm:px-4">
@@ -95,7 +105,6 @@ export default function AdminDashboard() {
                 <p className="text-muted-foreground font-black uppercase text-[8px] md:text-[10px] tracking-[0.2em] md:tracking-[0.25em] flex items-center gap-2">
                   {isSuperAdmin ? "Governance Hub" : `${officeName} Pulse`} <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
@@ -105,9 +114,9 @@ export default function AdminDashboard() {
            <div className="px-4 md:px-6 py-1 border-r border-slate-100 flex-1 lg:flex-none">
               <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">System Status</label>
               <div className="flex items-center gap-2">
-                 <div className={cn("size-2 rounded-full", solverHealth?.status === 'healthy' ? 'bg-emerald-500 shadow-[0_0_10px_emerald]' : 'bg-destructive animate-pulse')} />
+                 <div className={cn("size-2 rounded-full", solverIndicator.color, solverIndicator.pulse && "animate-pulse")} />
                  <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">
-                   {solverHealth?.status?.toUpperCase() || 'OFFLINE'}
+                   {solverIndicator.label}
                  </span>
               </div>
            </div>
@@ -121,7 +130,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* KPI Responsive Grid */}
+      {/* KPI Grid */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {loading ? (
           Array(4).fill(0).map((_, i) => (

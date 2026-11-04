@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmployeeDialog } from '@/components/admin/employee-dialog';
-import { DemoBadge } from '@/components/ui/demo-badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -115,7 +114,6 @@ export default function UserDetailsManagement() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Institutional Professionals <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>

@@ -38,7 +38,6 @@ import {
   Pie,
   Legend
 } from "recharts";
-import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
 import { 
   getRegionalStatsAction, 
@@ -141,7 +140,6 @@ export default function RegionalAnalytics() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Multi-ROC Governance Hub <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
