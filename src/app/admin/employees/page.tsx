@@ -129,7 +129,7 @@ export default function EmployeeManagement() {
 
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
-           <div className="flex gap-4 w-full max-w-xl">
+           <div className="flex gap-4 w-full max-wxl">
               <div className="relative w-full group">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
                 <Input 
