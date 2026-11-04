@@ -82,6 +82,7 @@ export default function EmployeePortal() {
   const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
   const [rosterLoading, setRosterLoading] = useState(true);
 
+  // Cycle Configuration
   const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
   const prev1Week = '2024-51';
@@ -117,7 +118,7 @@ export default function EmployeePortal() {
       }
     }
     syncRosters();
-  }, [auth.currentUser]);
+  }, [auth.currentUser, currentWeek]);
 
   useEffect(() => {
     if (!profile?.office || !db) return;
