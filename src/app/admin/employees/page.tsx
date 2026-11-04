@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, where } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser, useAuth } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,7 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { updateAccountStatusAction } from '@/services/identity-actions';
-import Link from 'next/link';
+import Link from 'next/navigation';
 
 export default function EmployeeManagement() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,10 +53,18 @@ export default function EmployeeManagement() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  const employeesQuery = useMemo(() => query(
-    collection(firestore, 'employees'),
-    orderBy('fullName', 'asc')
-  ), [firestore]);
+  const employeesQuery = useMemo(() => {
+    if (!profile) return null;
+    // CRITICAL: Scoping filter to satisfy hardened matchesOffice rules
+    if (profile.role === 'SUPER_ADMIN') {
+      return query(collection(firestore, 'employees'), orderBy('fullName', 'asc'));
+    }
+    return query(
+      collection(firestore, 'employees'),
+      where('office', '==', profile.office),
+      orderBy('fullName', 'asc')
+    );
+  }, [firestore, profile]);
 
   const { data: employees, loading } = useCollection(employeesQuery);
 

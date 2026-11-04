@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { collection, query, where } from 'firebase/firestore';
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -32,11 +32,25 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 
 export default function AvailabilitySummary() {
   const db = useFirestore();
+  const { profile } = useUser();
   const [selectedWeek, setSelectedWeek] = useState('2024-52');
 
-  // Stable Authoritative Fetch
-  const empQuery = useMemo(() => query(collection(db, 'employees'), where('status', '==', 'Active')), [db]);
-  const bookQuery = useMemo(() => query(collection(db, 'weekoff_bookings'), where('weekId', '==', selectedWeek)), [db, selectedWeek]);
+  // Stable Authoritative Fetch - Filtered by office for multi-office Admin scoping
+  const empQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'employees');
+    return profile.role === 'SUPER_ADMIN' 
+      ? query(q, where('status', '==', 'Active'))
+      : query(q, where('office', '==', profile.office), where('status', '==', 'Active'));
+  }, [db, profile]);
+
+  const bookQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'weekoff_bookings');
+    return profile.role === 'SUPER_ADMIN'
+      ? query(q, where('weekId', '==', selectedWeek))
+      : query(q, where('weekId', '==', selectedWeek), where('office', '==', profile.office));
+  }, [db, selectedWeek, profile]);
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: bookings, loading: bookLoading } = useCollection(bookQuery);
