@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -31,6 +30,10 @@ import { addHours } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { syncProfileOnLoginAction } from '@/services/identity-actions';
 
+/**
+ * Institutional Authentication Hub
+ * Orchestrates multi-method login with automatic identity consolidation.
+ */
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -65,12 +68,17 @@ export default function LoginPage() {
     };
   }, []);
 
+  /**
+   * Finalizes identity verification by calling the Trusted Sync Pulse.
+   * Ensures details are mirrored correctly in the 'users' collection.
+   */
   const handleSyncProfile = async (user: any) => {
     try {
       const idToken = await user.getIdToken(true);
       const result = await syncProfileOnLoginAction(idToken);
       
       if (result.success) {
+        // Create persistent device session
         await createOrUpdateSession(db, user.uid, result.employeeId!);
         logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', result.employeeId!);
 
@@ -79,7 +87,8 @@ export default function LoginPage() {
           description: `Welcome, ${result.fullName!.split(' ')[0]}.`,
         });
 
-        if (result.role === 'ADMIN' || result.role === 'SUPER_ADMIN') {
+        // Redirect based on authoritative role from sync result
+        if (result.role === 'admin' || result.role === 'super_admin') {
           router.push('/admin');
         } else {
           router.push('/employee/portal');
@@ -109,27 +118,15 @@ export default function LoginPage() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast({ 
-        variant: "destructive", 
-        title: "Input Required", 
-        description: "Please enter your official email address to receive a reset pulse." 
-      });
+      toast({ variant: "destructive", title: "Input Required", description: "Please enter your official email address." });
       return;
     }
-    
     setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      toast({ 
-        title: "Reset Pulse Dispatched", 
-        description: `A password reset link has been sent to ${email}. Check your inbox.` 
-      });
+      toast({ title: "Reset Pulse Dispatched", description: `A password reset link has been sent to ${email}.` });
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Pulse Failed", 
-        description: error.message 
-      });
+      toast({ variant: "destructive", title: "Pulse Failed", description: error.message });
     } finally {
       setLoading(false);
     }
@@ -161,11 +158,10 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
-      const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
-      // Rules allow write for public pulse. updates are allowed now.
+      // Log for administrative backup pulse
       await setDoc(doc(db, 'otp_registry', formattedPhone), {
         phone: formattedPhone,
-        otp: backupCode,
+        otp: "DISPATCHED", // placeholder for security
         expiresAt: addHours(new Date(), 12).toISOString(),
         createdAt: serverTimestamp()
       }, { merge: true });

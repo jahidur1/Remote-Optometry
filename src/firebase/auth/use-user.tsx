@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,6 +18,10 @@ export type UserProfile = {
   officeIds?: string[];
 };
 
+/**
+ * Authoritative User Hook
+ * Subscribes to the 'users' collection document mirroring the master clinical registry.
+ */
 export function useUser() {
   const auth = useAuth();
   const firestore = useFirestore();
@@ -43,7 +46,7 @@ export function useUser() {
   useEffect(() => {
     if (!user || !firestore) return;
 
-    // 1. Profile Subscription
+    // 1. Authoritative Profile Subscription (users collection)
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -57,6 +60,9 @@ export function useUser() {
       } else {
         setProfile(null);
       }
+    }, (error) => {
+      console.error("Profile subscription failed:", error);
+      setProfile(null);
     });
 
     // 2. Session Integrity Subscription
@@ -68,7 +74,6 @@ export function useUser() {
         const data = docSnap.data();
         const now = new Date();
         
-        // Handle both Timestamp and String deadlines for migration safety
         const deadline = data.deadlineAt instanceof Timestamp 
           ? data.deadlineAt.toDate() 
           : new Date(data.deadlineAt);

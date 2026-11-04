@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -45,6 +44,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 /**
  * syncProfileOnLoginAction
  * Securely consolidates multiple auth methods to a single clinical professional record.
+ * Mirrors master employee registry data to the 'users' collection for high-performance RBAC.
  */
 export async function syncProfileOnLoginAction(idToken: string) {
   if (!idToken) throw new Error("Token missing.");
@@ -53,6 +53,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const user = await adminAuth.getUser(decoded.uid);
     
+    // Identity resolution: match by Phone or Email
     const field = user.phoneNumber ? 'whatsappNumber' : 'email';
     const value = user.phoneNumber || user.email;
     
@@ -74,21 +75,25 @@ export async function syncProfileOnLoginAction(idToken: string) {
     const empRef = adminDb.collection('employees').doc(employee.id);
     const userRef = adminDb.collection('users').doc(user.uid);
 
+    // 1. Bind Auth UID to master Employee record
     batch.update(empRef, {
       authUid: user.uid,
       updatedAt: new Date().toISOString()
     });
 
+    // 2. Mirror details to authoritative 'users' collection for authentication pulse
     batch.set(userRef, {
       uid: user.uid,
       email: employee.email || user.email || null,
-      role: employee.role,
+      role: employee.role, // Authoritative role: super_admin, admin, or user
       displayName: employee.fullName,
       employeeId: employee.id,
       phoneNumber: user.phoneNumber || employee.whatsappNumber,
       office: employee.office || null,
+      officeIds: employee.officeIds || (employee.office ? [employee.office] : []),
       status: 'Active',
-      lastLogin: new Date().toISOString()
+      lastLogin: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }, { merge: true });
 
     await batch.commit();
@@ -107,6 +112,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
 
 /**
  * provisionIdentityAction
+ * Authorized Super Admins or Admins can enroll new professionals.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken, formData.office);
@@ -128,6 +134,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound.");
     if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile already bound.");
 
+    // Create the Auth User
     const authUser = await adminAuth.createUser({
       email,
       password,
@@ -140,14 +147,16 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       fullName: formData.fullName,
       email,
       whatsappNumber: phoneFormatted,
-      role: formData.role,
+      role: formData.role, // strictly super_admin, admin, or user
       office: formData.office,
+      officeIds: formData.officeIds || [formData.office],
       status: 'Active',
       updatedAt: new Date().toISOString()
     };
 
     const batch = adminDb.batch();
     
+    // Register in master Employee record
     batch.set(adminDb.collection('employees').doc(employeeId), {
       ...commonData,
       id: employeeId,
@@ -159,6 +168,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       authUid: authUser.uid
     });
 
+    // Mirror to active 'users' profile
     batch.set(adminDb.collection('users').doc(authUser.uid), {
       ...commonData,
       uid: authUser.uid,
@@ -216,6 +226,7 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
 
 /**
  * updateEmployeeRecordAction
+ * Updates both master employee registry and mirrored user profile.
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   try {
@@ -225,14 +236,15 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
 
     const caller = await getAuthorizedCaller(idToken, current.office);
 
-    const allowed = ['fullName', 'whatsappNumber', 'department', 'designation', 'age', 'gender'];
+    const allowed = ['fullName', 'whatsappNumber', 'department', 'designation', 'age', 'gender', 'office', 'officeIds', 'role'];
     const filtered: any = {};
     allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
 
+    // Restriction: Only Super Admins can change core auth fields (role, office access)
     if (caller.role !== 'super_admin') {
       delete filtered.role;
-      delete filtered.status;
       delete filtered.office;
+      delete filtered.officeIds;
     }
 
     const batch = adminDb.batch();
@@ -242,8 +254,12 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     });
 
     if (current.authUid) {
-      const userUpdates: any = { updatedAt: new Date().toISOString(), ...filtered };
+      const userUpdates: any = { 
+        updatedAt: new Date().toISOString(), 
+        ...filtered 
+      };
       if (filtered.fullName) userUpdates.displayName = filtered.fullName;
+      
       batch.update(adminDb.collection('users').doc(current.authUid), userUpdates);
     }
 
