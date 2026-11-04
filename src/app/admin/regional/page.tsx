@@ -118,7 +118,7 @@ export default function RegionalAnalytics() {
       <div className="flex h-[80vh] items-center justify-center p-10">
          <Card className="max-w-md border-destructive/20 bg-destructive/5 p-10 text-center space-y-6 rounded-[2rem]">
             <AlertTriangle className="size-16 mx-auto text-destructive" />
-            <h2 className="text-2xl font-black uppercase text-primary tracking-tighter">Privileged Node Restricted</h2>
+            <h2 className="text-2xl font-black uppercase text-primary tracking-tighter">Privileged Hub Restricted</h2>
             <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed text-balance">
               Regional Multi-ROC Analytics are restricted to active Super Administrative accounts only.
             </p>
@@ -196,7 +196,7 @@ export default function RegionalAnalytics() {
           <TabsContent value="overview" className="space-y-10 animate-in">
              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                {[
-                 { label: 'Registered Nodes', value: stats?.totalOffices, sub: `${stats?.activeOffices} Active`, icon: MapPin, color: 'text-primary' },
+                 { label: 'Registered Hubs', value: stats?.totalOffices, sub: `${stats?.activeOffices} Active`, icon: MapPin, color: 'text-primary' },
                  { label: 'Workforce Pool', value: stats?.activeEmployees, sub: `Of ${stats?.totalEmployees} Professionals`, icon: Users, color: 'text-secondary' },
                  { label: 'Global Deployment', value: stats?.totalAssignments, sub: 'Scheduled Shifts', icon: Zap, color: 'text-secondary' },
                  { label: 'Awaiting Audit', value: stats?.totalDrafts, sub: 'Draft Rosters', icon: ShieldCheck, color: 'text-black' }
@@ -261,15 +261,15 @@ export default function RegionalAnalytics() {
                      <CardHeader className="p-10 pb-6 border-b border-slate-100 bg-slate-50/50">
                         <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
                           <TrendingUp className="size-6 text-secondary" /> Staffing Shortfall
-                        </CardTitle>
-                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Gap identification per Node.</CardDescription>
+                        </Target>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Gap identification per Hub.</CardDescription>
                      </CardHeader>
                      <CardContent className="p-10 space-y-6">
                         {comparison.map((c, i) => (
                           <div key={i} className="flex justify-between items-center group">
                              <div className="flex flex-col">
                                 <span className="text-[12px] font-black uppercase text-black tracking-tight">{c.officeName}</span>
-                                <span className="text-[9px] font-bold text-muted-foreground uppercase">{c.shortCode} Node</span>
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">{c.shortCode} Hub</span>
                              </div>
                              <div className="flex items-center gap-4">
                                 <span className={cn(
@@ -297,13 +297,13 @@ export default function RegionalAnalytics() {
              <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
                    <CardTitle className="text-2xl font-black uppercase tracking-tight text-black">Registry Performance Matrix</CardTitle>
-                   <CardDescription className="text-[11px] font-black uppercase tracking-widest mt-2 text-muted-foreground">Detailed comparative ledger of all clinical cluster nodes.</CardDescription>
+                   <CardDescription className="text-[11px] font-black uppercase tracking-widest mt-2 text-muted-foreground">Detailed comparative ledger of all clinical cluster hubs.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0 overflow-x-auto no-scrollbar">
                    <table className="w-full border-collapse">
                       <thead className="bg-slate-50/30">
                         <tr className="border-b border-slate-100">
-                          <th className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left">ROC Node</th>
+                          <th className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-left">ROC Hub</th>
                           <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Active Pool</th>
                           <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Quotas</th>
                           <th className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Assigned</th>
@@ -379,10 +379,10 @@ export default function RegionalAnalytics() {
                          <Info className="size-8 text-white" />
                       </div>
                       <div className="space-y-2">
-                         <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Roster Rule Node</p>
+                         <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Roster Rules Hub</p>
                          <p className="text-[14px] font-bold text-black/60 leading-relaxed uppercase tracking-tight">
                             "Scheduled assignments" reflect professionals assigned to duty in published rosters. 
-                            Attendance and punctuality data nodes are not linked to this management matrix.
+                            Attendance and punctuality data matrixes are not linked to this management hub.
                          </p>
                       </div>
                    </Card>
@@ -395,7 +395,7 @@ export default function RegionalAnalytics() {
                 <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                    <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 text-center">
                       <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Regional Unavailability Pulse</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-widest mt-2 text-muted-foreground">Absence status breakdown across all cluster nodes.</CardDescription>
+                      <CardDescription className="text-[10px] font-black uppercase tracking-widest mt-2 text-muted-foreground">Absence status breakdown across all cluster hubs.</CardDescription>
                    </CardHeader>
                    <CardContent className="p-10 flex flex-col items-center">
                       <div className="h-[300px] w-full">
@@ -433,7 +433,7 @@ export default function RegionalAnalytics() {
                       <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000"><ShieldCheck size={200} /></div>
                       <ShieldCheck className="size-12 text-secondary" />
                       <div className="space-y-4 relative z-10">
-                         <p className="text-[11px] font-black uppercase tracking-[0.4em] text-white/40">Privacy Protocol Node</p>
+                         <p className="text-[11px] font-black uppercase tracking-[0.4em] text-white/40">Privacy Protocol Hub</p>
                          <p className="text-xl font-bold leading-relaxed uppercase tracking-tight">
                             "Regional analytics leverage server-side aggregation (Admin SDK) to ensure individual professional 
                             PII remains siloed. Sub-second queries are enforced via composite indexing."
@@ -457,10 +457,10 @@ export default function RegionalAnalytics() {
                <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-primary tracking-[0.4em]">Regional Governance node</p>
+               <p className="text-[11px] font-black uppercase text-primary tracking-[0.4em]">Regional Governance Hub</p>
                <p className="text-lg font-bold text-black/70 leading-relaxed max-w-4xl tracking-tight">
                   "The Regional Command Hub consolidates clinical deployment metrics across the ROC network. 
-                  Calculations for 'Roster Coverage' explicitly identify nodes where weekly cycle configurations 
+                  Calculations for 'Roster Coverage' explicitly identify hubs where weekly cycle configurations 
                   are absent to maintain institutional compliance standards."
                </p>
             </div>

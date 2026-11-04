@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -38,7 +39,7 @@ export default function RosterSolver() {
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !registryOffices) return [];
-    if (profile.role === 'SUPER_ADMIN') return registryOffices;
+    if (profile.role === 'super_admin') return registryOffices;
     
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
     return registryOffices.filter(o => allowedIds.includes(o.officeId));
@@ -65,7 +66,7 @@ export default function RosterSolver() {
       toast({ 
         variant: "destructive", 
         title: "Authorization Required", 
-        description: "Please select a target cluster node to initiate the solver." 
+        description: "Please select a target cluster hub to initiate the solver." 
       });
       return;
     }
@@ -128,7 +129,7 @@ export default function RosterSolver() {
   const handleExplain = async () => {
     if (!solverResult) return;
     const result = await explainSchedulingConflicts({
-      problemDescription: `Roster Node: ${selectedOffice} | Target Cycle: ${weekId}`,
+      problemDescription: `Roster Hub: ${selectedOffice} | Target Cycle: ${weekId}`,
       hardConstraints: ["Atomic Clinical Quotas", "Protected Weekly-Offs", "Approved Absences", "Adjacency Fairness"],
       softConstraints: ["Gender Pod Balance", "Professional Preferences"],
       solverOutcome: solverResult.status,
@@ -149,7 +150,7 @@ export default function RosterSolver() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  CP-SAT Optimization Node <Activity className="size-3 text-secondary animate-pulse" />
+                  CP-SAT Optimization Logic <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -162,7 +163,7 @@ export default function RosterSolver() {
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
                 <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
-                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Node..."} />
+                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
                   {authorizedOffices.map(o => (
@@ -190,7 +191,7 @@ export default function RosterSolver() {
              disabled={status === 'running' || !selectedOffice}
            >
             {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : <Play className="size-4 mr-2 fill-white" />}
-            {status === 'running' ? 'OPTIMIZING...' : 'EXECUTE NODE'}
+            {status === 'running' ? 'OPTIMIZING...' : 'EXECUTE HUB'}
            </Button>
         </div>
       </div>
@@ -206,7 +207,7 @@ export default function RosterSolver() {
                 <div className="space-y-1">
                   <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">CP-SAT Orchestrator</CardTitle>
                   <CardDescription className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                     Deterministic Cluster Logic Node: {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || '---'}
+                     Deterministic Cluster Hub: {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || '---'}
                   </CardDescription>
                 </div>
               </div>
@@ -266,7 +267,7 @@ export default function RosterSolver() {
             <CardContent className="p-0">
                <div className="divide-y divide-slate-50">
                 {recentDrafts?.length === 0 ? (
-                    <div className="py-24 text-center opacity-20 italic font-black uppercase text-[10px] tracking-[0.3em] text-slate-400">No registry history detected for selected node.</div>
+                    <div className="py-24 text-center opacity-20 italic font-black uppercase text-[10px] tracking-[0.3em] text-slate-400">No registry history detected for selected hub.</div>
                 ) : recentDrafts?.map(draft => (
                   <div key={draft.id} className="flex items-center justify-between p-8 hover:bg-slate-50 transition-colors group">
                     <div className="flex items-center gap-8">
@@ -276,7 +277,7 @@ export default function RosterSolver() {
                        )} />
                        <div>
                           <p className="text-xl font-black uppercase tracking-tighter text-black group-hover:translate-x-1 transition-transform leading-none">Cycle {draft.weekId}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-2 tracking-widest">{new Date(draft.createdAt).toLocaleDateString()} • NODE_{draft.office?.substring(0,3)}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-2 tracking-widest">{new Date(draft.createdAt).toLocaleDateString()} • {draft.office?.substring(0,3)}_HUB</p>
                        </div>
                     </div>
                     <Link href={`/admin/roster/review/${draft.id}`}>

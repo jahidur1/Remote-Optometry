@@ -51,7 +51,7 @@ export default function Home() {
         )}
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="size-8 animate-spin text-primary opacity-30" />
-          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground">Establishing Secure Node Link</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground">Establishing Secure System Link</p>
         </div>
       </div>
     );
@@ -91,7 +91,7 @@ export default function Home() {
                   Remote <br /> <span className="text-[#0F172A] italic">Optometry</span>
                 </h1>
                 <p className="text-[10px] sm:text-[12px] font-black uppercase tracking-[0.4em] text-black/30 mt-4">
-                  Intelligent Optimization Node
+                  Intelligent Optimization Hub
                 </p>
              </div>
           </div>
@@ -118,18 +118,18 @@ export default function Home() {
            {/* Visual Divider */}
            <div className="flex items-center gap-6 text-black/10 px-6 w-full max-w-lg mx-auto">
               <div className="h-[1px] flex-1 bg-slate-100" />
-              <span className="text-[9px] font-black uppercase tracking-[0.3em] whitespace-nowrap text-black/20">Institutional Credentials Required</span>
+              <span className="text-[9px] font-black uppercase tracking-trim whitespace-nowrap text-black/20">Institutional Credentials Required</span>
               <div className="h-[1px] flex-1 bg-slate-100" />
            </div>
         </div>
 
-        {/* Protocol Matrix - 2x2 Grid Like the Reference */}
+        {/* Protocol Matrix */}
         <div className="grid grid-cols-2 gap-x-8 gap-y-12 sm:gap-x-16 sm:gap-y-16 max-w-2xl mx-auto pt-12 animate-slide-up" style={{ animationDelay: '0.4s' }}>
            {[
              { icon: ShieldCheck, label: "Zero-Trust", sub: "Auth Guard" },
              { icon: Sparkles, label: "CP-SAT Logic", sub: "Deterministic" },
              { icon: Globe, label: "Cluster Sync", sub: "Cloud Native" },
-             { icon: Cpu, label: "Optimization", sub: "Proof Node" }
+             { icon: Cpu, label: "Optimization", sub: "Clinical Hub" }
            ].map((item, i) => (
              <div key={i} className="flex flex-col items-center gap-4 group cursor-default">
                 <div className="size-12 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110">

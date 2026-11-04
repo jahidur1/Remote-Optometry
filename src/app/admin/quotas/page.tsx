@@ -52,7 +52,7 @@ export default function QuotaConfiguration() {
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !registryOffices) return [];
-    if (profile.role === 'SUPER_ADMIN') return registryOffices;
+    if (profile.role === 'super_admin') return registryOffices;
     
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
     return registryOffices.filter(o => allowedIds.includes(o.officeId));
@@ -172,7 +172,7 @@ export default function QuotaConfiguration() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Shift Quotas</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Staffing Optimization Node <Activity className="size-3 text-secondary animate-pulse" />
+                  Staffing Optimization Hub <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -185,7 +185,7 @@ export default function QuotaConfiguration() {
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
                 <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
-                  <SelectValue placeholder={registryLoading ? "Loading Registry..." : "Select Node..."} />
+                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
                   {authorizedOffices.map(o => (
@@ -194,7 +194,7 @@ export default function QuotaConfiguration() {
                     </SelectItem>
                   ))}
                   {authorizedOffices.length === 0 && !registryLoading && (
-                    <div className="p-4 text-[10px] font-black uppercase text-destructive">No Authorized Nodes</div>
+                    <div className="p-4 text-[10px] font-black uppercase text-destructive">No Authorized Centers</div>
                   )}
                 </SelectContent>
               </Select>
@@ -231,7 +231,7 @@ export default function QuotaConfiguration() {
                 <div>
                    <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Assignment Hub</CardTitle>
                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2 flex items-center gap-2">
-                      <Building2 className="size-3" /> {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'NODE_PENDING'}
+                      <Building2 className="size-3" /> {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'CENTER_PENDING'}
                    </p>
                 </div>
               </div>
@@ -243,7 +243,7 @@ export default function QuotaConfiguration() {
               <Table className="border-collapse min-w-[1000px]">
                 <TableHeader className="bg-slate-50/30">
                   <TableRow>
-                    <TableHead className="w-[280px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Unit Nodes</TableHead>
+                    <TableHead className="w-[280px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Unit Hubs</TableHead>
                     {DAYS.map(day => (
                       <TableHead key={day} className="text-center px-4 py-8 border-r border-slate-100 last:border-0 group/head">
                         <span className="text-[10px] uppercase font-black tracking-[0.3em] text-black/40">{day.substring(0,3)}</span>
@@ -293,7 +293,7 @@ export default function QuotaConfiguration() {
            <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white border-l-4 border-l-secondary">
              <CardHeader className="p-10 pb-6 border-b border-slate-100 bg-slate-50/50">
                 <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
-                  <ShieldCheck className="size-6 text-secondary" /> Guard Node
+                  <ShieldCheck className="size-6 text-secondary" /> Guard Hub
                 </CardTitle>
              </CardHeader>
              <CardContent className="p-10 space-y-8">

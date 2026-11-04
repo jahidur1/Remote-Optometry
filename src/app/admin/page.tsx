@@ -64,7 +64,7 @@ export default function AdminDashboard() {
     if (!stats) return [];
     if (isSuperAdmin) {
       return [
-        { label: 'Cluster Nodes', value: stats.totalOffices, sub: `${stats.activeOffices} Active`, icon: Globe, color: 'text-primary' },
+        { label: 'Cluster Centers', value: stats.totalOffices, sub: `${stats.activeOffices} Active`, icon: Globe, color: 'text-primary' },
         { label: 'Workforce Pool', value: stats.totalEmployees, sub: `${stats.activeEmployees} Active`, icon: Users, color: 'text-secondary' },
         { label: 'Global Deployment', value: stats.totalAssignments, sub: 'Scheduled Shifts', icon: Zap, color: 'text-secondary' },
         { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Awaiting Review', icon: PlaneTakeoff, color: 'text-destructive' }
@@ -74,7 +74,7 @@ export default function AdminDashboard() {
       { label: 'Authorized Staff', value: stats.totalEmployees, sub: `${stats.activeEmployees} Active`, icon: Users, color: 'text-primary' },
       { label: 'Assigned Shifts', value: stats.assignedCount, sub: `Pulse V${stats.rosterVersion?.toString().slice(-4) || '---'}`, icon: Zap, color: 'text-secondary' },
       { label: 'Pending Swaps', value: stats.pendingSwaps, sub: 'Request Ledger', icon: ArrowRightLeft, color: 'text-secondary' },
-      { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Node Overrides', icon: PlaneTakeoff, color: 'text-destructive' }
+      { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Center Overrides', icon: PlaneTakeoff, color: 'text-destructive' }
     ];
   }, [stats, isSuperAdmin]);
 
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
 
         <div className="flex flex-wrap items-center gap-3 md:gap-4 bg-white p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-slate-200 shadow-xl w-full lg:w-auto">
            <div className="px-4 md:px-6 py-1 border-r border-slate-100 flex-1 lg:flex-none">
-              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">System Pulse</label>
+              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">System Status</label>
               <div className="flex items-center gap-2">
                  <div className={cn("size-2 rounded-full", solverHealth?.status === 'healthy' ? 'bg-emerald-500 shadow-[0_0_10px_emerald]' : 'bg-destructive animate-pulse')} />
                  <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">
@@ -112,7 +112,7 @@ export default function AdminDashboard() {
               </div>
            </div>
            <div className="px-4 md:px-6 py-1 flex-1 lg:flex-none">
-              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">ACTIVE SYNC</span>
@@ -157,7 +157,7 @@ export default function AdminDashboard() {
               <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Operational Oversight</h3>
               <p className="text-sm text-black/50 leading-relaxed font-medium">
                 {isSuperAdmin 
-                  ? "Consolidated regional metrics for institutional governance. Monitor global coverage and cluster node integrity."
+                  ? "Consolidated regional metrics for institutional governance. Monitor global coverage and cluster center integrity."
                   : `Real-time management for ROC ${officeName}. Review assignments, swaps, and unavailability overrides.`}
               </p>
            </div>
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
            <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000 hidden md:block"><ShieldCheck size={240} /></div>
            <ShieldCheck className="size-10 md:size-12 text-secondary" />
            <div className="space-y-3 md:space-y-4 relative z-10">
-              <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Node</h3>
+              <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Hub</h3>
               <p className="text-sm text-white/40 leading-relaxed font-medium">
                  Zero-Trust identity verification is enforced at the server layer. 
                  Institutional audit logs are trace-linked to specific administrative actors.

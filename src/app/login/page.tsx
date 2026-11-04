@@ -160,7 +160,7 @@ export default function LoginPage() {
       setStep('otp');
       toast({ title: "Verification Initiated", description: "Security code dispatched." });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Node Access Denied", description: error.message });
+      toast({ variant: "destructive", title: "Access Denied", description: error.message });
       setLoading(false);
     }
   };

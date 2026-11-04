@@ -52,7 +52,7 @@ import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 import { RoleGuard } from '@/components/auth/role-guard';
 
-export default function ClusterNodeManager() {
+export default function ClusterManager() {
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useUser();
@@ -130,7 +130,7 @@ export default function ClusterNodeManager() {
 
       if (result.success) {
         toast({ 
-          title: editingOffice ? "Registry Updated" : "Node Provisioned", 
+          title: "Registry Updated", 
           description: `${formData.officeName} is now secured in the cluster registry.` 
         });
         setIsDialogOpen(false);
@@ -155,7 +155,7 @@ export default function ClusterNodeManager() {
 
       const result = await setOfficeStatusAction(idToken, officeId, newStatus);
       if (result.success) {
-        toast({ title: "Status Pulse Updated", description: `Node ${officeId} is now ${newStatus}.` });
+        toast({ title: "Status Updated", description: `Center ${officeId} is now ${newStatus}.` });
       } else {
         throw new Error(result.error);
       }
@@ -177,10 +177,10 @@ export default function ClusterNodeManager() {
                 <Network className="size-8 text-secondary" />
               </div>
               <div>
-                <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Cluster Node Manager</h1>
+                <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Cluster Manager</h1>
                 <div className="flex items-center gap-3 mt-2">
                   <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                    Institutional Registry Pulse <Activity className="size-3 text-secondary animate-pulse" />
+                    Institutional Registry Hub <Activity className="size-3 text-secondary animate-pulse" />
                   </p>
                   <DemoBadge />
                 </div>
@@ -201,7 +201,7 @@ export default function ClusterNodeManager() {
                onClick={handleOpenCreate}
              >
               <Plus className="size-4 mr-2" />
-              PROVISION NEW NODE
+              PROVISION HUB
              </Button>
           </div>
         </div>
@@ -209,8 +209,8 @@ export default function ClusterNodeManager() {
         {/* Overview Matrix */}
         <div className="grid gap-6 md:grid-cols-3">
           {[
-            { label: 'Total Registry', value: stats.total, sub: 'Cluster Nodes', icon: Globe, color: 'text-primary' },
-            { label: 'Operational', value: stats.active, sub: 'Active Pulses', icon: Zap, color: 'text-secondary' },
+            { label: 'Total Registry', value: stats.total, sub: 'Cluster Centers', icon: Globe, color: 'text-primary' },
+            { label: 'Operational', value: stats.active, sub: 'Active Hubs', icon: Zap, color: 'text-secondary' },
             { label: 'Decommissioned', value: stats.inactive, sub: 'Historical Only', icon: ShieldAlert, color: 'text-destructive' }
           ].map((kpi, i) => (
             <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all shadow-lg">
@@ -237,7 +237,7 @@ export default function ClusterNodeManager() {
                  <div className="space-y-1">
                     <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Cluster Registry Ledger</CardTitle>
                     <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                       Verified ROC cluster nodes within the institutional cloud.
+                       Verified ROC cluster hubs within the institutional cloud.
                     </CardDescription>
                  </div>
               </div>
@@ -245,7 +245,7 @@ export default function ClusterNodeManager() {
                 <div className="relative w-full group">
                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
                   <Input 
-                    placeholder="Search Node Name, ID, or Short Code..." 
+                    placeholder="Search Center Name, ID, or Short Code..." 
                     className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:border-primary transition-all text-black"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -259,9 +259,9 @@ export default function ClusterNodeManager() {
               <TableHeader className="bg-slate-50/30">
                 <TableRow className="border-b border-slate-100">
                   <TableHead className="w-[120px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Pulse ID</TableHead>
-                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ROC Cluster Node</TableHead>
+                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ROC Cluster Hub</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Geo Metadata</TableHead>
-                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status Pulse</TableHead>
+                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status Hub</TableHead>
                   <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
                 </TableRow>
               </TableHeader>
@@ -325,7 +325,7 @@ export default function ClusterNodeManager() {
                               )}
                               onClick={() => toggleStatus(o.officeId, o.status)}
                              >
-                                {o.status === 'Active' ? <><ShieldAlert className="mr-3 size-4" /> Deactivate Node</> : <><CheckCircle2 className="mr-3 size-4" /> Reactivate Node</>}
+                                {o.status === 'Active' ? <><ShieldAlert className="mr-3 size-4" /> Deactivate Center</> : <><CheckCircle2 className="mr-3 size-4" /> Reactivate Center</>}
                              </DropdownMenuItem>
                           </DropdownMenuContent>
                        </DropdownMenu>
@@ -337,8 +337,8 @@ export default function ClusterNodeManager() {
           </CardContent>
           <CardFooter className="bg-muted/5 border-t p-6">
              <div className="flex items-center gap-8 text-[11px] font-black uppercase text-muted-foreground tracking-[0.1em]">
-                <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-emerald-500" /> Operational Writes Enabled</div>
-                <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-destructive" /> Operational Writes Restricted</div>
+                <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-emerald-500" /> Operational Hubs Enabled</div>
+                <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-destructive" /> Operational Hubs Restricted</div>
                 <div className="ml-auto flex items-center gap-2 text-secondary"><Database className="size-3" /> Registry Synced: {new Date().toLocaleTimeString()}</div>
              </div>
           </CardFooter>
@@ -350,7 +350,7 @@ export default function ClusterNodeManager() {
             <div className="bg-primary p-12 text-white relative">
               <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><Building2 size={180} /></div>
               <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10 text-white">
-                {editingOffice ? 'Update Registry Metadata' : 'Provision Cluster Node'}
+                {editingOffice ? 'Update Registry Metadata' : 'Provision Cluster Center'}
               </DialogTitle>
               <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">
                 Institutional Infrastructure Protocol — v6.0
@@ -385,7 +385,7 @@ export default function ClusterNodeManager() {
                </div>
 
                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Office Name</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Center Name</Label>
                   <Input 
                     className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 focus:border-secondary transition-all" 
                     value={formData.officeName} 
@@ -413,7 +413,7 @@ export default function ClusterNodeManager() {
                 disabled={processing}
               >
                 {processing ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform" />}
-                {editingOffice ? 'AUTHORIZE METADATA UPDATE' : 'DEPLOY CLUSTER NODE'}
+                {editingOffice ? 'AUTHORIZE HUB UPDATE' : 'DEPLOY CLUSTER HUB'}
               </Button>
             </form>
           </DialogContent>

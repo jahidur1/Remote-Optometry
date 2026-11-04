@@ -84,7 +84,6 @@ const navGroups = [
     label: "Governance",
     items: [
       { title: "Cluster Registry", url: "/admin/offices", icon: Network, roles: ["super_admin"] },
-      { title: "OTP Monitor", url: "/admin/otp-monitor", icon: Key, roles: ["super_admin"] },
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["super_admin"] },
       { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["super_admin"] },
     ]
@@ -151,10 +150,10 @@ export function AdminSidebar() {
                     <Building2 className="size-5 text-secondary shrink-0" />
                     <div className="flex flex-col flex-1 text-left">
                       <span className="text-[11px] font-black uppercase text-white/90 truncate">
-                        {currentOffice?.officeName || "Select Node"}
+                        {currentOffice?.officeName || "Select Center"}
                       </span>
                       <span className="text-[9px] font-bold uppercase text-white/30 truncate">
-                        {currentOffice?.shortCode || "NODE"} Pulse
+                        {currentOffice?.shortCode || "ROC"} Hub
                       </span>
                     </div>
                     {authorizedOffices.length > 1 && <ChevronDown className="size-4 text-white/20 ml-2" />}

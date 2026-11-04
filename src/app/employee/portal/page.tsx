@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
@@ -85,7 +86,7 @@ export default function EmployeePortal() {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-12 md:size-14 animate-spin text-secondary opacity-30" />
-        <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Establishing Secure Node Link</p>
+        <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Establishing Secure System Link</p>
       </div>
     );
   }
@@ -201,7 +202,7 @@ export default function EmployeePortal() {
                                     "text-lg md:text-2xl flex items-center gap-3 md:gap-5 font-black uppercase tracking-tight leading-none",
                                     (!isUpcoming && !isCurrent) ? "text-black" : "text-white"
                                   )}>
-                                     {isUpcoming ? 'Next week' : isCurrent ? 'Active Cycle' : 'Historical Node'}
+                                     {isUpcoming ? 'Next week' : isCurrent ? 'Active Cycle' : 'Historical Matrix'}
                                   </CardTitle>
                                   <CardDescription className={cn(
                                     "text-[9px] md:text-[11px] uppercase font-black tracking-[0.1em] md:tracking-[0.2em] mt-2 md:mt-3",
@@ -242,13 +243,13 @@ export default function EmployeePortal() {
                              ) : (
                                <div className="text-center py-12 md:py-20 bg-slate-50 rounded-xl md:rounded-[2rem] border-2 border-dashed border-slate-200">
                                   <CalendarDays className="size-10 md:size-16 text-black/5 mx-auto mb-3 md:mb-4" />
-                                  <p className="text-[9px] md:text-[11px] text-black/30 uppercase font-black tracking-[0.2em] md:tracking-[0.3em]">No Duty Node Found</p>
+                                  <p className="text-[9px] md:text-[11px] text-black/30 uppercase font-black tracking-[0.2em] md:tracking-[0.3em]">No Duty Found</p>
                                </div>
                              )
                            ) : (
                              <div className="text-center py-16 md:py-24 bg-slate-50 rounded-[2rem] md:rounded-[3rem] border-4 border-dashed border-slate-200">
                                 <Lock className="size-14 md:size-20 text-black/5 mx-auto mb-6 md:mb-8" />
-                                <p className="text-lg md:text-xl font-black text-black/20 uppercase tracking-tight">Roster Node Pending</p>
+                                <p className="text-lg md:text-xl font-black text-black/20 uppercase tracking-tight">Roster Pending</p>
                              </div>
                            )}
                         </CardContent>
@@ -311,7 +312,7 @@ export default function EmployeePortal() {
              </div>
              <Link href="/employee/profile" className="block pt-6 border-t border-slate-100">
                 <Button variant="ghost" className="w-full text-black font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] md:tracking-[0.3em] h-12 md:h-14 hover:bg-slate-50 rounded-xl md:rounded-2xl transition-all">
-                   Manage Profile Node
+                   Manage Profile
                 </Button>
              </Link>
           </Card>
