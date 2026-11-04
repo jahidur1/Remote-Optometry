@@ -22,18 +22,14 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Phone, Key, ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Phone, Key, ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { addHours } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { syncProfileOnLoginAction } from '@/services/identity-actions';
+import { syncProfileOnLoginAction, seedFirstSuperAdminAction } from '@/services/identity-actions';
 
-/**
- * Institutional Authentication Hub
- * Orchestrates multi-method login with automatic identity consolidation.
- */
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -42,6 +38,7 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
+  const [initLoading, setInitLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   
   const auth = useAuth();
@@ -68,17 +65,12 @@ export default function LoginPage() {
     };
   }, []);
 
-  /**
-   * Finalizes identity verification by calling the Trusted Sync Pulse.
-   * Ensures details are mirrored correctly in the 'users' collection.
-   */
   const handleSyncProfile = async (user: any) => {
     try {
       const idToken = await user.getIdToken(true);
       const result = await syncProfileOnLoginAction(idToken);
       
       if (result.success) {
-        // Create persistent device session
         await createOrUpdateSession(db, user.uid, result.employeeId!);
         logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', result.employeeId!);
 
@@ -87,7 +79,6 @@ export default function LoginPage() {
           description: `Welcome, ${result.fullName!.split(' ')[0]}.`,
         });
 
-        // Redirect based on authoritative role from sync result
         if (result.role === 'admin' || result.role === 'super_admin') {
           router.push('/admin');
         } else {
@@ -158,10 +149,9 @@ export default function LoginPage() {
       const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
-      // Log for administrative backup pulse
       await setDoc(doc(db, 'otp_registry', formattedPhone), {
         phone: formattedPhone,
-        otp: "DISPATCHED", // placeholder for security
+        otp: "DISPATCHED",
         expiresAt: addHours(new Date(), 12).toISOString(),
         createdAt: serverTimestamp()
       }, { merge: true });
@@ -186,6 +176,22 @@ export default function LoginPage() {
     } catch (error: any) {
       toast({ variant: "destructive", title: "Verification Failure", description: error.message });
       setLoading(false);
+    }
+  };
+
+  const handleInitializeSystem = async () => {
+    setInitLoading(true);
+    try {
+      const result = await seedFirstSuperAdminAction();
+      if (result.success) {
+        toast({ title: "System Ready", description: result.message + " Use password: Initial@1234" });
+      } else {
+        toast({ variant: "destructive", title: "Initialization Alert", description: result.error });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Critical Error", description: e.message });
+    } finally {
+      setInitLoading(false);
     }
   };
 
@@ -330,6 +336,19 @@ export default function LoginPage() {
               </Button>
             </TabsContent>
           </Tabs>
+
+          {/* System Initialization Node (Only visible for first setup) */}
+          <div className="mt-12 pt-10 border-t border-dashed border-slate-100 text-center">
+             <Button 
+               variant="ghost" 
+               className="h-10 text-[9px] font-black uppercase tracking-[0.3em] text-black/10 hover:text-secondary hover:bg-secondary/5 transition-all rounded-xl"
+               onClick={handleInitializeSystem}
+               disabled={initLoading}
+             >
+                {initLoading ? <Loader2 className="size-3 animate-spin mr-2" /> : <Sparkles className="size-3 mr-2" />}
+                System Initialization Node
+             </Button>
+          </div>
         </CardContent>
         
         <CardFooter className="bg-slate-50 p-10 border-t border-slate-100">

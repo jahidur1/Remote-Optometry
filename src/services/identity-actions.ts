@@ -43,7 +43,6 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 /**
  * syncProfileOnLoginAction
  * Securely consolidates multiple auth methods to a single clinical professional record.
- * Mirrors master employee registry data to the 'users' collection for high-performance RBAC.
  */
 export async function syncProfileOnLoginAction(idToken: string) {
   if (!idToken) throw new Error("Token missing.");
@@ -52,7 +51,6 @@ export async function syncProfileOnLoginAction(idToken: string) {
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const user = await adminAuth.getUser(decoded.uid);
     
-    // Identity resolution: match by Phone or Email
     const field = user.phoneNumber ? 'whatsappNumber' : 'email';
     const value = user.phoneNumber || user.email;
     
@@ -74,17 +72,15 @@ export async function syncProfileOnLoginAction(idToken: string) {
     const empRef = adminDb.collection('employees').doc(employee.id);
     const userRef = adminDb.collection('users').doc(user.uid);
 
-    // 1. Bind Auth UID to master Employee record
     batch.update(empRef, {
       authUid: user.uid,
       updatedAt: new Date().toISOString()
     });
 
-    // 2. Mirror details to authoritative 'users' collection for authentication pulse
     batch.set(userRef, {
       uid: user.uid,
       email: employee.email || user.email || null,
-      role: employee.role, // strictly 'super_admin', 'admin', or 'user'
+      role: employee.role,
       displayName: employee.fullName,
       employeeId: employee.id,
       phoneNumber: user.phoneNumber || employee.whatsappNumber,
@@ -111,8 +107,6 @@ export async function syncProfileOnLoginAction(idToken: string) {
 
 /**
  * provisionIdentityAction
- * Authorized Super Admins or Admins can enroll new professionals.
- * Creates Firebase Auth account and mirrors data to 'employees' and 'users' collections.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken, formData.office);
@@ -134,20 +128,19 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound.");
     if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile already bound.");
 
-    // 1. Create the Firebase Auth Account
     const authUser = await adminAuth.createUser({
       email,
       password,
       displayName: formData.fullName,
       phoneNumber: phoneFormatted,
-      emailVerified: false // Forces verification on first login
+      emailVerified: false
     });
 
     const commonData = {
       fullName: formData.fullName,
       email,
       whatsappNumber: phoneFormatted,
-      role: formData.role, // strictly 'super_admin', 'admin', or 'user'
+      role: formData.role,
       office: formData.office,
       officeIds: formData.role === 'admin' ? [formData.office] : [],
       status: 'Active',
@@ -156,7 +149,6 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
 
     const batch = adminDb.batch();
     
-    // 2. Register in master 'employees' record (Clinical Identity)
     batch.set(adminDb.collection('employees').doc(employeeId), {
       ...commonData,
       id: employeeId,
@@ -168,8 +160,6 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       authUid: authUser.uid
     });
 
-    // 3. Register in 'users' collection (Authentication Identity)
-    // KEY: doc ID must be the Auth UID for Security Rules compatibility
     batch.set(adminDb.collection('users').doc(authUser.uid), {
       ...commonData,
       uid: authUser.uid,
@@ -190,8 +180,72 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
 }
 
 /**
- * updateAccountStatusAction
+ * seedFirstSuperAdminAction
+ * ONE-TIME INITIALIZATION: Creates the first Super Admin identity node.
  */
+export async function seedFirstSuperAdminAction() {
+  const email = 'jahidur1204@gmail.com';
+  const fullName = 'JAHIDUR RAHAMAN';
+  const phone = '+919832441153';
+  const employeeId = 'ROC-SADMIN-001';
+  const password = 'Initial@1234';
+
+  try {
+    const existingSnap = await adminDb.collection('employees').doc(employeeId).get();
+    if (existingSnap.exists) {
+      return { success: false, error: "System already initialized. Identity exists." };
+    }
+
+    // 1. Create Auth User
+    const authUser = await adminAuth.createUser({
+      email,
+      password,
+      displayName: fullName,
+      phoneNumber: phone,
+      emailVerified: true
+    });
+
+    const commonData = {
+      fullName,
+      email,
+      whatsappNumber: phone,
+      role: 'super_admin',
+      office: 'HQ_GLOBAL',
+      officeIds: [],
+      status: 'Active',
+      updatedAt: new Date().toISOString()
+    };
+
+    const batch = adminDb.batch();
+    
+    batch.set(adminDb.collection('employees').doc(employeeId), {
+      ...commonData,
+      id: employeeId,
+      gender: 'Male',
+      department: 'Infrastructure',
+      designation: 'System Architect',
+      joinedAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      authUid: authUser.uid
+    });
+
+    batch.set(adminDb.collection('users').doc(authUser.uid), {
+      ...commonData,
+      uid: authUser.uid,
+      displayName: fullName,
+      employeeId,
+      phoneNumber: phone,
+      lastLogin: null
+    });
+
+    await batch.commit();
+    return { success: true, message: "System initialized successfully." };
+  } catch (e: any) {
+    console.error('Initialization failure:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 export async function updateAccountStatusAction(idToken: string, employeeId: string, newStatus: string) {
   try {
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
@@ -226,10 +280,6 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
   }
 }
 
-/**
- * updateEmployeeRecordAction
- * Updates both master employee registry and mirrored user profile.
- */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   try {
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
@@ -242,7 +292,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     const filtered: any = {};
     allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
 
-    // Restriction: Only Super Admins can change core auth fields (role, office access)
     if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.office;
