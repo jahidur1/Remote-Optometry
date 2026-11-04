@@ -49,7 +49,7 @@ function CountdownTimer({ targetDate, label }: { targetDate: string, label: stri
 
 export default function BookOffPage() {
   const db = useFirestore();
-  const { profile } = useUser();
+  const { profile, loading: profileLoading } = useUser();
   const { toast } = useToast();
   
   const [activeConfig, setActiveConfig] = useState<any>(null);
@@ -63,13 +63,20 @@ export default function BookOffPage() {
   }, []);
 
   useEffect(() => {
-    if (!db || !profile?.office) return;
+    if (!db || profileLoading) return;
+    
+    if (!profile?.office) {
+      setLoading(false);
+      return;
+    }
+
     const q = query(
       collection(db, 'weekoff_configs'), 
       where('office', '==', profile.office),
       orderBy('weekId', 'desc'), 
       limit(1)
     );
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         setActiveConfig(snapshot.docs[0].data());
@@ -77,9 +84,13 @@ export default function BookOffPage() {
         setActiveConfig(null);
       }
       setLoading(false);
+    }, (error) => {
+      console.error("Registry sync failed:", error);
+      setLoading(false);
     });
+
     return () => unsubscribe();
-  }, [db, profile?.office]);
+  }, [db, profile?.office, profileLoading]);
 
   const bookingId = activeConfig && profile?.employeeId ? `${activeConfig.weekId}_${profile.employeeId}` : null;
   const { data: userBooking, loading: bookingLoading } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
@@ -129,7 +140,7 @@ export default function BookOffPage() {
     return (openTime.getTime() - now.getTime()) / (1000 * 60);
   }, [openTime, now]);
 
-  if (loading || bookingLoading) return (
+  if (loading || bookingLoading || profileLoading) return (
     <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
       <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
       <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Syncing Clinical Registry</p>

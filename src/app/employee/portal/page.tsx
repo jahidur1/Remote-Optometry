@@ -150,7 +150,12 @@ export default function EmployeePortal() {
   const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
 
   useEffect(() => {
-    if (!db || !profile?.office) return;
+    if (!db || userLoading) return;
+    
+    if (!profile?.office) {
+      return;
+    }
+
     const q = query(
       collection(db, 'weekoff_configs'), 
       where('office', '==', profile.office),
@@ -163,9 +168,11 @@ export default function EmployeePortal() {
       } else {
         setActiveConfig(null);
       }
+    }, (error) => {
+      console.error("Portal config sync failed:", error);
     });
     return () => unsubscribe();
-  }, [db, profile?.office]);
+  }, [db, profile?.office, userLoading]);
 
   useEffect(() => {
     async function syncRosters() {

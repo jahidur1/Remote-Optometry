@@ -10,20 +10,23 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
     }
 
     function isUserActive() {
-      let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isSignedIn() && exists(path) && get(path).data.status == 'Active';
+      let data = getUserData();
+      return isSignedIn() && data != null && data.status == 'Active';
     }
     
     function isAdmin() {
-      return isUserActive() && getUserData().role in ['admin', 'super_admin'];
+      let data = getUserData();
+      return isUserActive() && data.role in ['admin', 'super_admin'];
     }
 
     function isSuperAdmin() {
-      return isUserActive() && getUserData().role == 'super_admin';
+      let data = getUserData();
+      return isUserActive() && data.role == 'super_admin';
     }
 
     function isOwner(userId) {
@@ -77,8 +80,8 @@ service cloud.firestore {
 
     match /employees/{employeeId} {
       function getEmployeeId() {
-        let path = /databases/$(database)/documents/users/$(request.auth.uid);
-        return exists(path) ? get(path).data.employeeId : null;
+        let user = getUserData();
+        return user != null ? user.employeeId : null;
       }
 
       allow get: if isSignedIn() && (isAdmin() || getEmployeeId() == employeeId);
@@ -100,7 +103,8 @@ service cloud.firestore {
 
     match /weekoff_bookings/{bookingId} {
       function getEmployeeId() {
-        return getUserData().employeeId;
+        let user = getUserData();
+        return user != null ? user.employeeId : null;
       }
 
       allow read: if isUserActive() && (resource.data.employeeId == getEmployeeId() || matchesOffice(resource.data.office));
@@ -125,7 +129,8 @@ service cloud.firestore {
 
     match /employee_leaves/{leaveId} {
       function getEmployeeId() {
-        return getUserData().employeeId;
+        let user = getUserData();
+        return user != null ? user.employeeId : null;
       }
 
       allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getEmployeeId() || matchesOffice(resource.data.office));
@@ -139,7 +144,8 @@ service cloud.firestore {
 
     match /shift_swaps/{swapId} {
       function getEmployeeId() {
-        return getUserData().employeeId;
+        let user = getUserData();
+        return user != null ? user.employeeId : null;
       }
 
       allow read: if isUserActive() && (
@@ -149,12 +155,13 @@ service cloud.firestore {
         resource.data.targetEmployeeId == getEmployeeId()
       );
       allow create: if isUserActive() && request.resource.data.requesterId == getEmployeeId() && matchesOffice(request.resource.data.office);
-      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getEmployeeId() || (isAdmin() && matchesOffice(resource.data.office)));
+      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getEmployeeId() || (isAdmin() && matchesOffice(request.resource.data.office)));
     }
 
     match /employee_preferences/{prefId} {
       function getEmployeeId() {
-        return getUserData().employeeId;
+        let user = getUserData();
+        return user != null ? user.employeeId : null;
       }
 
       allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getEmployeeId() || matchesOffice(resource.data.office));
