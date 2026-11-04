@@ -130,7 +130,12 @@ service cloud.firestore {
     }
 
     match /shift_swaps/{swapId} {
-      allow read: if isUserActive() && (isAdmin() || resource.data.requesterId == getUserData().employeeId || resource.data.targetEmployeeId == getUserData().employeeId);
+      allow read: if isUserActive() && (
+        isSuperAdmin() || 
+        (isAdmin() && matchesOffice(resource.data.office)) || 
+        resource.data.requesterId == getUserData().employeeId || 
+        resource.data.targetEmployeeId == getUserData().employeeId
+      );
       allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId;
       allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getUserData().employeeId || isAdmin());
     }
@@ -143,12 +148,12 @@ service cloud.firestore {
     // --- LOGS & AUTH ---
 
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn() && request.resource.data.actorId == request.auth.uid; 
+      allow read: if isSuperAdmin() || (isAdmin() && matchesOffice(resource.data.office));
+      allow create: if isSignedIn(); 
     }
 
     match /whatsapp_logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isSuperAdmin() || (isAdmin() && matchesOffice(resource.data.office));
       allow create: if isSignedIn(); 
     }
     

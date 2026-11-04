@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowRightLeft, Info, Loader2, Send, History, CheckCircle2, ArrowLeft, ShieldCheck, User } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { DemoBadge } from '@/components/ui/demo-badge';
+import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
 
 export default function ShiftSwaps() {
@@ -37,12 +38,17 @@ export default function ShiftSwaps() {
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, 'shift_swaps'), {
+      const payload = {
         requesterId: profile.employeeId,
+        office: profile.office, // Enforce office isolation metadata
         ...swapData,
         status: 'pending',
         createdAt: serverTimestamp(),
-      });
+      };
+      
+      await addDoc(collection(db, 'shift_swaps'), payload);
+      logAudit(db, profile.uid, 'REQUEST_SHIFT_SWAP', swapData.targetEmployeeId, { office: profile.office, date: swapData.date });
+      
       toast({ title: "Swap Requested", description: "Your request has been sent to the target professional for review." });
       setSwapData({ targetEmployeeId: '', date: '', reason: '' });
     } catch (e: any) {
@@ -97,7 +103,7 @@ export default function ShiftSwaps() {
                   <SelectValue placeholder="Target Colleague" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl p-2">
-                  {employees?.filter(e => e.id !== profile?.employeeId).map(e => (
+                  {employees?.filter(e => e.id !== profile?.employeeId && e.office === profile?.office).map(e => (
                     <SelectItem key={e.id} value={e.id} className="rounded-xl py-3 font-bold uppercase text-[11px]">
                         {e.fullName} <span className="opacity-40 ml-2">[{e.id}]</span>
                     </SelectItem>

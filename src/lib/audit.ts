@@ -7,6 +7,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
  * Logs a sensitive administrative or employee action to the immutable audit trail.
  * 
  * SECURITY: All logs are stored with a server-side timestamp to ensure temporal integrity.
+ * TOP-LEVEL OFFICE: Added top-level office field to satisfy Firestore Security Rules for isolation.
  */
 export function logAudit(
   db: Firestore,
@@ -21,6 +22,7 @@ export function logAudit(
     actorId,
     action,
     targetId,
+    office: details.office || null, // Standardized office metadata
     details: {
       ...details,
       platform: 'web_v1',

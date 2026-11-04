@@ -1,3 +1,4 @@
+
 'use client';
 
 import { collection, addDoc, Firestore, query, where, getDocs, limit } from 'firebase/firestore';
@@ -12,6 +13,7 @@ import { sendWhatsAppShiftBriefing } from '@/services/whatsapp-action';
  * 1. Verify previous successful notification for the same date/version.
  * 2. Dispatch via Secure Server Action (Meta API).
  * 3. Mask PII before writing to the public audit log.
+ * 4. Added top-level office field for security rules isolation.
  */
 export async function dispatchAndLogNotification(
   db: Firestore,
@@ -21,7 +23,8 @@ export async function dispatchAndLogNotification(
   date: string,
   shiftName: string,
   shiftTime: string,
-  rosterVersion: string
+  rosterVersion: string,
+  office: string // Required for security isolation
 ) {
   const logRef = collection(db, 'whatsapp_logs');
   
@@ -56,6 +59,7 @@ export async function dispatchAndLogNotification(
     await addDoc(logRef, {
         employeeId,
         maskedPhone,
+        office, // Institutional metadata for security rules
         date,
         rosterVersion,
         status: result.success ? 'success' : 'failed',
