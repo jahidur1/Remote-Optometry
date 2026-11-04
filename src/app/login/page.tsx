@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -28,7 +29,7 @@ import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { addHours } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { syncProfileOnLoginAction, seedFirstSuperAdminAction } from '@/services/identity-actions';
+import { syncProfileOnLoginAction } from '@/services/identity-actions';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -38,7 +39,6 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
-  const [initLoading, setInitLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   
   const auth = useAuth();
@@ -179,22 +179,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleInitializeSystem = async () => {
-    setInitLoading(true);
-    try {
-      const result = await seedFirstSuperAdminAction();
-      if (result.success) {
-        toast({ title: "System Ready", description: result.message + " Use password: Initial@1234" });
-      } else {
-        toast({ variant: "destructive", title: "Initialization Alert", description: result.error });
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Critical Error", description: e.message });
-    } finally {
-      setInitLoading(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-4 relative overflow-hidden font-body text-black">
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
@@ -300,7 +284,7 @@ export default function LoginPage() {
                       <Input 
                         type={showPassword ? "text" : "password"} 
                         placeholder="••••••••" 
-                        className="pl-12 pr-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary transition-all" 
+                        className="pl-12 pr-12 h-14 font-bold border-2 border-slate-100 rounded-2xl focus:border-primary text-black transition-all" 
                         value={password} 
                         onChange={e => setPassword(e.target.value)} 
                         required 
@@ -336,19 +320,6 @@ export default function LoginPage() {
               </Button>
             </TabsContent>
           </Tabs>
-
-          {/* System Initialization Node (Only visible for first setup) */}
-          <div className="mt-12 pt-10 border-t border-dashed border-slate-100 text-center">
-             <Button 
-               variant="ghost" 
-               className="h-10 text-[9px] font-black uppercase tracking-[0.3em] text-black/10 hover:text-secondary hover:bg-secondary/5 transition-all rounded-xl"
-               onClick={handleInitializeSystem}
-               disabled={initLoading}
-             >
-                {initLoading ? <Loader2 className="size-3 animate-spin mr-2" /> : <Sparkles className="size-3 mr-2" />}
-                System Initialization Node
-             </Button>
-          </div>
         </CardContent>
         
         <CardFooter className="bg-slate-50 p-10 border-t border-slate-100">
