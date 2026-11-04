@@ -1,9 +1,7 @@
-
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { collection, query, where, orderBy, limit } from "firebase/firestore"
-import { useFirestore, useCollection, useUser, useAuth } from "@/firebase"
+import { useUser, useAuth } from "@/firebase"
 import { useOffice } from "@/context/office-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
@@ -17,109 +15,75 @@ import {
   Zap, 
   Globe, 
   Database, 
-  Cpu, 
   CalendarDays,
   Target,
   AlertTriangle,
-  MapPin,
+  ArrowRightLeft,
+  PlaneTakeoff,
   Loader2
 } from "lucide-react"
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts"
 import { DemoBadge } from "@/components/ui/demo-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { getSolverHealthAction } from "@/services/solver-actions"
-import { getRegionalStatsAction } from "@/services/analytics-actions"
+import { getRegionalStatsAction, getOfficeDashboardStatsAction } from "@/services/analytics-actions"
 import { cn } from "@/lib/utils"
 
 export default function AdminDashboard() {
-  const db = useFirestore();
   const auth = useAuth();
   const { profile } = useUser();
   const { selectedOffice, authorizedOffices } = useOffice();
   
-  const [solverHealth, setSolverHealth] = useState<{ status: string; latency?: number } | null>(null);
-  const [regionalStats, setRegionalStats] = useState<any>(null);
-  const [loadingRegional, setLoadingRegional] = useState(false);
-
-  // Scoped Queries based on selected office context (for ADMIN)
-  const empQuery = useMemo(() => {
-    if (!selectedOffice) return null;
-    return query(collection(db, 'employees'), where('office', '==', selectedOffice), where('status', '==', 'Active'));
-  }, [db, selectedOffice]);
-
-  const rosterQuery = useMemo(() => {
-    if (!selectedOffice) return null;
-    return query(collection(db, 'published_rosters'), where('office', '==', selectedOffice), orderBy('publishedAt', 'desc'), limit(1));
-  }, [db, selectedOffice]);
-
-  const { data: employees, loading: empLoading } = useCollection(empQuery);
-  const { data: rosters, loading: rosterLoading } = useCollection(rosterQuery);
+  const [solverHealth, setSolverHealth] = useState<{ status: string } | null>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function verifyNode() {
-      try {
-        const health = await getSolverHealthAction();
-        setSolverHealth({ status: health.status });
-      } catch (e) {
-        setSolverHealth({ status: 'offline' });
-      }
-    }
-    
-    async function fetchRegional() {
-      if (profile?.role !== 'SUPER_ADMIN') return;
-      setLoadingRegional(true);
+    async function fetchData() {
+      setLoading(true);
       try {
         const idToken = await auth.currentUser?.getIdToken();
-        if (idToken) {
+        if (!idToken) return;
+
+        const health = await getSolverHealthAction();
+        setSolverHealth({ status: health.status });
+
+        if (profile?.role === 'SUPER_ADMIN') {
           const res = await getRegionalStatsAction(idToken);
-          if (res.success) setRegionalStats(res.data);
+          if (res.success) setStats(res.data);
+        } else if (selectedOffice) {
+          const res = await getOfficeDashboardStatsAction(idToken, selectedOffice);
+          if (res.success) setStats(res.data);
         }
       } catch (e) {
-        console.error("Regional Pulse Failed:", e);
+        console.error("Dashboard Pulse Failed:", e);
       } finally {
-        setLoadingRegional(false);
+        setLoading(false);
       }
     }
-
-    verifyNode();
-    fetchRegional();
-  }, [profile?.role, auth.currentUser]);
+    fetchData();
+  }, [profile?.role, selectedOffice, auth.currentUser]);
 
   const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
   const officeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || "---";
 
-  // Dashboard Metrics
-  const stats = useMemo(() => {
-    if (isSuperAdmin && regionalStats) {
-      return {
-        mainLabel: "Global Active Pool",
-        mainValue: regionalStats.activeEmployees,
-        subLabel: "Across ROC Network",
-        secondaryLabel: "Registered Nodes",
-        secondaryValue: regionalStats.totalOffices,
-        thirdLabel: "Roster Deployment",
-        thirdValue: regionalStats.totalAssignments,
-        pendingLabel: "Global Pending Pulse",
-        pendingValue: regionalStats.totalDrafts
-      };
+  const kpis = useMemo(() => {
+    if (!stats) return [];
+    if (isSuperAdmin) {
+      return [
+        { label: 'Cluster Nodes', value: stats.totalOffices, sub: `${stats.activeOffices} Active`, icon: Globe, color: 'text-primary' },
+        { label: 'Workforce Pool', value: stats.totalEmployees, sub: `${stats.activeEmployees} Active`, icon: Users, color: 'text-secondary' },
+        { label: 'Global Deployment', value: stats.totalAssignments, sub: 'Scheduled Shifts', icon: Zap, color: 'text-secondary' },
+        { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Awaiting Review', icon: PlaneTakeoff, color: 'text-destructive' }
+      ];
     }
-
-    const latestRoster = rosters?.[0];
-    const validAssignments = (latestRoster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none').length;
-
-    return {
-      mainLabel: "Authorized Staff",
-      mainValue: employees?.length || 0,
-      subLabel: officeName,
-      secondaryLabel: "Active Capacity",
-      secondaryValue: employees?.length || 0, // Simplified for MVP
-      thirdLabel: "Deployment Node",
-      thirdValue: latestRoster ? `V${latestRoster.version.toString().slice(-4)}` : '---',
-      pendingLabel: "Pending Pulse",
-      pendingValue: 0
-    };
-  }, [isSuperAdmin, regionalStats, employees, officeName, rosters]);
+    return [
+      { label: 'Authorized Staff', value: stats.totalEmployees, sub: `${stats.activeEmployees} Active`, icon: Users, color: 'text-primary' },
+      { label: 'Assigned Shifts', value: stats.assignedCount, sub: `Pulse V${stats.rosterVersion?.toString().slice(-4) || '---'}`, icon: Zap, color: 'text-secondary' },
+      { label: 'Pending Swaps', value: stats.pendingSwaps, sub: 'Request Ledger', icon: ArrowRightLeft, color: 'text-secondary' },
+      { label: 'Pending Leaves', value: stats.pendingLeaves, sub: 'Node Overrides', icon: PlaneTakeoff, color: 'text-destructive' }
+    ];
+  }, [stats, isSuperAdmin]);
 
   return (
     <div className="space-y-10 animate-in max-w-[1600px] mx-auto pb-40 px-4">
@@ -164,122 +128,71 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: stats.mainLabel, value: stats.mainValue, sub: stats.subLabel, icon: Users, color: 'text-primary' },
-          { label: stats.secondaryLabel, value: stats.secondaryValue, sub: 'Authorized Pulse', icon: TrendingUp, color: 'text-secondary' },
-          { label: stats.thirdLabel, value: stats.thirdValue, sub: 'Production Node', icon: CheckCircle2, color: 'text-secondary' },
-          { label: stats.pendingLabel, value: stats.pendingValue, sub: 'Needs Review', icon: Activity, color: 'text-destructive' }
-        ].map((kpi, i) => (
+        {loading ? (
+          Array(4).fill(0).map((_, i) => (
+            <Card key={i} className="glass-card border-none overflow-hidden">
+               <CardContent className="p-6 space-y-4">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-10 w-12" />
+                  <Skeleton className="h-4 w-32" />
+               </CardContent>
+            </Card>
+          ))
+        ) : kpis.map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
               <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
             </CardHeader>
             <CardContent>
-              {empLoading || loadingRegional ? <Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /> : (
-                <>
-                  <div className="text-5xl font-black text-black tracking-tighter">{kpi.value}</div>
-                  <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
-                </>
-              )}
+              <div className="text-5xl font-black text-black tracking-tighter">{kpi.value}</div>
+              <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {isSuperAdmin ? (
-        <div className="grid gap-8 lg:grid-cols-2">
-           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white p-12 space-y-8 group">
-              <div className="size-20 rounded-[1.75rem] bg-primary flex items-center justify-center shadow-2xl">
-                 <Globe className="size-10 text-white" />
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white p-12 space-y-8 group">
+           <div className="size-20 rounded-[1.75rem] bg-primary flex items-center justify-center shadow-2xl">
+              <Activity className="size-10 text-white" />
+           </div>
+           <div className="space-y-4">
+              <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Operational Oversight</h3>
+              <p className="text-sm text-black/50 leading-relaxed font-medium">
+                {isSuperAdmin 
+                  ? "Consolidated regional metrics for institutional governance. Monitor global coverage and cluster node integrity."
+                  : `Real-time management for ROC ${officeName}. Review assignments, swaps, and unavailability overrides.`}
+              </p>
+           </div>
+           <div className="grid grid-cols-2 gap-4">
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
+                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Requests</p>
+                 <p className="text-2xl font-black text-black">{stats?.pendingLeaves + stats?.pendingSwaps || 0}</p>
               </div>
-              <div className="space-y-4">
-                 <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Cluster Node Overview</h3>
-                 <p className="text-sm text-black/50 leading-relaxed font-medium">
-                    As a Super Administrator, you have oversight across all {regionalStats?.totalOffices || 0} ROC nodes. 
-                    Manage the institutional registry and monitor global roster deployment coverage.
-                 </p>
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
+                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sync Efficiency</p>
+                 <p className="text-2xl font-black text-secondary">100%</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Pulses</p>
-                    <p className="text-2xl font-black text-black">{regionalStats?.activeOffices || 0}</p>
-                 </div>
-                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Global Roster Coverage</p>
-                    <p className="text-2xl font-black text-secondary">92%</p>
-                 </div>
-              </div>
-           </Card>
+           </div>
+        </Card>
 
-           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white p-12 space-y-8 relative group">
-              <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000"><ShieldCheck size={240} /></div>
-              <ShieldCheck className="size-12 text-secondary" />
-              <div className="space-y-4 relative z-10">
-                 <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Node</h3>
-                 <p className="text-sm text-white/40 leading-relaxed font-medium">
-                    Multi-office isolation is enforced at the Firestore Security Rules level. 
-                    Institutional audit logs are trace-linked to specific administrative actors.
-                 </p>
-              </div>
-              <div className="pt-8 flex items-center gap-4 relative z-10">
-                 <div className="px-6 py-2 rounded-xl bg-white/10 border border-white/10 font-black uppercase text-[10px] tracking-widest">Level 4 Secure</div>
-                 <div className="px-6 py-2 rounded-xl bg-secondary/20 border border-secondary/20 font-black uppercase text-[10px] tracking-widest text-secondary">Audit Active</div>
-              </div>
-           </Card>
-        </div>
-      ) : (
-        <div className="grid gap-8 lg:grid-cols-7">
-          <Card className="lg:col-span-4 shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Deployment Matrix</CardTitle>
-                  <CardDescription className="text-[10px] font-black uppercase mt-2 text-muted-foreground tracking-[0.2em]">Today's Clinical Coverage.</CardDescription>
-                </div>
-                <div className="p-3 rounded-xl bg-secondary/10 border border-secondary/20">
-                  <BarChart3 className="size-6 text-secondary" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-10 flex items-center justify-center min-h-[300px]">
-               {rosters?.[0] ? (
-                 <div className="text-center space-y-6">
-                    <p className="text-6xl font-black text-black tracking-tighter">{(rosters[0].assignments || []).length}</p>
-                    <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground">Scheduled Assignments in Pulse V{rosters[0].version.toString().slice(-4)}</p>
-                 </div>
-               ) : (
-                 <div className="text-center opacity-20 italic font-black uppercase text-xs tracking-widest">No Active Roster Pulse Detected</div>
-               )}
-            </CardContent>
-          </Card>
-
-          <div className="lg:col-span-3 space-y-8">
-            <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white border-l-4 border-l-secondary">
-               <CardHeader className="p-10 pb-6 border-b border-slate-100 bg-slate-50/50">
-                  <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
-                    <Activity className="size-6 text-secondary" /> Node Integrity
-                  </CardTitle>
-               </CardHeader>
-               <CardContent className="p-10 space-y-8">
-                  <div className="flex items-center gap-5 p-5 rounded-2xl bg-slate-50 border border-slate-100 group cursor-default hover:bg-slate-100 transition-all">
-                    <div className="size-2.5 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-[12px] font-black uppercase text-black tracking-tight">Identity Registry</span>
-                        <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">SYNCED</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-black/40 font-bold uppercase leading-relaxed tracking-tight">
-                    Cluster node {selectedOffice} is operating within institutional parameters. 
-                    All administrative actions are ledgered for compliance review.
-                  </p>
-               </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
+        <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white p-12 space-y-8 relative group">
+           <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000"><ShieldCheck size={240} /></div>
+           <ShieldCheck className="size-12 text-secondary" />
+           <div className="space-y-4 relative z-10">
+              <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Node</h3>
+              <p className="text-sm text-white/40 leading-relaxed font-medium">
+                 Zero-Trust identity verification is enforced at the server layer. 
+                 Institutional audit logs are trace-linked to specific administrative actors.
+              </p>
+           </div>
+           <div className="pt-8 flex items-center gap-4 relative z-10">
+              <div className="px-6 py-2 rounded-xl bg-white/10 border border-white/10 font-black uppercase text-[10px] tracking-widest">Level 4 Secure</div>
+              <div className="px-6 py-2 rounded-xl bg-secondary/20 border border-secondary/20 font-black uppercase text-[10px] tracking-widest text-secondary">Audit Active</div>
+           </div>
+        </Card>
+      </div>
     </div>
   )
 }

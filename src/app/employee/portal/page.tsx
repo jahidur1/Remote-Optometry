@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
@@ -17,15 +16,12 @@ import {
   MapPin, 
   Settings, 
   Activity, 
-  Sparkles, 
+  Zap, 
   User, 
-  Zap,
   ChevronLeft,
   ChevronRight,
   History,
-  TrendingUp,
   ArrowRightLeft,
-  ShieldCheck,
   Lock
 } from "lucide-react"
 import Link from "next/link"
@@ -42,15 +38,14 @@ import { getMyRosterAction } from "@/services/roster-actions"
 export default function EmployeePortal() {
   const db = useFirestore();
   const auth = useAuth();
-  const { profile, loading: userLoading, sessionValid } = useUser();
-  const [activeConfig, setActiveConfig] = useState<any>(null);
+  const { profile, loading: userLoading } = useUser();
   const [loading, setLoading] = useState(true);
   const [api, setApi] = useState<CarouselApi>();
   
   const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
   const [rosterLoading, setRosterLoading] = useState(true);
 
-  // Cycle Configuration
+  // Cycle Configuration: 4-week analytical lookback/lookahead
   const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
   const prev1Week = '2024-51';
@@ -87,22 +82,7 @@ export default function EmployeePortal() {
     syncRosters();
   }, [auth.currentUser, currentWeek]);
 
-  useEffect(() => {
-    if (!profile?.office || !db) return;
-    const q = query(
-      collection(db, 'weekoff_configs'), 
-      where('office', '==', profile.office),
-      orderBy('weekId', 'desc'), 
-      limit(1)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) setActiveConfig(snapshot.docs[0].data());
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [db, profile]);
-
-  if (userLoading || loading || rosterLoading) {
+  if (userLoading || rosterLoading) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
