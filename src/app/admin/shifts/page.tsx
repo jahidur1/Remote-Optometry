@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -13,14 +12,10 @@ import {
   RefreshCcw, 
   Info, 
   ShieldCheck, 
-  Target, 
-  Building2, 
   Activity, 
   Zap, 
   Server, 
   Database,
-  ArrowUpRight,
-  Lock,
   Terminal,
   Cpu
 } from "lucide-react";
@@ -29,6 +24,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 
+/**
+ * INSTITUTIONAL SHIFT MASTER REGISTRY
+ * 
+ * Standardized shift nodes utilized by the deterministic optimization engine.
+ * 'Closing' and 'Closing 2' are distinct clinical slots.
+ */
 const DEFAULT_SHIFTS = [
   { id: "SO", name: "Super Opening", startTime: "09:30 AM", endTime: "06:30 PM", displayOrder: 1 },
   { id: "OP", name: "Opening", startTime: "10:00 AM", endTime: "07:00 PM", displayOrder: 2 },
@@ -62,8 +63,8 @@ export default function ShiftMaster() {
         await setDoc(doc(db, 'shift_master', shift.id), shift);
       }
       toast({ 
-        title: "Shift Master Synchronized", 
-        description: "Standard institutional shifts have been provisioned in the registry." 
+        title: "Shift Registry Synchronized", 
+        description: "Standard institutional shifts (including C1/C2 distinction) have been provisioned." 
       });
     } catch (e: any) {
       toast({ title: "Registry Error", description: e.message, variant: "destructive" });
@@ -127,10 +128,10 @@ export default function ShiftMaster() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Permanent Nodes', value: stats.count, sub: 'Authorized Slots', icon: Server, color: 'text-primary' },
-          { label: 'Service Window', value: stats.firstStart.split(':')[0] + 'a', sub: 'Clinical Initiation', icon: Clock, color: 'text-secondary' },
-          { label: 'Terminus Node', value: stats.lastEnd.split(':')[0] + 'p', sub: 'Registry Closure', icon: Zap, color: 'text-secondary' },
-          { label: 'Solver Pulse', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
+          { label: 'Shift Nodes', value: stats.count, sub: 'Authorized Slots', icon: Server, color: 'text-primary' },
+          { label: 'Service Initiation', value: stats.firstStart, sub: 'Daily Opening', icon: Clock, color: 'text-secondary' },
+          { label: 'Service Terminus', value: stats.lastEnd, sub: 'Daily Closure', icon: Zap, color: 'text-secondary' },
+          { label: 'Solver Alignment', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -152,9 +153,9 @@ export default function ShiftMaster() {
               <Terminal className="size-8 text-secondary" />
             </div>
             <div className="space-y-1">
-              <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Standards</CardTitle>
+              <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Shift Standards</CardTitle>
               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                 Permanent shift definitions utilized by the CP-SAT engine.
+                 Permanent clinical definitions used for CP-SAT optimization.
               </CardDescription>
             </div>
           </div>
@@ -171,9 +172,9 @@ export default function ShiftMaster() {
               <div className="size-24 rounded-[2.5rem] bg-secondary/5 flex items-center justify-center mx-auto mb-10 border-2 border-dashed border-secondary/20">
                  <Server className="size-10 text-secondary/20" />
               </div>
-              <p className="text-black/20 font-black uppercase text-xs tracking-[0.4em] mb-10 italic">No authorized shift records detected in cluster node.</p>
+              <p className="text-black/20 font-black uppercase text-xs tracking-[0.4em] mb-10 italic">No authorized shift records detected in node.</p>
               <Button onClick={handleInitialize} className="bg-secondary text-white shadow-2xl shadow-secondary/20 h-16 px-14 font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-105 active:scale-95 transition-all">
-                 <Zap className="size-5 mr-3 fill-white" /> PROVISION REGISTRY
+                 <Zap className="size-5 mr-3 fill-white" /> PROVISION STANDARDS
               </Button>
             </div>
           ) : (
@@ -182,8 +183,8 @@ export default function ShiftMaster() {
                 <TableRow className="border-b border-slate-100">
                   <TableHead className="w-[280px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Identity Key</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Category</TableHead>
-                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Execution Window (IST)</TableHead>
-                  <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Governance Control</TableHead>
+                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Execution Pulse (IST)</TableHead>
+                  <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -226,10 +227,10 @@ export default function ShiftMaster() {
                  <Info className="size-8" />
               </div>
               <div className="space-y-1">
-                <p className="text-[11px] font-black uppercase tracking-[0.3em] text-black/40">Solver Requirement Pulse</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.3em] text-black/40">Clinical Standard Pulse</p>
                 <p className="text-[13px] font-medium text-black/80 uppercase leading-relaxed tracking-tight max-w-4xl">
-                  Shift Master records are architected as static entities for mathematical stability. 
-                  Modifying these nodes requires re-validating all active clinical quotas and historical fairness scores.
+                  Shift Master nodes are immutable entities during active roster cycles. Modifying these records will invalidate 
+                  existing localized quotas and trigger a mathematical re-sync of all draft rosters for the affected week.
                 </p>
               </div>
            </div>

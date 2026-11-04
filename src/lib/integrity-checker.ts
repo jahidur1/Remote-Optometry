@@ -19,35 +19,45 @@ export function verifyRosterIntegrity(
   const issues: string[] = [];
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  assignments.forEach(a => {
-    // Only check valid shift assignments (skip markers like 'none' or 'unassigned')
-    if (!a.shiftId || a.shiftId === 'none') return;
+  // 1. Clean Assignments: Exclude non-operational markers
+  const activeAssignments = assignments.filter(a => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
 
-    // 1. FCFS Protection: No assignments on protected Weekly-Offs
-    const isOff = bookings.some(b => b.employeeId === a.employeeId && b.dayOfWeek === a.dayOfWeek);
+  activeAssignments.forEach(a => {
+    // 2. FCFS Protection: No assignments on protected Weekly-Offs
+    const isOff = bookings.some(b => 
+      b.employeeId === a.employeeId && 
+      b.dayOfWeek === a.dayOfWeek &&
+      b.status === 'confirmed'
+    );
+    
     if (isOff) {
       issues.push(`CRITICAL: Professional ${a.employeeId} assigned shift ${a.shiftId} on protected Weekly-Off (${a.dayOfWeek}).`);
     }
 
-    // 2. Absence Protection: No assignments during approved leave
+    // 3. Absence Protection: No assignments during approved leave window
     const dayIdx = DAYS.indexOf(a.dayOfWeek);
-    if (dayIdx !== -1) {
-      const date = weekDates[dayIdx].toISOString().split('T')[0];
-      const onLeave = leaves.some(l => l.employeeId === a.employeeId && date >= l.startDate && date <= l.endDate && l.status === 'approved');
+    if (dayIdx !== -1 && weekDates[dayIdx]) {
+      const dateStr = weekDates[dayIdx].toISOString().split('T')[0];
+      const onLeave = leaves.some(l => 
+        l.employeeId === a.employeeId && 
+        dateStr >= l.startDate && 
+        dateStr <= l.endDate && 
+        l.status === 'approved'
+      );
+      
       if (onLeave) {
-        issues.push(`CRITICAL: Professional ${a.employeeId} assigned shift ${a.shiftId} during approved absence (${a.dayOfWeek} / ${date}).`);
+        issues.push(`CRITICAL: Professional ${a.employeeId} assigned shift ${a.shiftId} during approved absence window (${a.dayOfWeek} / ${dateStr}).`);
       }
     }
   });
 
-  // 3. Zero-Overlap: Single assignment per professional per day
-  const keys = assignments
-    .filter(a => a.shiftId && a.shiftId !== 'none')
-    .map(a => `${a.employeeId}_${a.dayOfWeek}`);
+  // 4. Zero-Overlap: Single assignment per professional per clinical day
+  const assignmentKeys = activeAssignments.map(a => `${a.employeeId}_${a.dayOfWeek}`);
+  const uniqueKeys = new Set(assignmentKeys);
   
-  const uniqueKeys = new Set(keys);
-  if (keys.length !== uniqueKeys.size) {
-    issues.push(`CRITICAL: Double-assignment detected for one or more professionals within the same clinical day.`);
+  if (assignmentKeys.length !== uniqueKeys.size) {
+    const duplicates = assignmentKeys.filter((item, index) => assignmentKeys.indexOf(item) !== index);
+    issues.push(`CRITICAL: Double-assignment detected for ${duplicates.join(', ')}. Single shift per day policy enforced.`);
   }
 
   return {

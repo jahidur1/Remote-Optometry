@@ -79,6 +79,9 @@ describe('ROC Workforce: Core Roster Management - Resilience & Security', () => 
        if (ref?.path?.includes('offices/KOLKATA_ROC')) {
           return { exists: true, data: () => ({ officeId: 'KOLKATA_ROC', status: 'Active' }) };
        }
+       if (ref?.path?.includes('employees/EMP_DUPLICATE')) {
+          return { exists: true, data: () => ({ id: 'EMP_DUPLICATE' }) };
+       }
        return { exists: false };
     });
     mockWhereGet.mockResolvedValue({ empty: true, docs: [] });
@@ -86,7 +89,7 @@ describe('ROC Workforce: Core Roster Management - Resilience & Security', () => 
 
   // --- 1. OFFICE REGISTRY TESTS ---
 
-  it('createOfficeAction: Successfully provisions new cluster', async () => {
+  it('createOfficeAction: Successfully provisions new cluster node', async () => {
     mockGet.mockResolvedValueOnce({ exists: false }); // Office Not Found
     mockGet.mockResolvedValueOnce({ exists: false }); // Short Code Not Found
     
@@ -98,25 +101,32 @@ describe('ROC Workforce: Core Roster Management - Resilience & Security', () => 
     expect(result.success).toBe(true);
   });
 
-  // --- 2. IDENTITY DUPLICATE CHECKS ---
+  // --- 2. IDENTITY GOVERNANCE TESTS ---
 
-  it('provisionIdentityAction: Rejects duplicate phone numbers', async () => {
-    mockGet.mockImplementation((ref) => {
-       if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) };
-       if (ref?.path?.includes('offices/KOLKATA_ROC')) return { exists: true, data: () => ({ status: 'Active' }) };
-       return { exists: false };
-    });
-
-    // Mock phone number exists
-    mockWhereGet.mockResolvedValueOnce({ empty: true }); // email search
-    mockWhereGet.mockResolvedValueOnce({ empty: false }); // phone search
-
+  it('provisionIdentityAction: Rejects duplicate professional IDs', async () => {
     const result = await provisionIdentityAction(mockIdToken, { 
       office: 'KOLKATA_ROC', 
-      employeeId: 'E1', 
+      employeeId: 'EMP_DUPLICATE', 
       fullName: 'John',
       email: 'john@roc.test',
       whatsappNumber: '9999900000'
+    }, 'pass1234');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Employee ID already registered');
+  });
+
+  it('provisionIdentityAction: Rejects duplicate mobile endpoints', async () => {
+    // Mock phone number already exists in registry
+    mockWhereGet.mockResolvedValueOnce({ empty: true }); // email search results empty
+    mockWhereGet.mockResolvedValueOnce({ empty: false }); // phone search results NOT empty
+
+    const result = await provisionIdentityAction(mockIdToken, { 
+      office: 'KOLKATA_ROC', 
+      employeeId: 'E2', 
+      fullName: 'Jane',
+      email: 'jane@roc.test',
+      whatsappNumber: '9999911111'
     }, 'pass1234');
 
     expect(result.success).toBe(false);
@@ -140,11 +150,11 @@ describe('ROC Workforce: Core Roster Management - Resilience & Security', () => 
       .rejects.toThrow('not authorized');
   });
 
-  it('generateWeeklyRoster: Fails when office-specific quota is missing', async () => {
+  it('generateWeeklyRoster: Fails with UNKNOWN status when localized quota is missing', async () => {
     mockGet.mockImplementation((ref) => {
        if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) };
        if (ref?.path?.includes('offices/KOLKATA_ROC')) return { exists: true, data: () => ({ status: 'Active' }) };
-       // Quota Doc Not Found
+       // Simulate Quota Doc Not Found
        if (ref?.path?.includes('roster_quotas')) return { exists: false };
        return { exists: true, data: () => ({}) };
     });
@@ -154,9 +164,9 @@ describe('ROC Workforce: Core Roster Management - Resilience & Security', () => 
     expect(result.summary).toContain('quotas for ROC KOLKATA_ROC in Week 2024-52 have not been defined');
   });
 
-  // --- 4. QUOTA ACTIONS TESTS ---
+  // --- 4. SHIFT MASTER SPECIFICITY ---
 
-  it('saveQuotaAction: Admin can save authorized office quota', async () => {
+  it('saveQuotaAction: Admin can save quotas for C1 and C2 distinct nodes', async () => {
     mockGet.mockImplementation((ref) => {
        if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ role: 'ADMIN', status: 'Active', officeIds: ['KOLKATA_ROC'] }) };
        if (ref?.path?.includes('offices/KOLKATA_ROC')) return { exists: true, data: () => ({ status: 'Active' }) };
@@ -166,7 +176,10 @@ describe('ROC Workforce: Core Roster Management - Resilience & Security', () => 
     const result = await saveQuotaAction(mockIdToken, {
       weekId: '2025-01',
       officeId: 'KOLKATA_ROC',
-      quotas: { 'Monday_SO': 5 }
+      quotas: { 
+        'Monday_C1': 2,
+        'Monday_C2': 1 
+      }
     });
     expect(result.success).toBe(true);
   });

@@ -33,7 +33,7 @@ async function getAuthorizedCaller(idToken: string) {
 
 /**
  * provisionIdentityAction
- * Hardened: Performs triple-uniqueness check (ID, Email, Phone).
+ * Hardened: Performs triple-uniqueness check (ID, Email, Phone) via parallel atomic lookups.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken);
@@ -47,12 +47,12 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     throw new Error(`Unauthorized: You cannot provision staff for cluster ${formData.office}.`);
   }
 
-  const employeeId = formData.employeeId.toUpperCase();
-  const email = formData.email.toLowerCase();
+  const employeeId = formData.employeeId.toUpperCase().trim();
+  const email = formData.email.toLowerCase().trim();
   const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
 
   try {
-    // Triple Uniqueness Check
+    // 3. Triple Uniqueness Check (ID, Email, Phone)
     const [idSnap, emailSnap, phoneSnap] = await Promise.all([
       adminDb.collection('employees').doc(employeeId).get(),
       adminDb.collection('employees').where('email', '==', email).get(),
@@ -60,9 +60,10 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     ]);
 
     if (idSnap.exists) throw new Error("Identity Lock: Employee ID already registered.");
-    if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound to a record.");
-    if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile endpoint already bound to a record.");
+    if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound to a clinical record.");
+    if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile endpoint already bound to a clinical record.");
 
+    // 4. Provision Authentication Node
     const authUser = await adminAuth.createUser({
       email,
       password,
@@ -84,6 +85,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
 
     const batch = adminDb.batch();
     
+    // 5. Commit Clinical Registry Record
     batch.set(adminDb.collection('employees').doc(employeeId), {
       ...commonData,
       id: employeeId,
@@ -95,6 +97,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       authUid: authUser.uid
     });
 
+    // 6. Commit User Profile Record
     batch.set(adminDb.collection('users').doc(authUser.uid), {
       ...commonData,
       uid: authUser.uid,
@@ -105,10 +108,11 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     });
 
     await batch.commit();
-    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { role: formData.role });
+    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { role: formData.role, office: formData.office });
 
     return { success: true, uid: authUser.uid };
   } catch (e: any) {
+    console.error('Provisioning Error:', e.message);
     return { success: false, error: e.message };
   }
 }
@@ -126,7 +130,7 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
     const empData = empSnap.data()!;
 
     if (empData.role === 'SUPER_ADMIN' && caller.role !== 'SUPER_ADMIN') {
-      throw new Error("Privilege Block: Only Super Admins can modify other Super Admins.");
+      throw new Error("Privilege Block: Only Super Admins can modify status for this role level.");
     }
 
     const batch = adminDb.batch();
@@ -150,7 +154,7 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
       } catch (authErr) {}
     }
 
-    await logAuditServer(caller.uid, `ADMIN_${newStatus.toUpperCase()}_IDENTITY`, employeeId);
+    await logAuditServer(caller.uid, `ADMIN_SET_STATUS_${newStatus.toUpperCase()}`, employeeId);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -182,7 +186,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
         filtered.office = updates.office;
       }
       
-      if (updates.officeIds) {
+      if (updates.officeIds && Array.isArray(updates.officeIds)) {
         for (const oId of updates.officeIds) {
           await assertOfficeActive(oId);
         }
@@ -191,7 +195,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     }
 
     if (updates.email && updates.email !== current.email) {
-      if (caller.role !== 'SUPER_ADMIN') throw new Error("Privilege Block: Email updates restricted to Super Admin.");
+      if (caller.role !== 'SUPER_ADMIN') throw new Error("Privilege Block: Email updates restricted to Super Admin node.");
       await adminAuth.updateUser(current.authUid, { email: updates.email });
       filtered.email = updates.email;
     }
