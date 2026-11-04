@@ -2,8 +2,7 @@
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Refactored: Uses dynamic Office Registry, enforces Adjacency Rules, and supports dual-engine (CP-SAT/AI).
- * Strictly maps data to serializable objects to prevent Server Component render failures.
+ * Refactored: Uses structured Prompt Schema and hard-coded Logic-Locks.
  */
 
 import { ai } from '@/ai/genkit';
@@ -29,6 +28,34 @@ const RosterAssignmentSchema = z.object({
   shiftId: z.string(),
 });
 
+/**
+ * Structured schema for the AI prompt to ensure deterministic input parsing.
+ */
+const PromptInputSchema = z.object({
+  weekId: z.string(),
+  officeId: z.string(),
+  weeklyQuotas: z.array(z.object({
+    dayOfWeek: z.string(),
+    shiftId: z.string(),
+    requiredStaff: z.number(),
+  })),
+  employees: z.array(z.object({
+    id: z.string(),
+    gender: z.string(),
+    historicalSO: z.number(),
+    historicalOP: z.number(),
+  })),
+  locks: z.array(z.object({
+    employeeId: z.string(),
+    dayOfWeek: z.string(),
+  })),
+  adjacencies: z.array(z.object({
+    employeeId: z.string(),
+    dayOfWeek: z.string(),
+    restrictedToShifts: z.array(z.string()),
+  })),
+});
+
 export const GenerateWeeklyRosterOutputSchema = z.object({
   rosterAssignments: z.array(RosterAssignmentSchema),
   summary: z.string(),
@@ -50,46 +77,40 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
 
 const aiPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterAIPrompt',
-  input: { schema: z.any() },
+  input: { schema: PromptInputSchema },
   output: { schema: z.array(RosterAssignmentSchema) },
-  prompt: `You are an expert institutional clinical scheduler. Your objective is to generate a mathematically consistent and clinicaly safe roster for the hub: {{{officeId}}}.
+  prompt: `You are an expert institutional clinical scheduler. Your goal is to generate a roster that matches SHIFT QUOTAS 100%.
 
-## TEMPORAL CONTEXT
-Week Cycle ID: {{{weekId}}}
-Operational Days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+## CONTEXT
+Hub: {{{officeId}}}
+Cycle: {{{weekId}}}
 
-## CLINICAL REQUIREMENTS (SHIFT QUOTAS) - MANDATORY
-You MUST fulfill these exact counts for every day and every shift. Failure to match these numbers is an institutional breach.
-{{#each weeklyQuotas}}
-- {{dayOfWeek}} | Shift: {{shiftId}} | Required Professionals: {{requiredStaff}}
-{{/each}}
-
-## PROFESSIONAL REGISTRY (STAFF POOL)
-{{#each employees}}
-- ID: {{id}}, Gender: {{gender}}, History Metrics: [SO: {{historicalSO}}, OP: {{historicalOP}}]
-{{/each}}
-
-## INSTITUTIONAL GUARDRAILS (HARD CONSTRAINTS)
-1. NO-DUTY LOCKS (Weekly-Offs & Leaves):
+## MANDATORY REQUIREMENTS
+1. FCFS PROTECTION (Locks): 
 {{#each locks}}
-- Professional {{employeeId}} is LOCKED on {{dayOfWeek}}. DO NOT assign any shift.
+- Employee {{employeeId}} is OFF on {{dayOfWeek}}. Assign NO SHIFT.
 {{/each}}
 
-2. ADJACENCY CONSTRAINTS (Transition Eligibility):
+2. STAFFING QUOTAS (Crucial):
+You MUST assign exactly this many people per shift per day.
+{{#each weeklyQuotas}}
+- {{dayOfWeek}} | {{shiftId}} | Required: {{requiredStaff}}
+{{/each}}
+
+3. TRANSITION RULES (Adjacencies):
 {{#each adjacencies}}
-- Professional {{employeeId}} on {{dayOfWeek}} is RESTRICTED to these shifts only: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
+- Employee {{employeeId}} on {{dayOfWeek}} can ONLY work: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
 {{/each}}
 
-## EXECUTION LOGIC
-- FIRST: Lock in all Weekly-Offs and Leaves. These professionals are removed from the pool for those specific days.
-- SECOND: Satisfy the mandatory Quotas for each shift and day using the remaining available professionals.
-- THIRD: Apply Adjacency Rules for professional transitions around their off-days.
-- FOURTH: Distribute "SO" (Super Opening) and "OP" (Opening) shifts fairly based on historical metrics (lower counts get priority).
+## LOGIC
+- FIRST: Identify all professionals on leave or week-off (Locks) and remove them from the daily pool.
+- SECOND: Fill the required Quotas for every shift using available staff.
+- THIRD: Ensure Adjacency Rules are followed.
+- FOURTH: Balance "SO" and "OP" shifts fairly based on historical metrics.
 
-## OUTPUT PROTOCOL
+## OUTPUT
 Return ONLY a JSON array of assignment objects.
-Example: [{"employeeId": "EMP1", "dayOfWeek": "Monday", "shiftId": "SO"}]
-`,
+Example: [{"employeeId": "EMP1", "dayOfWeek": "Monday", "shiftId": "SO"}]`,
 });
 
 const generateWeeklyRosterFlow = ai.defineFlow(
@@ -153,7 +174,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       }));
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: String(d.data().name) }));
-      const bookings = bookingsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      const bookings = bookingsSnap.docs.map(d => ({ ...d.data(), id: d.id } as any));
       const leaves = leavesSnap.docs.map(d => {
         const data = d.data();
         return {
@@ -161,67 +182,71 @@ const generateWeeklyRosterFlow = ai.defineFlow(
           id: d.id,
           startDate: String(data.startDate || ''),
           endDate: String(data.endDate || '')
-        };
+        } as any;
       });
-      const adjacencyRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      const adjacencyRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as any));
 
-      const employeeHardConstraints: any[] = [
-        ...bookings.map(b => ({ employeeId: b.employeeId, type: 'weeklyOff', dayOfWeek: b.dayOfWeek })),
+      const locks = [
+        ...bookings.map(b => ({ employeeId: b.employeeId, dayOfWeek: b.dayOfWeek })),
         ...leaves.flatMap(leaf => {
           return DAYS.filter((day, idx) => idx < weekDates.length && isDateInRange(weekDates[idx], leaf.startDate, leaf.endDate))
-            .map(day => ({ employeeId: leaf.employeeId, type: 'unavailable', dayOfWeek: day }));
-        }),
-        ...bookings.flatMap(booking => {
-          const rule = adjacencyRules.find(r => r.employeeId === booking.employeeId);
-          if (!rule) return [];
-          const res: any[] = [];
-          const idx = DAYS.indexOf(booking.dayOfWeek);
-          if (idx > 0 && rule.allowedPreOffShifts?.length > 0) {
-            res.push({ employeeId: booking.employeeId, type: 'restrictedShift', dayOfWeek: DAYS[idx - 1], restrictedToShifts: rule.allowedPreOffShifts });
-          }
-          if (idx < 6 && rule.allowedPostOffShifts?.length > 0) {
-            res.push({ employeeId: booking.employeeId, type: 'restrictedShift', dayOfWeek: DAYS[idx + 1], restrictedToShifts: rule.allowedPostOffShifts });
-          }
-          return res;
+            .map(day => ({ employeeId: leaf.employeeId, dayOfWeek: day }));
         })
       ];
+
+      const adjacencies = bookings.flatMap(booking => {
+        const rule = adjacencyRules.find((r: any) => r.employeeId === booking.employeeId);
+        if (!rule) return [];
+        const res: any[] = [];
+        const idx = DAYS.indexOf(booking.dayOfWeek);
+        if (idx > 0 && rule.allowedPreOffShifts?.length > 0) {
+          res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx - 1], restrictedToShifts: rule.allowedPreOffShifts });
+        }
+        if (idx < 6 && rule.allowedPostOffShifts?.length > 0) {
+          res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx + 1], restrictedToShifts: rule.allowedPostOffShifts });
+        }
+        return res;
+      });
 
       const weeklyQuotas = Object.entries(quotaSnap.data()?.quotas || {}).map(([key, val]) => {
         const [day, sId] = key.split('_');
         return { dayOfWeek: day, shiftId: sId, requiredStaff: Number(val) };
       });
 
-      const solverPayload = {
-        weekId,
-        officeId,
-        shifts,
-        employees,
-        weeklyQuotas,
-        employeeHardConstraints,
-        employeeSoftPreferences: prefsSnap.docs.map(d => ({ employeeId: String(d.data().employeeId), dayOfWeek: String(d.data().dayOfWeek), shiftId: String(d.data().shiftId), weight: 1.0 })),
-        timeLimitSeconds: 60
-      };
-
       let resultAssignments: any[] = [];
       let solverStatus: any = 'UNKNOWN';
-      let metadata: any = { solveTimeMs: 0, constraintsChecked: employeeHardConstraints.length };
+      let metadata: any = { solveTimeMs: 0, constraintsChecked: locks.length + adjacencies.length };
 
       if (method === 'ai') {
-          // Pre-process for AI protocol clarity
           const aiInput = {
-            ...solverPayload,
-            locks: employeeHardConstraints.filter(c => ['weeklyOff', 'unavailable'].includes(c.type)),
-            adjacencies: employeeHardConstraints.filter(c => c.type === 'restrictedShift')
+            weekId,
+            officeId,
+            weeklyQuotas,
+            employees,
+            locks,
+            adjacencies
           };
           const { output } = await aiPrompt(aiInput);
           resultAssignments = output || [];
           solverStatus = 'FEASIBLE';
           metadata.solveTimeMs = Date.now() - start;
       } else {
-          const solverResult = await callSolver(solverPayload);
+          // CP-SAT Implementation
+          const solverResult = await callSolver({
+            weekId,
+            officeId,
+            shifts,
+            employees,
+            weeklyQuotas,
+            employeeHardConstraints: [
+              ...locks.map(l => ({ ...l, type: 'weeklyOff' })),
+              ...adjacencies.map(a => ({ ...a, type: 'restrictedShift' }))
+            ],
+            timeLimitSeconds: 60
+          });
           resultAssignments = solverResult.assignments || [];
           solverStatus = solverResult.status;
-          metadata = { ...solverResult.metadata, constraintsChecked: employeeHardConstraints.length };
+          metadata = { ...solverResult.metadata, constraintsChecked: locks.length + adjacencies.length };
       }
       
       const integrity = verifyRosterIntegrity(resultAssignments, bookings, leaves, weekDates);
