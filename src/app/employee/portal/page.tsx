@@ -36,7 +36,7 @@ import { getMyRosterAction } from "@/services/roster-actions"
 
 /**
  * Institutional Weekly-Off Pulse Indicator
- * Handles the logic for FCFS booking windows with IST formatting and countdowns.
+ * Specifically optimized for IST synchronization and 3-minute alerting.
  */
 function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, userBooking: any, weekId: string }) {
   const [now, setNow] = useState(new Date());
@@ -50,16 +50,16 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
     return (
       <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-emerald-500/10 border-2 border-emerald-500/20 space-y-2 md:space-y-3">
         <p className="text-[8px] md:text-[10px] font-black uppercase text-emerald-500 tracking-widest">FCFS Confirmed</p>
-        <p className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter italic leading-none">{userBooking.dayOfWeek}</p>
-        <p className="text-[9px] text-white/20 uppercase font-black tracking-widest">Locked for Cycle {weekId}</p>
+        <p className="text-3xl md:text-4xl font-black text-emerald-600 uppercase tracking-tighter italic leading-none">{userBooking.dayOfWeek}</p>
+        <p className="text-[9px] text-black/20 uppercase font-black tracking-widest">Locked for Cycle {weekId}</p>
       </div>
     );
   }
 
   if (!config) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center">
-        <p className="text-[9px] font-black uppercase text-white/30 tracking-[0.25em]">No live week-off preference pool available</p>
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
+        <p className="text-[9px] font-black uppercase text-black/30 tracking-[0.25em]">No live weekly-off preference pool available</p>
       </div>
     );
   }
@@ -71,20 +71,20 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
 
   if (now > closeTime) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center">
-        <p className="text-[9px] font-black uppercase text-white/30 tracking-[0.25em]">Matrix Cycle Closed</p>
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
+        <p className="text-[9px] font-black uppercase text-black/30 tracking-[0.25em]">Matrix Cycle Closed</p>
       </div>
     );
   }
 
   if (now >= openTime) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-secondary/5 border-2 border-secondary/20 space-y-4">
         <p className="text-[8px] md:text-[10px] font-black uppercase text-secondary tracking-[0.3em] flex items-center gap-2">
-          <Zap className="size-3 fill-secondary" /> Live Pool Available
+          <Zap className="size-3 fill-secondary" /> Pulse Live
         </p>
         <div className="space-y-2">
-           <p className="text-[11px] font-bold text-white uppercase tracking-tight">No reservation secured for Cycle {config.weekId}.</p>
+           <p className="text-[11px] font-bold text-black uppercase tracking-tight">Open for Cycle {config.weekId}.</p>
            <Link href="/employee/book-off" className="block">
               <Button className="w-full bg-secondary text-white font-black uppercase text-[10px] tracking-[0.15em] rounded-lg md:rounded-xl h-12 shadow-[0_10px_30px_-10px_rgba(59,130,246,0.5)] hover:scale-[1.02] active:scale-95 transition-all">
                 Enter Matrix Hub
@@ -100,12 +100,12 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center space-y-4">
-        <p className="text-[8px] md:text-[10px] font-black uppercase text-secondary tracking-[0.4em] animate-pulse">Pool Live In</p>
-        <p className="text-4xl font-black text-white tabular-nums tracking-tighter leading-none">
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-amber-500/5 border-2 border-amber-500/20 text-center space-y-4">
+        <p className="text-[8px] md:text-[10px] font-black uppercase text-amber-600 tracking-[0.4em] animate-pulse">Pool Live In</p>
+        <p className="text-4xl font-black text-amber-600 tabular-nums tracking-tighter leading-none">
           {mins}:{secs.toString().padStart(2, '0')}
         </p>
-        <p className="text-[8px] font-black text-white/20 uppercase tracking-widest">Get Ready to Pulse</p>
+        <p className="text-[8px] font-black text-amber-500/40 uppercase tracking-widest">Prepare for Pulse</p>
       </div>
     );
   }
@@ -118,13 +118,13 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
   });
 
   return (
-    <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center space-y-3">
-       <p className="text-[8px] md:text-[10px] font-black uppercase text-white/30 tracking-[0.3em]">Weekly-Off Matrix</p>
-       <p className="text-[12px] font-bold text-white uppercase tracking-tight leading-relaxed">
+    <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center space-y-3">
+       <p className="text-[8px] md:text-[10px] font-black uppercase text-black/30 tracking-[0.3em]">Weekly-Off Matrix</p>
+       <p className="text-[12px] font-bold text-black uppercase tracking-tight leading-relaxed">
           Live pool available at <br />
           <span className="text-xl text-secondary mt-1 inline-block">{istTime} IST</span>
        </p>
-       <p className="text-[9px] text-white/10 uppercase font-black tracking-widest mt-1">Status: Scheduled Pulse</p>
+       <p className="text-[9px] text-black/20 uppercase font-black tracking-widest mt-1">Status: Scheduled Pulse</p>
     </div>
   );
 }
@@ -139,8 +139,8 @@ export default function EmployeePortal() {
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
 
-  const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
+  const upcomingWeek = '2025-01';
   const weeks = [upcomingWeek, currentWeek];
 
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
@@ -190,7 +190,7 @@ export default function EmployeePortal() {
       }
     }
     syncRosters();
-  }, [auth.currentUser, currentWeek]);
+  }, [auth.currentUser]);
 
   if (userLoading || rosterLoading) {
     return (
@@ -369,9 +369,8 @@ export default function EmployeePortal() {
         </div>
 
         <div className="lg:col-span-4 space-y-8 md:space-y-10">
-          <Card className="bg-[#0F172A] text-white shadow-2xl border-none overflow-hidden rounded-[2rem] md:rounded-[3rem] relative group">
-            <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000 hidden md:block"><Activity size={240} /></div>
-            <CardHeader className="p-8 md:p-10 pb-4 md:pb-6 border-b border-white/5">
+          <Card className="bg-white shadow-2xl border-none rounded-[2rem] md:rounded-[3rem] relative group border border-slate-100">
+            <CardHeader className="p-8 md:p-10 pb-4 md:pb-6 border-b border-slate-50">
               <CardTitle className="text-[10px] md:text-[12px] font-black uppercase tracking-[0.3em] md:tracking-[0.5em] flex items-center gap-3 md:gap-4 text-secondary">
                 <Activity className="size-4 md:size-5" /> Institutional Pulse
               </CardTitle>
@@ -380,14 +379,14 @@ export default function EmployeePortal() {
               <div className="space-y-4 md:space-y-6">
                 <div className="flex items-center gap-3 md:gap-4">
                    <div className="size-2.5 md:size-3 rounded-full bg-emerald-500 shadow-[0_0_15px_#10b981]" />
-                   <p className="text-[13px] md:text-[15px] font-black tracking-widest text-white uppercase">Cluster Connected</p>
+                   <p className="text-[13px] md:text-[15px] font-black tracking-widest text-black uppercase">Center Connected</p>
                 </div>
-                <p className="text-[10px] md:text-[12px] text-white/40 leading-relaxed uppercase font-black tracking-[0.05em] md:tracking-[0.1em]">
+                <p className="text-[10px] md:text-[12px] text-black/40 leading-relaxed uppercase font-black tracking-[0.05em] md:tracking-[0.1em]">
                    Daily briefings dispatched via Meta Cloud API at **22:00 IST**. Optimized for clinical pod-balance.
                 </p>
               </div>
 
-              <div className="pt-8 md:pt-10 border-t border-white/10 space-y-6 md:space-y-8">
+              <div className="pt-8 md:pt-10 border-t border-slate-50 space-y-6 md:space-y-8">
                  <WeekOffMatrixStatus config={activeConfig} userBooking={userBooking} weekId={currentWeek} />
               </div>
             </CardContent>

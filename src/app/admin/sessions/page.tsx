@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -31,7 +32,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
-import { DemoBadge } from '@/components/ui/demo-badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
@@ -124,7 +124,6 @@ export default function AdminSessionManager() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Governance Pulse <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
@@ -302,7 +301,7 @@ export default function AdminSessionManager() {
                            ) : (
                              <div className="flex items-center gap-3">
                                 <div className="flex flex-col items-end">
-                                   <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Audit Ledgered</span>
+                                   <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Audit Traced</span>
                                    <span className="text-[8px] font-mono text-slate-200 uppercase">{s.revokedAt ? 'REVOKED' : 'EXPIRED'}</span>
                                 </div>
                                 <div className="size-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">
@@ -320,22 +319,6 @@ export default function AdminSessionManager() {
           </Table>
         </CardContent>
       </Card>
-
-      <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 relative overflow-hidden group shadow-2xl">
-         <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><ShieldCheck size={280} className="text-primary" /></div>
-         <div className="flex flex-col md:flex-row gap-10 items-start relative z-10">
-            <div className="size-16 rounded-2xl bg-secondary flex items-center justify-center shadow-2xl shadow-secondary/50 shrink-0">
-               <ShieldCheck className="size-8 text-white" />
-            </div>
-            <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Governance Protocol Hub</p>
-               <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "Device sessions are immutably linked to the clinical registry. Revocation is immediate across all cluster hubs. 
-                  Mandatory 30-day security deadlines ensure that dormant or compromised sessions are automatically neutralized within the monthly cycle."
-               </p>
-            </div>
-         </div>
-      </div>
     </div>
   );
 }

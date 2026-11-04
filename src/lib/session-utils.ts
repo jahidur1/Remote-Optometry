@@ -1,3 +1,4 @@
+
 import { doc, setDoc, Firestore, serverTimestamp } from 'firebase/firestore';
 import { addDays } from 'date-fns';
 
@@ -5,7 +6,7 @@ const SESSION_KEY = 'roc_workforce_session_v1';
 
 /**
  * Retrieves or generates a persistent unique ID for the current browser instance.
- * Ensures the session is tied to a specific browser installation.
+ * Ties the session to a specific browser installation for security auditing.
  */
 export function getLocalSessionId(): string {
   if (typeof window === 'undefined') return '';
@@ -19,7 +20,7 @@ export function getLocalSessionId(): string {
 
 /**
  * Creates or refreshes a session record in Firestore.
- * Strictly adheres to the 30-day security rules.
+ * Mandatory 30-day security deadline enforced at the database layer.
  */
 export async function createOrUpdateSession(
   db: Firestore, 
@@ -31,16 +32,13 @@ export async function createOrUpdateSession(
   const sessionRef = doc(db, 'sessions', `${uid}_${sessionId}`);
   
   const now = new Date();
-  // Calculate exactly 30 days later. 
-  // We match this on the client to ensure the write is accepted.
+  // Institutional Policy: Sessions expire strictly after 30 days.
   const deadline = addDays(now, 30);
 
   const derivedLabel = label || (typeof navigator !== 'undefined' ? 
     `${navigator.platform} (${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'})` : 
     'Unknown Device');
 
-  // CRITICAL: verifiedAt uses serverTimestamp() to satisfy Firestore Rules.
-  // deadlineAt is a Date which Firestore converts to a Timestamp.
   const sessionData = {
     id: sessionId,
     uid,
@@ -53,7 +51,6 @@ export async function createOrUpdateSession(
     status: 'active'
   };
 
-  // setDoc without await to allow optimistic UI, but we catch errors for Rule validation
   setDoc(sessionRef, sessionData).catch((error) => {
     console.error("Session creation rejected by Security Rules:", error);
   });
@@ -62,13 +59,12 @@ export async function createOrUpdateSession(
 }
 
 /**
- * Sends a heartbeat to keep the session active without modifying security fields.
+ * Sends a heartbeat pulse to keep the session active without modifying core security fields.
  */
 export async function sessionHeartbeat(db: Firestore, uid: string) {
   const sessionId = getLocalSessionId();
   const sessionRef = doc(db, 'sessions', `${uid}_${sessionId}`);
   
-  // Rules allow updating lastActive for the owner
   setDoc(sessionRef, {
     lastActive: serverTimestamp()
   }, { merge: true });

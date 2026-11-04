@@ -131,7 +131,7 @@ export default function UserDetailsManagement() {
 
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
-           <div className="flex gap-4 w-full max-wxl">
+           <div className="flex gap-4 w-full max-w-xl">
               <div className="relative w-full group">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
                 <Input 
@@ -152,7 +152,7 @@ export default function UserDetailsManagement() {
               <TableRow className="border-b border-slate-100">
                 <TableHead className="w-[200px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ID Trace</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Identity</TableHead>
-                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status Pulse</TableHead>
+                <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status</TableHead>
                 <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
               </TableRow>
             </TableHeader>

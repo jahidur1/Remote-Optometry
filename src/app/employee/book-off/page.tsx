@@ -213,7 +213,7 @@ export default function BookOffPage() {
                <Clock className="size-20 text-secondary animate-pulse" />
             </div>
             <div className="space-y-8 relative z-10">
-               {diffMins <= 3 ? (
+               {diffMins > 0 && diffMins <= 3 ? (
                  <CountdownTimer targetDate={activeConfig.bookingOpen} label="Clinical Window Initiates In" />
                ) : (
                  <div className="space-y-4">
@@ -246,7 +246,7 @@ export default function BookOffPage() {
           </div>
 
           <div className="grid gap-6">
-            {DAYS.map((day) => {
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
               const status = getDayStatus(day);
               if (!status) return null;
               return (

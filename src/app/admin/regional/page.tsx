@@ -22,8 +22,7 @@ import {
   Database, 
   FileSpreadsheet,
   AlertTriangle,
-  Info,
-  Target
+  Info
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -65,7 +64,7 @@ export default function RegionalAnalytics() {
     setLoading(true);
     try {
       const idToken = await auth.currentUser?.getIdToken(true);
-      if (!idToken) throw new Error("Session expired. Please re-authenticate.");
+      if (!idToken) throw new Error("Session expired.");
 
       const [statsRes, compRes, rosterRes, leaveRes] = await Promise.all([
         getRegionalStatsAction(idToken),
@@ -105,11 +104,10 @@ export default function RegionalAnalytics() {
       'Scheduled Assignments': c.assignedCount,
       'Roster Coverage %': c.coverage === null ? 'CONFIG_MISSING' : `${c.coverage}%`,
       'Staffing Shortfall': c.shortfall,
-      'FCFS Bookings': c.bookingsCount,
-      'Registry Status': c.status
+      'Status': c.status
     }));
     exportToCSV(filename, ledgerData);
-    toast({ title: "Ledger Dispatched", description: "Consolidated regional data exported for institutional review." });
+    toast({ title: "Ledger Dispatched", description: "Consolidated regional data exported." });
   };
 
   if (profile?.role !== 'super_admin') {
@@ -119,7 +117,7 @@ export default function RegionalAnalytics() {
             <AlertTriangle className="size-16 mx-auto text-destructive" />
             <h2 className="text-2xl font-black uppercase text-primary tracking-tighter">Privileged Hub Restricted</h2>
             <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed text-balance">
-              Regional Multi-ROC Analytics are restricted to active Super Administrative accounts only.
+              Regional Analytics are restricted to active Super Administrative accounts only.
             </p>
          </Card>
       </div>
@@ -226,21 +224,6 @@ export default function RegionalAnalytics() {
                           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: 'rgba(0,0,0,0.4)' }} />
                           <Tooltip 
                             cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                            content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                    const data = payload[0].payload;
-                                    return (
-                                        <div className="bg-white p-4 border rounded-xl shadow-2xl border-slate-100">
-                                            <p className="text-[10px] font-black uppercase text-secondary mb-2">{data.officeName}</p>
-                                            <div className="space-y-1">
-                                                <p className="text-[12px] font-bold">Coverage: {data.coverage !== null ? `${data.coverage}%` : 'N/A'}</p>
-                                                <p className="text-[11px] text-muted-foreground">Assignments: {data.assignedCount}</p>
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            }}
                           />
                           <Bar dataKey="coverage" radius={[12, 12, 0, 0]} barSize={48}>
                              {comparison.map((entry, index) => (
@@ -342,107 +325,6 @@ export default function RegionalAnalytics() {
                    </table>
                 </CardContent>
              </Card>
-          </TabsContent>
-
-          <TabsContent value="roster" className="animate-in">
-             <div className="grid gap-8 lg:grid-cols-2">
-                <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
-                   <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
-                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Regional Daily Intensity</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-widest mt-2 text-muted-foreground">Aggregated staffing requirements vs. scheduled assignments.</CardDescription>
-                   </CardHeader>
-                   <CardContent className="p-10">
-                      <div className="h-[400px] w-full">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={rosterData?.dailyStats || []}>
-                               <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                               <XAxis dataKey="short" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900 }} />
-                               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 800 }} />
-                               <Tooltip 
-                                 contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)' }}
-                               />
-                               <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', textTransform: 'uppercase', fontSize: '9px', fontWeight: 900 }} />
-                               <Bar name="Regional Demand" dataKey="required" fill="rgba(15, 23, 42, 0.05)" radius={[8, 8, 0, 0]} barSize={24} />
-                               <Bar name="Actual Deployment" dataKey="assigned" fill="#3B82F6" radius={[8, 8, 0, 0]} barSize={24} />
-                            </BarChart>
-                         </ResponsiveContainer>
-                      </div>
-                   </CardContent>
-                </Card>
-
-                <div className="space-y-8">
-                   <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white p-10 flex gap-8 items-start">
-                      <div className="size-16 rounded-[1.5rem] bg-primary flex items-center justify-center shrink-0 shadow-xl shadow-primary/10">
-                         <Info className="size-8 text-white" />
-                      </div>
-                      <div className="space-y-2">
-                         <p className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">Roster Rules Hub</p>
-                         <p className="text-[14px] font-bold text-black/60 leading-relaxed uppercase tracking-tight">
-                            "Scheduled assignments" reflect professionals assigned to duty in published rosters. 
-                            Attendance and punctuality data matrixes are not linked to this management hub.
-                         </p>
-                      </div>
-                   </Card>
-                </div>
-             </div>
-          </TabsContent>
-
-          <TabsContent value="leaves" className="animate-in">
-             <div className="grid gap-8 lg:grid-cols-2">
-                <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
-                   <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 text-center">
-                      <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Regional Unavailability Pulse</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-widest mt-2 text-muted-foreground">Absence status breakdown across all cluster hubs.</CardDescription>
-                   </CardHeader>
-                   <CardContent className="p-10 flex flex-col items-center">
-                      <div className="h-[300px] w-full">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                               <Pie
-                                 data={[
-                                   { name: 'Approved', value: leaveStats?.statusBreakdown?.approved || 0 },
-                                   { name: 'Pending', value: leaveStats?.statusBreakdown?.pending || 0 },
-                                   { name: 'Rejected', value: leaveStats?.statusBreakdown?.rejected || 0 }
-                                 ]}
-                                 innerRadius={80}
-                                 outerRadius={110}
-                                 paddingAngle={10}
-                                 dataKey="value"
-                               >
-                                  <Cell fill="#10B981" />
-                                  <Cell fill="#F59E0B" />
-                                  <Cell fill="#EF4444" />
-                               </Pie>
-                               <Tooltip />
-                            </PieChart>
-                         </ResponsiveContainer>
-                      </div>
-                      <div className="flex gap-12 mt-10">
-                         <div className="flex items-center gap-3"><div className="size-3 rounded-full bg-[#10B981] shadow-lg shadow-emerald-500/20" /> <span className="text-[11px] font-black uppercase tracking-widest">Approved</span></div>
-                         <div className="flex items-center gap-3"><div className="size-3 rounded-full bg-[#F59E0B] shadow-lg shadow-amber-500/20" /> <span className="text-[11px] font-black uppercase tracking-widest">Pending</span></div>
-                         <div className="flex items-center gap-3"><div className="size-3 rounded-full bg-[#EF4444] shadow-lg shadow-destructive/20" /> <span className="text-[11px] font-black uppercase tracking-widest">Rejected</span></div>
-                      </div>
-                   </CardContent>
-                </Card>
-
-                <div className="space-y-8">
-                   <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-[#0F172A] text-white p-12 space-y-10 group relative">
-                      <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000"><ShieldCheck size={200} /></div>
-                      <ShieldCheck className="size-12 text-secondary" />
-                      <div className="space-y-4 relative z-10">
-                         <p className="text-[11px] font-black uppercase tracking-[0.4em] text-white/40">Privacy Protocol Hub</p>
-                         <p className="text-xl font-bold leading-relaxed uppercase tracking-tight">
-                            "Regional analytics leverage server-side aggregation (Admin SDK) to ensure individual professional 
-                            PII remains siloed. Sub-second queries are enforced via composite indexing."
-                         </p>
-                         <div className="pt-8 flex items-center gap-4 text-secondary">
-                            <Database className="size-4" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em]">Data Integrity Verified</span>
-                         </div>
-                      </div>
-                   </Card>
-                </div>
-             </div>
           </TabsContent>
         </Tabs>
       )}
