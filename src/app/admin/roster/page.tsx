@@ -312,7 +312,7 @@ export default function RosterSolver() {
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {FREQUENCY_RANGES.map(r => <SelectItem key={range.label} value={r.label} className="text-[9px] font-bold">{r.label}</SelectItem>)}
+                                            {FREQUENCY_RANGES.map(range => <SelectItem key={range.label} value={range.label} className="text-[9px] font-bold">{range.label}</SelectItem>)}
                                           </SelectContent>
                                         </Select>
                                      </div>
