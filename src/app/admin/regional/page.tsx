@@ -22,7 +22,9 @@ import {
   Database, 
   FileSpreadsheet,
   AlertTriangle,
-  FileText
+  FileText,
+  MessageCircle,
+  ArrowRightLeft
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -95,22 +97,35 @@ export default function RegionalAnalytics() {
   const handleExport = () => {
     if (!comparison.length) return;
     const filename = `ROC_Regional_Ledger_${weekId}`;
-    // Flatten comparison for a professional CSV ledger
     const ledgerData = comparison.map(c => ({
       'Office Name': c.officeName,
       'Office ID': c.officeId,
       'Short Code': c.shortCode,
       'Active Staff': c.staffCount,
       'Required Shifts': c.requiredCount,
-      'Assigned Shifts': c.assignedCount,
+      'Assigned Shifts (Scheduled)': c.assignedCount,
       'Coverage %': c.coverage === null ? 'MISSING_CONFIG' : `${c.coverage}%`,
-      'Shortfall': c.shortfall,
-      'Draft Count': c.draftCount,
-      'FCFS Bookings': c.bookingsCount
+      'Staffing Shortfall': c.shortfall,
+      'FCFS Bookings': c.bookingsCount,
+      'Draft Count': c.draftCount
     }));
     exportToCSV(filename, ledgerData);
     toast({ title: "Ledger Dispatched", description: "Consolidated regional data exported to CSV." });
   };
+
+  if (profile?.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="flex h-[80vh] items-center justify-center p-10">
+         <Card className="max-w-md border-destructive/20 bg-destructive/5 p-10 text-center space-y-6 rounded-[2rem]">
+            <AlertTriangle className="size-16 mx-auto text-destructive" />
+            <h2 className="text-2xl font-black uppercase text-primary">Privileged Node</h2>
+            <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">
+              Regional Multi-ROC Analytics are restricted to Super Administrative nodes only. Contact the system architect for higher-level authorization.
+            </p>
+         </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
@@ -163,7 +178,7 @@ export default function RegionalAnalytics() {
         </div>
       ) : (
         <Tabs defaultValue="overview" className="space-y-10">
-          <TabsList className="h-16 bg-white border-2 border-slate-100 rounded-2xl p-1.5 shadow-sm">
+          <TabsList className="h-16 bg-white border-2 border-slate-100 rounded-2xl p-1.5 shadow-sm overflow-x-auto no-scrollbar">
             {[
               { id: 'overview', label: 'Executive Pulse', icon: BarChart3 },
               { id: 'comparison', label: 'Cluster Heatmap', icon: Activity },
@@ -171,7 +186,7 @@ export default function RegionalAnalytics() {
               { id: 'leaves', label: 'Workforce Pressure', icon: PieChartIcon },
               { id: 'reports', label: 'Reports & Export', icon: FileText }
             ].map(tab => (
-              <TabsTrigger key={tab.id} value={tab.id} className="h-full rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white transition-all">
+              <TabsTrigger key={tab.id} value={tab.id} className="h-full rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white transition-all whitespace-nowrap">
                 <tab.icon className="size-3.5 mr-3" /> {tab.label}
               </TabsTrigger>
             ))}
@@ -182,7 +197,7 @@ export default function RegionalAnalytics() {
                {[
                  { label: 'Registered Nodes', value: stats?.totalOffices, sub: `${stats?.activeOffices} Operational`, icon: MapPin, color: 'text-primary' },
                  { label: 'Active Capacity', value: stats?.totalActiveStaff, sub: 'Verified Professionals', icon: Users, color: 'text-secondary' },
-                 { label: 'Shift Deployment', value: stats?.totalAssignments, sub: 'Assigned (Cycle)', icon: Zap, color: 'text-secondary' },
+                 { label: 'Shift Deployment', value: stats?.totalAssignments, sub: 'Scheduled (Cycle)', icon: Zap, color: 'text-secondary' },
                  { label: 'Review Queue', value: stats?.draftRostersCount, sub: 'Draft Rosters', icon: ShieldCheck, color: 'text-black' }
                ].map((kpi, i) => (
                  <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
@@ -241,7 +256,7 @@ export default function RegionalAnalytics() {
                         <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
                           <TrendingUp className="size-6 text-secondary" /> Staffing Shortfall
                         </CardTitle>
-                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Unfulfilled Roster Positions</CardDescription>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Unfulfilled Roster Positions (Scheduled)</CardDescription>
                      </CardHeader>
                      <CardContent className="p-10 space-y-6">
                         {comparison.map((c, i) => (
@@ -352,7 +367,7 @@ export default function RegionalAnalytics() {
                 <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
                    <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
                       <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Staffing Pressure Profile</CardTitle>
-                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Required vs Actual assignments across Cycle {weekId}.</CardDescription>
+                      <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">Required vs Actual Scheduled assignments across Cycle {weekId}.</CardDescription>
                    </CardHeader>
                    <CardContent className="p-10">
                       <div className="h-[400px] w-full">
@@ -459,7 +474,7 @@ export default function RegionalAnalytics() {
                               { label: 'Active Staff Capacity', icon: Users },
                               { label: 'Shift Coverage Metrics', icon: ShieldCheck },
                               { label: 'Quota Fulfillment delta', icon: TrendingUp },
-                              { label: 'FCFS Booking Statistics', icon: Zap }
+                              { label: 'FCFS Booking Statistics', icon: ArrowRightLeft }
                             ].map((item, i) => (
                               <li key={i} className="flex items-center gap-4 text-[11px] font-black uppercase tracking-widest text-black/60">
                                  <item.icon className="size-4 text-secondary" /> {item.label}

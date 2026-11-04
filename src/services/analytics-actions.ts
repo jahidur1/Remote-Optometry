@@ -42,8 +42,7 @@ export async function getRegionalStatsAction(idToken: string) {
 
     let totalAssignments = 0;
     rosterSnap.docs.forEach(d => {
-      // Filter for valid shift assignments only (excluding markers like 'none')
-      const validAssignments = (d.data().assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
+      const validAssignments = (d.data().assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
       totalAssignments += validAssignments.length;
     });
 
@@ -93,10 +92,9 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
         requiredCount = Object.values(quota.quotas as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
       }
 
-      const assignments = (roster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
-      const assignedCount = assignments.length;
+      const validAssignments = (roster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
+      const assignedCount = validAssignments.length;
       
-      // Calculate coverage accurately (null indicates config missing)
       const coverage = quotaSnap.exists 
         ? (requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : (assignedCount > 0 ? 100 : 0))
         : null;
@@ -145,7 +143,7 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
       });
 
       rosters.forEach(r => {
-        const dayAssignments = (r.assignments || []).filter((a: any) => a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none');
+        const dayAssignments = (r.assignments || []).filter((a: any) => a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
         dayAssigned += dayAssignments.length;
       });
 
