@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useUser } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 
 type OfficeContextType = {
@@ -20,19 +19,22 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const [selectedOffice, setSelectedOfficeState] = useState<string | null>(null);
   
-  // Fetch only active offices for the registry
-  const { data: allOffices, loading: officesLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'), orderBy('officeName', 'asc'))
-  );
+  // Resilient Fetching (No Index Required): Fetch entire collection and filter client-side
+  const officesRef = useMemo(() => collection(db, 'offices'), [db]);
+  const { data: rawOffices, loading: officesLoading } = useCollection(officesRef);
 
   const authorizedOffices = useMemo(() => {
-    if (!profile || !allOffices) return [];
+    if (!profile || !rawOffices) return [];
     
-    if (profile.role === 'super_admin') return allOffices;
+    const activeOffices = rawOffices
+      .filter(o => o.status === 'Active')
+      .sort((a, b) => (a.officeName || '').localeCompare(b.officeName || ''));
+
+    if (profile.role === 'super_admin') return activeOffices;
     
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
-    return allOffices.filter(o => allowedIds.includes(o.officeId));
-  }, [profile, allOffices]);
+    return activeOffices.filter(o => allowedIds.includes(o.officeId));
+  }, [profile, rawOffices]);
 
   useEffect(() => {
     if (!userLoading && !officesLoading && authorizedOffices.length > 0) {

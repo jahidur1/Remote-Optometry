@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { selfRegisterAction } from '@/services/identity-actions';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import Link from 'next/link';
 
 export default function PublicRegistrationPage() {
@@ -33,14 +33,16 @@ export default function PublicRegistrationPage() {
     password: '',
   });
 
-  // Dynamic Office Registry Subscription - Active Centers only
-  const officesQuery = useMemo(() => query(
-    collection(db, 'offices'),
-    where('status', '==', 'Active'),
-    orderBy('officeName', 'asc')
-  ), [db]);
+  // Dynamic Office Registry Subscription - Resilient Fetching (No Index Required)
+  const officesRef = useMemo(() => collection(db, 'offices'), [db]);
+  const { data: rawOffices, loading: registryLoading } = useCollection(officesRef);
 
-  const { data: registryOffices, loading: registryLoading } = useCollection(officesQuery);
+  const activeOffices = useMemo(() => {
+    if (!rawOffices) return [];
+    return rawOffices
+      .filter(o => o.status === 'Active')
+      .sort((a, b) => (a.officeName || '').localeCompare(b.officeName || ''));
+  }, [rawOffices]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,14 +202,17 @@ export default function PublicRegistrationPage() {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Target Cluster Center</Label>
                   <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
                     <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black shadow-inner">
-                      <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select ROC Unit"} />
+                      <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select ROC Center"} />
                     </SelectTrigger>
                     <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
-                      {registryOffices?.map(o => (
+                      {activeOffices?.map(o => (
                         <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-3 uppercase text-[11px] rounded-xl">
                           {o.officeName} [{o.shortCode}]
                         </SelectItem>
                       ))}
+                      {!registryLoading && activeOffices.length === 0 && (
+                        <div className="p-4 text-[10px] font-black uppercase text-destructive text-center">No active centers found.</div>
+                      )}
                     </SelectContent>
                   </Select>
                </div>

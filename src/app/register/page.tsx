@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, useCollection, useFirestore } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -35,14 +35,16 @@ export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Dynamic Office Subscription - Stable Memoized Query
-  const registryQuery = useMemo(() => query(
-    collection(db, 'offices'), 
-    where('status', '==', 'Active'),
-    orderBy('officeName', 'asc')
-  ), [db]);
+  // Resilient Fetching: Fetch all and sort/filter client-side to avoid index requirement
+  const officesRef = useMemo(() => collection(db, 'offices'), [db]);
+  const { data: rawOffices, loading: registryLoading } = useCollection(officesRef);
 
-  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
+  const activeOffices = useMemo(() => {
+    if (!rawOffices) return [];
+    return rawOffices
+      .filter(o => o.status === 'Active')
+      .sort((a, b) => (a.officeName || '').localeCompare(b.officeName || ''));
+  }, [rawOffices]);
 
   const handleProvisionIdentity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,11 +195,14 @@ export default function RegisterPage() {
                         <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select Active Center"} />
                       </SelectTrigger>
                       <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
-                        {registryOffices?.map(o => (
-                          <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-3 uppercase text-[11px]">
+                        {activeOffices?.map(o => (
+                          <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-3 uppercase text-[11px] rounded-xl">
                             {o.officeName} [{o.shortCode}]
                           </SelectItem>
                         ))}
+                        {!registryLoading && activeOffices.length === 0 && (
+                          <div className="p-4 text-[10px] font-black uppercase text-destructive text-center">No active centers found.</div>
+                        )}
                       </SelectContent>
                     </Select>
                  </div>
@@ -232,7 +237,7 @@ export default function RegisterPage() {
                  </div>
               </div>
 
-              <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group" type="submit" disabled={loading || !formData.office}>
+              <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group" type="submit" disabled={loading || registryLoading}>
                 {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform" />}
                 Authorize & Enroll Profile
               </Button>
