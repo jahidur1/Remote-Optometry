@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/carousel"
 import { getMyRosterAction } from "@/services/roster-actions"
 import { displayWeekRange, getDatesForWeek } from "@/lib/date-utils";
-import { format } from "date-fns";
+import { format, startOfISOWeek, endOfISOWeek, subWeeks, addWeeks } from "date-fns";
 
 function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, userBooking: any, weekId: string }) {
   const [now, setNow] = useState(new Date());
@@ -137,15 +137,31 @@ export default function EmployeePortal() {
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
 
-  // We should ideally fetch current/upcoming from a global setting, but for now we look for configs
-  const currentWeek = '20241223-20241229'; // Example range-id
-  const upcomingWeek = '20241230-20250105';
-  const weeks = [upcomingWeek, currentWeek];
+  // Dynamic Institutional Range Calculation
+  const weeks = useMemo(() => {
+    const now = new Date();
+    const currentStart = startOfISOWeek(now);
+    
+    const getWeekId = (date: Date) => {
+      const start = startOfISOWeek(date);
+      const end = endOfISOWeek(date);
+      return `${format(start, 'yyyyMMdd')}-${format(end, 'yyyyMMdd')}`;
+    };
+
+    return [
+      getWeekId(subWeeks(currentStart, 2)), // Previous 2
+      getWeekId(subWeeks(currentStart, 1)), // Previous 1
+      getWeekId(currentStart),              // Current
+      getWeekId(addWeeks(currentStart, 1))   // Upcoming
+    ];
+  }, []);
+
+  const currentWeekId = weeks[2];
 
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);
   
-  const bookingId = profile?.employeeId ? `${currentWeek}_${profile.employeeId}` : null;
+  const bookingId = profile?.employeeId ? `${currentWeekId}_${profile.employeeId}` : null;
   const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
 
   useEffect(() => {
@@ -186,7 +202,14 @@ export default function EmployeePortal() {
       }
     }
     syncRosters();
-  }, [auth.currentUser]);
+  }, [auth.currentUser, weeks]);
+
+  // Centering Carousel on Current Week
+  useEffect(() => {
+    if (api && weeks.length > 0) {
+      api.scrollTo(2);
+    }
+  }, [api, weeks]);
 
   if (userLoading || rosterLoading) {
     return (
@@ -198,7 +221,7 @@ export default function EmployeePortal() {
   }
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  const todayShift = rosterData[currentWeek]?.assignments.find(a => a.dayOfWeek === today);
+  const todayShift = rosterData[currentWeekId]?.assignments.find(a => a.dayOfWeek === today);
   const todayShiftDetails = shifts?.find(s => s.id === todayShift?.shiftId);
 
   return (
@@ -245,13 +268,24 @@ export default function EmployeePortal() {
             <CarouselContent>
               {weeks.map((week) => {
                 const weekData = rosterData[week] || { assignments: [], published: false };
+                const isCurrent = week === currentWeekId;
+                
                 return (
                   <CarouselItem key={week}>
-                    <Card className="border-none shadow-2xl overflow-hidden rounded-[2rem] md:rounded-[3rem] bg-white">
+                    <Card className={cn(
+                      "border-none shadow-2xl overflow-hidden rounded-[2rem] md:rounded-[3rem] bg-white transition-all",
+                      isCurrent ? "ring-2 ring-secondary/20" : ""
+                    )}>
                       <CardHeader className="p-8 md:p-10 bg-slate-50 border-b">
                          <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight flex items-center justify-between">
-                            <span>Clinical Cycle</span>
-                            <Badge variant="outline" className="text-[10px] font-black uppercase px-4 py-1.5 rounded-lg border-secondary/20 text-secondary bg-secondary/5">
+                            <span className="flex items-center gap-3">
+                              {isCurrent && <div className="size-2 rounded-full bg-secondary animate-pulse" />}
+                              Clinical Cycle
+                            </span>
+                            <Badge variant="outline" className={cn(
+                              "text-[10px] font-black uppercase px-4 py-1.5 rounded-lg border-secondary/20",
+                              isCurrent ? "bg-secondary text-white border-none" : "text-secondary bg-secondary/5"
+                            )}>
                               {displayWeekRange(week)}
                             </Badge>
                          </CardTitle>
@@ -297,7 +331,7 @@ export default function EmployeePortal() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-10 pt-8 space-y-12">
-               <WeekOffMatrixStatus config={activeConfig} userBooking={userBooking} weekId={currentWeek} />
+               <WeekOffMatrixStatus config={activeConfig} userBooking={userBooking} weekId={currentWeekId} />
             </CardContent>
           </Card>
         </div>
