@@ -25,7 +25,9 @@ import {
   Network,
   Globe,
   Building2,
-  ChevronDown
+  ChevronDown,
+  User,
+  Bell
 } from "lucide-react"
 
 import {
@@ -109,6 +111,9 @@ export function AdminSidebar() {
 
   const currentOffice = authorizedOffices.find(o => o.officeId === selectedOffice);
 
+  // SUPER_ADMIN skips office selector for some views but needs it for ADMIN views
+  const showOfficeSelector = profile?.role === 'ADMIN' || (profile?.role === 'SUPER_ADMIN' && authorizedOffices.length > 0);
+
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-[#0F172A] text-white">
       <SidebarHeader className="h-40 flex flex-col justify-center px-6">
@@ -138,7 +143,7 @@ export function AdminSidebar() {
             </div>
           </SidebarMenuItem>
           
-          {state === "expanded" && authorizedOffices.length > 0 && (
+          {state === "expanded" && showOfficeSelector && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
