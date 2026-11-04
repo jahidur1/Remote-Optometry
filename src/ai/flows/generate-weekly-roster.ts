@@ -81,39 +81,37 @@ const aiPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterAIPrompt',
   input: { schema: PromptInputSchema },
   output: { schema: z.array(RosterAssignmentSchema) },
-  prompt: `You are an expert institutional clinical scheduler. Your goal is to generate a roster that matches SHIFT QUOTAS 100% and respects all DISTRIBUTION LIMITS.
+  prompt: `You are an institutional scheduling orchestrator. Generate a clinical roster for Week {{{weekId}}} and Hub {{{officeId}}}.
 
-## CONTEXT
-Hub: {{{officeId}}}
-Cycle: {{{weekId}}}
-
-## MANDATORY REQUIREMENTS
-1. FCFS PROTECTION: 
+MANDATORY EXECUTION RULES:
+1. VACANCY LOCKS:
 {{#each locks}}
-- Employee {{employeeId}} is OFF on {{dayOfWeek}}. Assign NO SHIFT.
+- Professional {{employeeId}} is OFF on {{dayOfWeek}}. NO SHIFT shall be assigned.
 {{/each}}
 
-2. STAFFING QUOTAS (CRUCIAL):
-Assign exactly this many people per shift per day.
+2. STAFFING QUOTAS (HARD REQUIREMENT):
+You MUST match these headcounts exactly:
 {{#each weeklyQuotas}}
-- {{dayOfWeek}} | {{shiftId}} | Required: {{requiredStaff}}
+- Day: {{dayOfWeek}} | Shift: {{shiftId}} | Required Count: {{requiredStaff}}
 {{/each}}
 
-3. DISTRIBUTION LIMITS (NEW):
-For each employee, respect their weekly shift frequency ranges.
+3. FREQUENCY DISTRIBUTION MATRIX:
+Respect these weekly occurrence ranges for each professional:
 {{#each employees}}
 {{#if frequencyLimits}}
-- Employee {{id}} Limits: {{#each frequencyLimits}}[{{@key}}: {{label}}]{{#unless @last}}, {{/unless}}{{/each}}
+- Prof {{id}}: {{#each frequencyLimits}}[{{@key}} must occur {{min}} to {{max}} times] {{/each}}
 {{/if}}
 {{/each}}
 
-4. TRANSITION RULES:
+4. TRANSITION INTEGRITY:
 {{#each adjacencies}}
-- Employee {{employeeId}} on {{dayOfWeek}} can ONLY work: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
+- Prof {{employeeId}} on {{dayOfWeek}} is RESTRICTED. They can ONLY work one of these: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
 {{/each}}
 
-## OUTPUT
-Return ONLY a JSON array of assignment objects.`,
+OUTPUT SPECIFICATION:
+- Return ONLY a JSON array of assignment objects.
+- Ensure 100% quota compliance.
+- Never double-assign a professional on the same day.`,
 });
 
 const generateWeeklyRosterFlow = ai.defineFlow(
