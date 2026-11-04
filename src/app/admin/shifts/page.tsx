@@ -2,12 +2,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { doc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { doc, setDoc, collection, query, orderBy, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   Clock, 
   RefreshCcw, 
@@ -18,14 +20,29 @@ import {
   Server, 
   Database,
   Terminal,
-  Cpu
+  Cpu,
+  Plus,
+  Edit2,
+  Trash2,
+  Loader2,
+  MoreVertical
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
+import { logAudit } from '@/lib/audit';
 
-const DEFAULT_SHIFTS = [
+const DEFAULT_FACTORY_SHIFTS = [
   { id: "SO", name: "Super Opening", startTime: "09:30 AM", endTime: "06:30 PM", displayOrder: 1 },
   { id: "OP", name: "Opening", startTime: "10:00 AM", endTime: "07:00 PM", displayOrder: 2 },
   { id: "MD", name: "Mid Shift", startTime: "11:00 AM", endTime: "08:00 PM", displayOrder: 3 },
@@ -35,10 +52,23 @@ const DEFAULT_SHIFTS = [
 ];
 
 export default function ShiftMaster() {
+  const db = useFirestore();
+  const { profile } = useUser();
+  const { toast } = useToast();
+  
   const [shifts, setShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const db = useFirestore();
-  const { toast } = useToast();
+  const [processing, setProcessing] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  const [editingShift, setEditingShift] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    id: '',
+    name: '',
+    startTime: '',
+    endTime: '',
+    displayOrder: 1
+  });
 
   const shiftsQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
 
@@ -51,20 +81,80 @@ export default function ShiftMaster() {
     return () => unsubscribe();
   }, [shiftsQuery]);
 
-  const handleInitialize = async () => {
-    setLoading(true);
+  const handleOpenCreate = () => {
+    setEditingShift(null);
+    setFormData({ id: '', name: '', startTime: '', endTime: '', displayOrder: (shifts.length + 1) });
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (shift: any) => {
+    setEditingShift(shift);
+    setFormData({
+      id: shift.id,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      displayOrder: shift.displayOrder || 1
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.id || !formData.name) return;
+    
+    setProcessing(true);
     try {
-      for (const shift of DEFAULT_SHIFTS) {
+      const shiftRef = doc(db, 'shift_master', formData.id.toUpperCase());
+      const payload = {
+        ...formData,
+        id: formData.id.toUpperCase(),
+        displayOrder: Number(formData.displayOrder)
+      };
+      
+      await setDoc(shiftRef, payload, { merge: true });
+      logAudit(db, profile?.uid || 'system', editingShift ? 'UPDATE_SHIFT_MASTER' : 'CREATE_SHIFT_MASTER', formData.id, payload);
+      
+      toast({ title: editingShift ? "Registry Updated" : "Shift Provisioned" });
+      setIsDialogOpen(false);
+    } catch (e: any) {
+      toast({ title: "Registry Error", description: e.message, variant: "destructive" });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleInitialize = async () => {
+    if (!confirm("FACTORY RESET ALERT: This will overwrite existing shift timings with codebase standards. Proceed?")) return;
+    
+    setProcessing(true);
+    try {
+      for (const shift of DEFAULT_FACTORY_SHIFTS) {
         await setDoc(doc(db, 'shift_master', shift.id), shift);
       }
       toast({ 
         title: "Shift Registry Synchronized", 
-        description: "Standard institutional shifts (including C1/C2 distinction) have been provisioned." 
+        description: "Standard institutional shifts have been restored." 
       });
     } catch (e: any) {
       toast({ title: "Registry Error", description: e.message, variant: "destructive" });
     } finally {
-      setLoading(false);
+      setProcessing(false);
+    }
+  };
+
+  const handleDelete = async (shiftId: string) => {
+    if (!confirm(`DECOMMISSION ALERT: Remove shift ${shiftId}? This will invalidate existing quotas and roster logic.`)) return;
+    
+    setProcessing(true);
+    try {
+      await deleteDoc(doc(db, 'shift_master', shiftId));
+      logAudit(db, profile?.uid || 'system', 'DELETE_SHIFT_MASTER', shiftId);
+      toast({ title: "Shift Decommissioned" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -74,8 +164,10 @@ export default function ShiftMaster() {
     lastEnd: shifts[shifts.length - 1]?.endTime || '--:--',
   }), [shifts]);
 
+  const isSuperAdmin = profile?.role === 'super_admin';
+
   return (
-    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
         <div className="space-y-1">
           <div className="flex items-center gap-4">
@@ -94,30 +186,34 @@ export default function ShiftMaster() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+        <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Registry Status</label>
               <div className="flex items-center gap-2">
                  <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                 <span className="font-black text-black uppercase tracking-widest text-[11px]">SYSTEM LOCKED</span>
-              </div>
-           </div>
-           <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
-              <div className="flex items-center gap-2">
-                 <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
               </div>
            </div>
-           <Button 
-            variant="outline" 
-            onClick={handleInitialize} 
-            disabled={loading} 
-            className="bg-slate-50 border-2 border-slate-100 text-black font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl transition-all hover:bg-secondary/20 hover:border-secondary group shadow-sm"
-           >
-             <RefreshCcw className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")} /> 
-             RESET STANDARDS
-           </Button>
+           
+           {isSuperAdmin && (
+             <>
+               <Button 
+                variant="outline" 
+                onClick={handleInitialize} 
+                disabled={processing} 
+                className="bg-slate-50 border-2 border-slate-100 text-black font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl transition-all hover:bg-secondary/10 hover:border-secondary group shadow-sm"
+               >
+                 <RefreshCcw className={cn("mr-2 h-3.5 w-3.5", processing && "animate-spin")} /> 
+                 RESET STANDARDS
+               </Button>
+               <Button 
+                className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-primary/20 hover:bg-black" 
+                onClick={handleOpenCreate}
+               >
+                 <Plus className="size-4 mr-2" /> PROVISION SHIFT
+               </Button>
+             </>
+           )}
         </div>
       </div>
 
@@ -126,7 +222,7 @@ export default function ShiftMaster() {
           { label: 'Shift Slots', value: stats.count, sub: 'Authorized Slots', icon: Server, color: 'text-primary' },
           { label: 'Service Initiation', value: stats.firstStart, sub: 'Daily Opening', icon: Clock, color: 'text-secondary' },
           { label: 'Service Terminus', value: stats.lastEnd, sub: 'Daily Closure', icon: Zap, color: 'text-secondary' },
-          { label: 'Solver Alignment', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
+          { label: 'Engine Alignment', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -150,7 +246,7 @@ export default function ShiftMaster() {
             <div className="space-y-1">
               <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Shift Standards</CardTitle>
               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                 Permanent clinical definitions used for CP-SAT optimization.
+                 Permanent clinical definitions used for automated generation.
               </CardDescription>
             </div>
           </div>
@@ -168,18 +264,20 @@ export default function ShiftMaster() {
                  <Server className="size-10 text-secondary/20" />
               </div>
               <p className="text-black/20 font-black uppercase text-xs tracking-[0.4em] mb-10 italic">No authorized shift records detected.</p>
-              <Button onClick={handleInitialize} className="bg-secondary text-white shadow-2xl shadow-secondary/20 h-16 px-14 font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-105 active:scale-95 transition-all">
-                 <Zap className="size-5 mr-3 fill-white" /> PROVISION STANDARDS
-              </Button>
+              {isSuperAdmin && (
+                <Button onClick={handleInitialize} className="bg-secondary text-white shadow-2xl shadow-secondary/20 h-16 px-14 font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-105 active:scale-95 transition-all">
+                   <Zap className="size-5 mr-3 fill-white" /> RESTORE STANDARDS
+                </Button>
+              )}
             </div>
           ) : (
             <Table className="border-collapse">
               <TableHeader className="bg-slate-50/30">
                 <TableRow className="border-b border-slate-100">
-                  <TableHead className="w-[280px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Identity Key</TableHead>
+                  <TableHead className="w-[180px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Identity Key</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Category</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Execution Pulse (IST)</TableHead>
-                  <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Status</TableHead>
+                  <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -200,15 +298,28 @@ export default function ShiftMaster() {
                          <div className="size-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-secondary/20 transition-all shadow-inner">
                             <Clock className="size-5 text-secondary" />
                          </div>
-                         <span className="font-black text-[16px] text-black/80 tracking-tighter tabular-nums">
+                         <span className="font-black text-[16px] text-black/80 tracking-tighter tabular-nums uppercase">
                             {shift.startTime} <span className="text-black/10 mx-2">—</span> {shift.endTime}
                          </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right pr-12 py-8">
-                      <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-emerald-500/20 text-emerald-600 bg-emerald-500/5 px-6 py-2 rounded-full shadow-inner">
-                        <ShieldCheck className="size-4 mr-2" /> VERIFIED
-                      </Badge>
+                       <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {isSuperAdmin ? (
+                            <>
+                              <Button variant="ghost" size="icon" className="rounded-xl text-primary hover:bg-primary/5" onClick={() => handleOpenEdit(shift)}>
+                                <Edit2 className="size-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="rounded-xl text-destructive hover:bg-destructive/5" onClick={() => handleDelete(shift.id)}>
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-emerald-500/20 text-emerald-600 bg-emerald-500/5 px-6 py-2 rounded-full">
+                               <ShieldCheck className="size-4 mr-2" /> VERIFIED
+                            </Badge>
+                          )}
+                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -224,13 +335,99 @@ export default function ShiftMaster() {
               <div className="space-y-1">
                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-black/40">Clinical Standard Pulse</p>
                 <p className="text-[13px] font-medium text-black/80 uppercase leading-relaxed tracking-tight max-w-4xl">
-                  Shift Master entries are immutable entities during active roster cycles. Modifying these records will invalidate 
-                  existing localized quotas and trigger a mathematical re-sync of all draft rosters for the affected week.
+                  Shift Master entries are the deterministic basis for clinical generation. Modifying timings will impact 
+                  assigned professional shift durations and immediate ROC center coverage metrics.
                 </p>
               </div>
            </div>
         </CardFooter>
       </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden bg-white text-black">
+          <div className="bg-primary p-12 text-white relative">
+            <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><Clock size={160} /></div>
+            <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10 text-white">
+              {editingShift ? 'Modify Shift Registry' : 'Provision Shift Category'}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">
+              Institutional Protocol — Clinical Identity Management
+            </DialogDescription>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-12 space-y-8">
+            <div className="grid grid-cols-2 gap-8">
+               <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Identity Key</Label>
+                  <Input 
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-slate-50 uppercase focus:border-secondary" 
+                    value={formData.id} 
+                    onChange={e => setFormData({...formData, id: e.target.value.toUpperCase()})}
+                    placeholder="SO"
+                    disabled={!!editingShift || processing}
+                    required
+                  />
+               </div>
+               <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Display Priority</Label>
+                  <Input 
+                    type="number"
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100" 
+                    value={formData.displayOrder} 
+                    onChange={e => setFormData({...formData, displayOrder: parseInt(e.target.value) || 1})}
+                    disabled={processing}
+                  />
+               </div>
+            </div>
+
+            <div className="space-y-3">
+               <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Clinical Category Name</Label>
+               <Input 
+                  className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 focus:border-secondary" 
+                  value={formData.name} 
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  placeholder="SUPER OPENING"
+                  disabled={processing}
+                  required
+               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+               <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Start Pulse (IST)</Label>
+                  <Input 
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 uppercase" 
+                    value={formData.startTime} 
+                    onChange={e => setFormData({...formData, startTime: e.target.value})}
+                    placeholder="09:30 AM"
+                    disabled={processing}
+                    required
+                  />
+               </div>
+               <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">End Pulse (IST)</Label>
+                  <Input 
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 uppercase" 
+                    value={formData.endTime} 
+                    onChange={e => setFormData({...formData, endTime: e.target.value})}
+                    placeholder="06:30 PM"
+                    disabled={processing}
+                    required
+                  />
+               </div>
+            </div>
+
+            <Button 
+              className="w-full bg-primary text-white h-18 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group mt-6" 
+              type="submit" 
+              disabled={processing}
+            >
+              {processing ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform text-secondary fill-secondary" />}
+              {editingShift ? 'AUTHORIZE REGISTRY UPDATE' : 'DEPLOY SHIFT STANDARD'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

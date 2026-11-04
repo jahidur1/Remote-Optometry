@@ -60,6 +60,19 @@
       },
       "required": ["officeId", "officeName", "shortCode", "status"]
     },
+    "Shift": {
+      "title": "Shift",
+      "description": "Clinical shift standard definition.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identity Key (e.g. SO, OP, C1)" },
+        "name": { "type": "string", "description": "Clinical Category Name" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["id", "name", "startTime", "endTime", "displayOrder"]
+    },
     "WeekOffConfig": {
       "title": "Week-Off Configuration",
       "description": "Rules and quotas for weekly-off reservations.",
@@ -94,12 +107,16 @@
       "schema": "Employee",
       "description": "Master employee records."
     },
+    "/shift_master/{shiftId}": {
+      "schema": "Shift",
+      "description": "Permanent clinical shift standards."
+    },
     "/weekoff_configs/{configId}": {
       "schema": "WeekOffConfig",
       "description": "Office-specific booking window settings."
     },
     "/roster_quotas/{quotaId}": {
-      "schema": { "$ref": "#/entities/OtpPulse" },
+      "schema": { "$ref": "#/backend/entities/OtpPulse" },
       "description": "Localized staffing requirements (weekId_officeId)."
     }
   }
