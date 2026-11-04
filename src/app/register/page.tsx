@@ -1,24 +1,19 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useCollection, useFirestore } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff, Phone, ShieldCheck } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from "@/toast-hooks";
 import { RoleGuard } from '@/components/auth/role-guard';
 import { provisionIdentityAction } from '@/services/identity-actions';
-
-const OFFICES = [
-  { id: "KOLKATA_ROC", name: "KOLKATA ROC" },
-  { id: "GURGAON_ROC", name: "GURGAON ROC" },
-  { id: "LUCKNOW_ROC", name: "LUCKNOW ROC" }
-];
 
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
@@ -33,17 +28,27 @@ export default function RegisterPage() {
     gender: 'Male',
     department: 'Remote Optometry',
     designation: 'Staff Professional',
-    office: 'KOLKATA_ROC'
+    office: ''
   });
   
   const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Dynamic Office Subscription (Only Active)
+  const { data: registryOffices, loading: registryLoading } = useCollection(
+    query(collection(db, 'offices'), where('status', '==', 'Active'))
+  );
 
   const handleProvisionIdentity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 8) {
       toast({ variant: "destructive", title: "Security Alert", description: "Institutional passwords must be at least 8 characters." });
+      return;
+    }
+    if (!formData.office) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Target ROC Cluster node is required." });
       return;
     }
 
@@ -69,7 +74,7 @@ export default function RegisterPage() {
           gender: 'Male',
           department: 'Remote Optometry',
           designation: 'Staff Professional',
-          office: 'KOLKATA_ROC'
+          office: ''
         });
         setPassword('');
       } else {
@@ -96,7 +101,7 @@ export default function RegisterPage() {
                 </div>
              </div>
              <CardTitle className="text-4xl font-black uppercase tracking-tight leading-none relative z-10 text-white">Enroll Professional</CardTitle>
-             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Institutional Trusted Backend Provisioning — Closure B</CardDescription>
+             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Institutional Trusted Backend Provisioning — Dynamic Registry Integration</CardDescription>
              <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none"><Zap size={240} /></div>
           </CardHeader>
           
@@ -182,10 +187,14 @@ export default function RegisterPage() {
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
                     <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                        <SelectValue />
+                        <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select Active Node"} />
                       </SelectTrigger>
                       <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
-                        {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold py-3 uppercase text-[11px]">{o.name}</SelectItem>)}
+                        {registryOffices?.map(o => (
+                          <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-3 uppercase text-[11px]">
+                            {o.officeName} [{o.shortCode}]
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                  </div>
@@ -220,7 +229,7 @@ export default function RegisterPage() {
                  </div>
               </div>
 
-              <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group" type="submit" disabled={loading}>
+              <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group" type="submit" disabled={loading || !formData.office}>
                 {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform" />}
                 Authorize & Deploy Identity
               </Button>

@@ -20,7 +20,8 @@ import {
   BarChart3,
   ShieldAlert,
   ArrowRightLeft,
-  Key
+  Key,
+  Network
 } from "lucide-react"
 
 import {
@@ -69,6 +70,7 @@ const navGroups = [
   {
     label: "Governance",
     items: [
+      { title: "Cluster Registry", url: "/admin/offices", icon: Network, roles: ["SUPER_ADMIN"] },
       { title: "OTP Monitor", url: "/admin/otp-monitor", icon: Key, roles: ["SUPER_ADMIN"] },
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["SUPER_ADMIN"] },
       { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },

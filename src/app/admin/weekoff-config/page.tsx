@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { useState, useMemo, useEffect } from 'react';
+import { collection, query, orderBy, doc, setDoc, where } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import {
   Server,
   Terminal
 } from "lucide-react";
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from "@/toast-hooks";
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,15 +35,10 @@ import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const OFFICES = [
-  { id: "KOLKATA_ROC", name: "KOLKATA ROC" },
-  { id: "GURGAON_ROC", name: "GURGAON ROC" },
-  { id: "LUCKNOW_ROC", name: "LUCKNOW ROC" }
-];
 
 export default function WeekOffConfiguration() {
   const [weekId, setWeekId] = useState('2024-52');
-  const [office, setOffice] = useState('KOLKATA_ROC');
+  const [office, setOffice] = useState('');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [quotas, setQuotas] = useState<Record<string, number>>(
@@ -55,10 +50,33 @@ export default function WeekOffConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  const configsQuery = useMemo(() => query(
-    collection(db, 'weekoff_configs'), 
-    orderBy('weekId', 'desc')
-  ), [db]);
+  // Dynamic Office Registry Subscription
+  const { data: registryOffices, loading: registryLoading } = useCollection(
+    query(collection(db, 'offices'), where('status', '==', 'Active'))
+  );
+
+  const authorizedOffices = useMemo(() => {
+    if (!profile || !registryOffices) return [];
+    if (profile.role === 'SUPER_ADMIN') return registryOffices;
+    
+    const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
+    return registryOffices.filter(o => allowedIds.includes(o.officeId));
+  }, [profile, registryOffices]);
+
+  useEffect(() => {
+    if (authorizedOffices.length > 0 && !office) {
+      setOffice(authorizedOffices[0].officeId);
+    }
+  }, [authorizedOffices, office]);
+
+  const configsQuery = useMemo(() => {
+    if (!office) return null;
+    return query(
+      collection(db, 'weekoff_configs'), 
+      where('office', '==', office),
+      orderBy('weekId', 'desc')
+    );
+  }, [db, office]);
 
   const { data: configs, loading: fetching } = useCollection(configsQuery);
 
@@ -119,6 +137,21 @@ export default function WeekOffConfiguration() {
 
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
+              <Select value={office} onValueChange={setOffice}>
+                <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
+                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Node..."} />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                  {authorizedOffices.map(o => (
+                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
+                      {o.officeName} [{o.shortCode}]
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+           </div>
+           <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
               <div className="flex items-center gap-2">
                  <Input 
@@ -139,7 +172,7 @@ export default function WeekOffConfiguration() {
            <Button 
              className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
              onClick={handleSave} 
-             disabled={loading}
+             disabled={loading || !office}
            >
             {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
             {loading ? 'SYNCING...' : 'PUBLISH WINDOW'}
@@ -162,18 +195,6 @@ export default function WeekOffConfiguration() {
               </div>
             </CardHeader>
             <CardContent className="p-10 space-y-8">
-              <div className="space-y-3">
-                <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] ml-1">Target ROC Cluster</Label>
-                <Select value={office} onValueChange={setOffice}>
-                  <SelectTrigger className="h-12 text-sm font-black rounded-xl border-2 border-slate-100 bg-slate-50 shadow-inner hover:border-secondary transition-all">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl bg-white p-2">
-                    {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] py-3 rounded-xl uppercase">{o.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-6">
                 <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-2">
@@ -214,10 +235,6 @@ export default function WeekOffConfiguration() {
              <p className="text-[13px] text-muted-foreground leading-relaxed font-black uppercase tracking-widest">
                Slot reservations are processed via server-side atomic transactions. Once secured, they are mathematically locked for the solver.
              </p>
-             <div className="pt-6 border-t border-slate-100 flex items-center gap-4">
-                <Zap className="size-5 text-secondary" />
-                <p className="text-[10px] font-black uppercase text-secondary tracking-[0.2em]">Institutional Access Guard Active</p>
-             </div>
           </Card>
         </div>
 
@@ -230,8 +247,8 @@ export default function WeekOffConfiguration() {
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Reservation Matrix</CardTitle>
-                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                     Maximum daily FCFS slot limits.
+                  <CardDescription className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
+                     Maximum daily FCFS slot limits for {authorizedOffices.find(o => o.officeId === office)?.officeName || '---'}.
                   </CardDescription>
                 </div>
               </div>
@@ -294,7 +311,7 @@ export default function WeekOffConfiguration() {
                       <TableCell className="py-8 px-10 border-r border-slate-100">
                          <div className="flex items-center gap-4">
                             <div className="size-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                            <span className="font-black text-[14px] text-black tracking-tight uppercase group-hover:translate-x-1 transition-transform">{c.office?.replace('_', ' ')}</span>
+                            <span className="font-black text-[14px] text-black tracking-tight uppercase group-hover:translate-x-1 transition-transform">{authorizedOffices.find(o => o.officeId === c.office)?.officeName || c.office}</span>
                          </div>
                       </TableCell>
                       <TableCell className="px-10 border-r border-slate-100">
@@ -323,19 +340,6 @@ export default function WeekOffConfiguration() {
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter className="bg-slate-50/50 p-10 border-t border-slate-100">
-               <div className="flex items-center gap-10">
-                  <div className="size-16 rounded-[1.5rem] bg-secondary/10 flex items-center justify-center text-secondary shadow-inner shrink-0">
-                     <Info className="size-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-black/40">Audit Note</p>
-                    <p className="text-[13px] font-medium text-black/80 uppercase leading-relaxed tracking-tight max-w-4xl">
-                      Windows are cluster-isolated. Professional slot reservations are immutable once secured and logged to the trace ledger.
-                    </p>
-                  </div>
-               </div>
-            </CardFooter>
           </Card>
         </div>
       </div>

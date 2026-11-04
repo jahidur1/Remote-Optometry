@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,22 +21,17 @@ import {
   Zap, 
   Database,
   Building2,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DemoBadge } from '@/components/ui/demo-badge';
-import { getDatesForWeek } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { saveQuotaAction } from '@/services/quota-actions';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const ALL_OFFICES = [
-  { id: "KOLKATA_ROC", name: "KOLKATA ROC" },
-  { id: "GURGAON_ROC", name: "GURGAON ROC" },
-  { id: "LUCKNOW_ROC", name: "LUCKNOW ROC" }
-];
 
 export default function QuotaConfiguration() {
   const [weekId, setWeekId] = useState('2024-52');
@@ -49,16 +45,22 @@ export default function QuotaConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
+  // Dynamic Office Registry Subscription
+  const { data: registryOffices, loading: registryLoading } = useCollection(
+    query(collection(db, 'offices'), where('status', '==', 'Active'))
+  );
+
   const authorizedOffices = useMemo(() => {
-    if (!profile) return [];
-    if (profile.role === 'SUPER_ADMIN') return ALL_OFFICES;
+    if (!profile || !registryOffices) return [];
+    if (profile.role === 'SUPER_ADMIN') return registryOffices;
+    
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
-    return ALL_OFFICES.filter(o => allowedIds.includes(o.id));
-  }, [profile]);
+    return registryOffices.filter(o => allowedIds.includes(o.officeId));
+  }, [profile, registryOffices]);
 
   useEffect(() => {
     if (authorizedOffices.length > 0 && !selectedOffice) {
-      setSelectedOffice(authorizedOffices[0].id);
+      setSelectedOffice(authorizedOffices[0].officeId);
     }
   }, [authorizedOffices, selectedOffice]);
 
@@ -146,7 +148,8 @@ export default function QuotaConfiguration() {
       });
       
       if (result.success) {
-        toast({ title: "Configuration Secured", description: `${selectedOffice.replace('_', ' ')} targets updated in registry.` });
+        const officeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || selectedOffice;
+        toast({ title: "Configuration Secured", description: `${officeName} targets updated in registry.` });
       } else {
         throw new Error(result.error);
       }
@@ -181,11 +184,18 @@ export default function QuotaConfiguration() {
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
-                <SelectTrigger className="h-6 w-40 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
-                  <SelectValue placeholder="Select Node..." />
+                <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
+                  <SelectValue placeholder={registryLoading ? "Loading Registry..." : "Select Node..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
-                  {authorizedOffices.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">{o.name}</SelectItem>)}
+                  {authorizedOffices.map(o => (
+                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
+                      {o.officeName} [{o.shortCode}]
+                    </SelectItem>
+                  ))}
+                  {authorizedOffices.length === 0 && !registryLoading && (
+                    <div className="p-4 text-[10px] font-black uppercase text-destructive">No Authorized Nodes</div>
+                  )}
                 </SelectContent>
               </Select>
            </div>
@@ -204,7 +214,7 @@ export default function QuotaConfiguration() {
              onClick={handleSave} 
              disabled={saving || !selectedOffice}
            >
-            {saving ? <Zap className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
+            {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
             {saving ? 'SYNCING...' : 'SAVE MATRIX'}
            </Button>
         </div>
@@ -221,7 +231,7 @@ export default function QuotaConfiguration() {
                 <div>
                    <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Assignment Hub</CardTitle>
                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2 flex items-center gap-2">
-                      <Building2 className="size-3" /> {selectedOffice?.replace('_', ' ') || 'NODE_PENDING'}
+                      <Building2 className="size-3" /> {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'NODE_PENDING'}
                    </p>
                 </div>
               </div>

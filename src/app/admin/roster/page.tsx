@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -9,19 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
 import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
 import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server, Clock, Zap, Cpu, Terminal, Database, Building2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/toast-hooks";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-
-const OFFICES = [
-  { id: "KOLKATA_ROC", name: "Kolkata ROC" },
-  { id: "GURGAON_ROC", name: "Gurgaon ROC" },
-  { id: "LUCKNOW_ROC", name: "Lucknow ROC" }
-];
 
 export default function RosterSolver() {
   const [weekId, setWeekId] = useState('2024-52');
@@ -37,27 +32,35 @@ export default function RosterSolver() {
   const { profile } = useUser();
   const { toast } = useToast();
 
+  // Dynamic Office Registry Subscription
+  const { data: registryOffices, loading: registryLoading } = useCollection(
+    query(collection(db, 'offices'), where('status', '==', 'Active'))
+  );
+
+  const authorizedOffices = useMemo(() => {
+    if (!profile || !registryOffices) return [];
+    if (profile.role === 'SUPER_ADMIN') return registryOffices;
+    
+    const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
+    return registryOffices.filter(o => allowedIds.includes(o.officeId));
+  }, [profile, registryOffices]);
+
   useEffect(() => {
-    if (profile?.office && !selectedOffice) {
-      setSelectedOffice(profile.office);
+    if (authorizedOffices.length > 0 && !selectedOffice) {
+      setSelectedOffice(authorizedOffices[0].officeId);
     }
-  }, [profile, selectedOffice]);
+  }, [authorizedOffices, selectedOffice]);
 
   const draftsQuery = useMemo(() => {
-    if (!profile) return null;
+    if (!profile || !selectedOffice) return null;
     const q = collection(db, 'roster_drafts');
-    // Filter drafts by office to satisfy hardened rules
-    const base = profile.role === 'SUPER_ADMIN'
-      ? q
-      : query(q, where('office', '==', profile.office));
-    
-    return query(base, orderBy('createdAt', 'desc'), limit(10));
-  }, [db, profile]);
+    return query(q, where('office', '==', selectedOffice), orderBy('createdAt', 'desc'), limit(10));
+  }, [db, profile, selectedOffice]);
   
   const { data: recentDrafts } = useCollection(draftsQuery);
 
   const handleRunSolver = async () => {
-    const targetOffice = selectedOffice || profile?.office;
+    const targetOffice = selectedOffice;
 
     if (!targetOffice || !profile?.uid) {
       toast({ 
@@ -126,7 +129,7 @@ export default function RosterSolver() {
   const handleExplain = async () => {
     if (!solverResult) return;
     const result = await explainSchedulingConflicts({
-      problemDescription: `Roster Node: ${selectedOffice || profile?.office} | Target Cycle: ${weekId}`,
+      problemDescription: `Roster Node: ${selectedOffice} | Target Cycle: ${weekId}`,
       hardConstraints: ["Atomic Clinical Quotas", "Protected Weekly-Offs", "Approved Absences", "Adjacency Fairness"],
       softConstraints: ["Gender Pod Balance", "Professional Preferences"],
       solverOutcome: solverResult.status,
@@ -159,11 +162,15 @@ export default function RosterSolver() {
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
-                <SelectTrigger className="h-6 w-40 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
-                  <SelectValue placeholder="Select Node..." />
+                <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
+                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Node..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
-                  {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">{o.name}</SelectItem>)}
+                  {authorizedOffices.map(o => (
+                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
+                      {o.officeName} [{o.shortCode}]
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
            </div>
@@ -181,7 +188,7 @@ export default function RosterSolver() {
            <Button 
              className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
              onClick={handleRunSolver} 
-             disabled={status === 'running'}
+             disabled={status === 'running' || !selectedOffice}
            >
             {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : <Play className="size-4 mr-2 fill-white" />}
             {status === 'running' ? 'OPTIMIZING...' : 'EXECUTE NODE'}
@@ -200,7 +207,7 @@ export default function RosterSolver() {
                 <div className="space-y-1">
                   <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">CP-SAT Orchestrator</CardTitle>
                   <CardDescription className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                     Deterministic Cluster Logic Node
+                     Deterministic Cluster Logic Node: {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || '---'}
                   </CardDescription>
                 </div>
               </div>
@@ -260,7 +267,7 @@ export default function RosterSolver() {
             <CardContent className="p-0">
                <div className="divide-y divide-slate-50">
                 {recentDrafts?.length === 0 ? (
-                    <div className="py-24 text-center opacity-20 italic font-black uppercase text-[10px] tracking-[0.3em] text-slate-400">No registry history detected.</div>
+                    <div className="py-24 text-center opacity-20 italic font-black uppercase text-[10px] tracking-[0.3em] text-slate-400">No registry history detected for selected node.</div>
                 ) : recentDrafts?.map(draft => (
                   <div key={draft.id} className="flex items-center justify-between p-8 hover:bg-slate-50 transition-colors group">
                     <div className="flex items-center gap-8">

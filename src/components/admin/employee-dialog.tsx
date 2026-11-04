@@ -2,7 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/firebase';
+import { useAuth, useCollection, useFirestore } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import {
   Dialog,
   DialogContent,
@@ -21,9 +22,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from "@/toast-hooks";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Zap, User, Fingerprint } from 'lucide-react';
+import { Zap, User, Fingerprint, Loader2 } from 'lucide-react';
 import { updateEmployeeRecordAction } from '@/services/identity-actions';
 import Link from 'next/link';
 
@@ -33,16 +34,16 @@ interface EmployeeDialogProps {
   employee?: any;
 }
 
-const OFFICES = [
-  { id: "KOLKATA_ROC", name: "KOLKATA ROC" },
-  { id: "GURGAON_ROC", name: "GURGAON ROC" },
-  { id: "LUCKNOW_ROC", name: "LUCKNOW ROC" }
-];
-
 export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogProps) {
   const auth = useAuth();
+  const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+
+  // Dynamic Office Registry (Active Nodes Only)
+  const { data: registryOffices, loading: registryLoading } = useCollection(
+    query(collection(db, 'offices'), where('status', '==', 'Active'))
+  );
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -51,7 +52,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     status: 'Active',
     gender: 'Male',
     age: '',
-    office: 'KOLKATA_ROC',
+    office: '',
     whatsappNumber: '',
     department: 'Remote Optometry',
     designation: 'Staff Professional',
@@ -66,7 +67,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         status: employee.status || 'Active',
         gender: employee.gender || 'Male',
         age: employee.age?.toString() || '',
-        office: employee.office || 'KOLKATA_ROC',
+        office: employee.office || '',
         whatsappNumber: employee.whatsappNumber?.replace('+91', '') || '',
         department: employee.department || 'Remote Optometry',
         designation: employee.designation || 'Staff Professional',
@@ -116,7 +117,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
             {employee ? 'Edit Identity Node' : 'Registry Alert'}
           </DialogTitle>
           <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">
-            Trusted Backend Identity Protocol — v4.0
+            Trusted Backend Identity Protocol — Dynamic Registry Sync
           </DialogDescription>
         </div>
 
@@ -172,10 +173,14 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
                     <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                        <SelectValue />
+                        <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Node"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
-                        {OFFICES.map(o => <SelectItem key={o.id} value={o.id} className="font-bold text-[11px] uppercase py-3 rounded-xl">{o.name}</SelectItem>)}
+                        {registryOffices?.map(o => (
+                          <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] uppercase py-3 rounded-xl">
+                            {o.officeName} [{o.shortCode}]
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                  </div>
