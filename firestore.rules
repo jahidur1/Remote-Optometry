@@ -72,7 +72,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow write: if false; 
+      allow write: if false; // Provisioned via Trusted Server Actions only
     }
 
     match /employees/{employeeId} {
@@ -83,7 +83,7 @@ service cloud.firestore {
 
       allow get: if isSignedIn() && (isAdmin() || getEmployeeId() == employeeId);
       allow list: if isAdmin() && (isSuperAdmin() || matchesOffice(resource.data.office));
-      allow create: if false;
+      allow create: if false; // Controlled by Server Actions
       allow update: if isUserActive() && (
         (isAdmin() && matchesOffice(resource.data.office)) ||
         (getEmployeeId() == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age']))
@@ -99,18 +99,23 @@ service cloud.firestore {
     }
 
     match /weekoff_bookings/{bookingId} {
-      allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || matchesOffice(resource.data.office));
-      allow create: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
+      function getEmployeeId() {
+        return getUserData().employeeId;
+      }
+
+      allow read: if isUserActive() && (resource.data.employeeId == getEmployeeId() || matchesOffice(resource.data.office));
+      allow create: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
       allow delete, update: if isAdmin() && matchesOffice(resource.data.office);
     }
 
     match /published_rosters/{versionId} { 
-      allow read: if isAdmin() && matchesOffice(resource.data.office); 
+      allow read: if isUserActive() && (isAdmin() || matchesOffice(resource.data.office)); 
       allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive() && (!quotaId.matches('.*_.*') || matchesOffice(resource.data.officeId));
+      // Handle IDs like weekId_officeId
+      allow read: if isUserActive() && (isAdmin() || matchesOffice(resource.data.officeId));
       allow write: if isAdmin() && matchesOffice(request.resource.data.officeId) && isOfficeActive(request.resource.data.officeId);
     }
 
@@ -120,7 +125,11 @@ service cloud.firestore {
     }
 
     match /employee_leaves/{leaveId} {
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId || matchesOffice(resource.data.office));
+      function getEmployeeId() {
+        return getUserData().employeeId;
+      }
+
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getEmployeeId() || matchesOffice(resource.data.office));
       allow write: if isAdmin() && matchesOffice(request.resource.data.office);
     }
 
@@ -130,19 +139,27 @@ service cloud.firestore {
     }
 
     match /shift_swaps/{swapId} {
+      function getEmployeeId() {
+        return getUserData().employeeId;
+      }
+
       allow read: if isUserActive() && (
         isSuperAdmin() || 
         (isAdmin() && matchesOffice(resource.data.office)) || 
-        resource.data.requesterId == getUserData().employeeId || 
-        resource.data.targetEmployeeId == getUserData().employeeId
+        resource.data.requesterId == getEmployeeId() || 
+        resource.data.targetEmployeeId == getEmployeeId()
       );
-      allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId && matchesOffice(request.resource.data.office);
-      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getUserData().employeeId || (isAdmin() && matchesOffice(resource.data.office)));
+      allow create: if isUserActive() && request.resource.data.requesterId == getEmployeeId() && matchesOffice(request.resource.data.office);
+      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getEmployeeId() || (isAdmin() && matchesOffice(resource.data.office)));
     }
 
     match /employee_preferences/{prefId} {
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId || (prefId.matches('.*_.*') && matchesOffice(resource.data.office)));
-      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId && matchesOffice(request.resource.data.office);
+      function getEmployeeId() {
+        return getUserData().employeeId;
+      }
+
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getEmployeeId() || matchesOffice(resource.data.office));
+      allow write: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && matchesOffice(request.resource.data.office);
     }
 
     // --- LOGS & AUTH ---
@@ -159,7 +176,7 @@ service cloud.firestore {
     
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow write: if true; // Publicly accessible for login pulse
+      allow write: if true; // Publicly accessible for login pulses
     }
 
     match /sessions/{sessionId} {
