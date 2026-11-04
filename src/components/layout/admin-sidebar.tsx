@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,6 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useUser } from "@/firebase"
+import { useOffice } from "@/context/office-context"
 import {
   LayoutDashboard,
   Users,
@@ -21,7 +23,9 @@ import {
   ArrowRightLeft,
   Key,
   Network,
-  Globe
+  Globe,
+  Building2,
+  ChevronDown
 } from "lucide-react"
 
 import {
@@ -37,6 +41,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { signOut } from "firebase/auth"
 import { useAuth } from "@/firebase"
 import { cn } from "@/lib/utils"
@@ -82,6 +92,7 @@ const navGroups = [
 export function AdminSidebar() {
   const pathname = usePathname()
   const { profile } = useUser()
+  const { selectedOffice, setSelectedOffice, authorizedOffices } = useOffice()
   const auth = useAuth()
   const { state, isMobile, setOpenMobile } = useSidebar()
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
@@ -96,17 +107,19 @@ export function AdminSidebar() {
     }
   }
 
+  const currentOffice = authorizedOffices.find(o => o.officeId === selectedOffice);
+
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-[#0F172A] text-white">
-      <SidebarHeader className="h-28 flex justify-center px-8">
+      <SidebarHeader className="h-40 flex flex-col justify-center px-6">
         <SidebarMenu>
           <SidebarMenuItem>
             <div className={cn(
-              "flex items-center gap-4 transition-all duration-500",
+              "flex items-center gap-4 transition-all duration-500 mb-6",
               state === "collapsed" ? "justify-center" : "justify-start"
             )}>
               {logo && (
-                <div className="relative size-12 transform hover:rotate-6 transition-transform shrink-0">
+                <div className="relative size-10 transform hover:rotate-6 transition-transform shrink-0">
                   <Image 
                     src={logo.imageUrl} 
                     alt="Remote Optometry" 
@@ -118,12 +131,49 @@ export function AdminSidebar() {
               )}
               {state === "expanded" && (
                 <div className="flex flex-col">
-                  <span className="text-xl font-black uppercase tracking-tighter text-white leading-none">Remote</span>
-                  <span className="text-xs font-black uppercase tracking-[0.3em] text-white/40 mt-1">Optometry</span>
+                  <span className="text-lg font-black uppercase tracking-tighter text-white leading-none">Remote</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mt-1">Optometry</span>
                 </div>
               )}
             </div>
           </SidebarMenuItem>
+          
+          {state === "expanded" && authorizedOffices.length > 0 && (
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton size="lg" className="bg-white/5 border border-white/10 h-14 rounded-2xl group hover:bg-white/10 transition-all">
+                    <Building2 className="size-5 text-secondary shrink-0" />
+                    <div className="flex flex-col flex-1 text-left">
+                      <span className="text-[11px] font-black uppercase text-white/90 truncate">
+                        {currentOffice?.officeName || "Select Node"}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase text-white/30 truncate">
+                        {currentOffice?.shortCode || "NODE"} Pulse
+                      </span>
+                    </div>
+                    {authorizedOffices.length > 1 && <ChevronDown className="size-4 text-white/20 ml-2" />}
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                {authorizedOffices.length > 1 && (
+                  <DropdownMenuContent className="w-64 bg-[#0F172A] border-white/10 text-white rounded-2xl p-2" align="start">
+                    {authorizedOffices.map((office) => (
+                      <DropdownMenuItem 
+                        key={office.officeId} 
+                        className={cn(
+                          "h-12 font-black uppercase text-[10px] tracking-widest rounded-xl focus:bg-white/10 cursor-pointer",
+                          selectedOffice === office.officeId && "bg-secondary text-white focus:bg-secondary"
+                        )}
+                        onClick={() => setSelectedOffice(office.officeId)}
+                      >
+                        {office.officeName}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                )}
+              </DropdownMenu>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarHeader>
       
@@ -136,12 +186,12 @@ export function AdminSidebar() {
           if (filteredItems.length === 0) return null
 
           return (
-            <SidebarGroup key={group.label} className="mt-8">
-              <SidebarGroupLabel className="text-[11px] font-black uppercase tracking-[0.4em] text-white/20 px-4 mb-4">
+            <SidebarGroup key={group.label} className="mt-4">
+              <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 px-4 mb-3">
                 {group.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu className="gap-2">
+                <SidebarMenu className="gap-1.5">
                   {filteredItems.map((item) => {
                     const isActive = pathname === item.url || (item.url !== '/admin' && pathname.startsWith(item.url));
                     return (
@@ -151,16 +201,15 @@ export function AdminSidebar() {
                           isActive={isActive} 
                           tooltip={item.title}
                           className={cn(
-                            "h-14 px-5 rounded-2xl transition-all duration-300 group",
+                            "h-12 px-4 rounded-xl transition-all duration-300 group",
                             isActive 
                               ? "bg-white text-[#0F172A] shadow-2xl scale-[1.02]" 
                               : "text-white/50 hover:text-white hover:bg-white/5"
                           )}
                         >
-                          <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-5">
-                            <item.icon className={cn("size-5", isActive ? "text-[#0F172A] stroke-[3px]" : "group-hover:text-white transition-all duration-300")} />
-                            <span className="font-bold text-[14px] tracking-tight uppercase leading-none">{item.title}</span>
-                            {isActive && <div className="ml-auto size-2 rounded-full bg-secondary animate-pulse" />}
+                          <Link href={item.url} onClick={handleNavClick} className="flex items-center gap-4">
+                            <item.icon className={cn("size-4", isActive ? "text-[#0F172A] stroke-[3px]" : "group-hover:text-white")} />
+                            <span className="font-bold text-[13px] tracking-tight uppercase leading-none">{item.title}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -6,28 +7,38 @@ import { logAuditServer } from './audit-service';
 import { assertOfficeActive } from '@/lib/office-utils';
 
 /**
- * Verifies the caller's identity and administrative role on the server.
+ * Hardened Server-Side Authorization Utility
+ * Re-verifies token and matches requested office against authorized officeIds.
  */
-async function getAuthorizedCaller(idToken: string) {
-  if (!idToken) return null;
+async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) {
+  if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
+  
   try {
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     
-    if (!userSnap.exists) return null;
+    if (!userSnap.exists) throw new Error("Unauthorized: Identity node not found.");
     const profile = userSnap.data()!;
     
-    if (profile.status !== 'Active' || !['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) {
-      return null;
+    if (profile.status !== 'Active') throw new Error("Unauthorized: Account suspended.");
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) throw new Error("Unauthorized: Elevated pulse required.");
+
+    const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
+
+    if (requestedOfficeId && profile.role !== 'SUPER_ADMIN') {
+      if (!authorizedOffices.includes(requestedOfficeId)) {
+        throw new Error(`Forbidden: You are not authorized for cluster ${requestedOfficeId}.`);
+      }
     }
     
     return { 
       uid: decoded.uid, 
       ...profile,
-      officeIds: profile.officeIds || (profile.office ? [profile.office] : [])
+      authorizedOffices
     };
-  } catch (e) {
-    return null;
+  } catch (e: any) {
+    console.error('Authorization Pulse Failure:', e.message);
+    throw e;
   }
 }
 
@@ -36,23 +47,17 @@ async function getAuthorizedCaller(idToken: string) {
  * Hardened: Performs triple-uniqueness check (ID, Email, Phone) via parallel atomic lookups.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
-  const caller = await getAuthorizedCaller(idToken);
-  if (!caller) throw new Error("Unauthorized: Administrative pulse required.");
+  const caller = await getAuthorizedCaller(idToken, formData.office);
 
-  // 1. Dynamic Office Validation
+  // 1. Dynamic Registry Validation
   await assertOfficeActive(formData.office);
-
-  // 2. Authorization Scoping
-  if (caller.role === 'ADMIN' && !caller.officeIds.includes(formData.office)) {
-    throw new Error(`Unauthorized: You cannot provision staff for cluster ${formData.office}.`);
-  }
 
   const employeeId = formData.employeeId.toUpperCase().trim();
   const email = formData.email.toLowerCase().trim();
   const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
 
   try {
-    // 3. Triple Uniqueness Check (ID, Email, Phone)
+    // 2. Uniqueness Check
     const [idSnap, emailSnap, phoneSnap] = await Promise.all([
       adminDb.collection('employees').doc(employeeId).get(),
       adminDb.collection('employees').where('email', '==', email).get(),
@@ -60,10 +65,10 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     ]);
 
     if (idSnap.exists) throw new Error("Identity Lock: Employee ID already registered.");
-    if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound to a clinical record.");
-    if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile endpoint already bound to a clinical record.");
+    if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound.");
+    if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile already bound.");
 
-    // 4. Provision Authentication Node
+    // 3. Provision Node
     const authUser = await adminAuth.createUser({
       email,
       password,
@@ -78,14 +83,12 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       whatsappNumber: phoneFormatted,
       role: formData.role,
       office: formData.office,
-      officeIds: [formData.office],
       status: 'Active',
       updatedAt: new Date().toISOString()
     };
 
     const batch = adminDb.batch();
     
-    // 5. Commit Clinical Registry Record
     batch.set(adminDb.collection('employees').doc(employeeId), {
       ...commonData,
       id: employeeId,
@@ -97,7 +100,6 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       authUid: authUser.uid
     });
 
-    // 6. Commit User Profile Record
     batch.set(adminDb.collection('users').doc(authUser.uid), {
       ...commonData,
       uid: authUser.uid,
@@ -108,11 +110,10 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     });
 
     await batch.commit();
-    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { role: formData.role, office: formData.office });
+    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { office: formData.office });
 
     return { success: true, uid: authUser.uid };
   } catch (e: any) {
-    console.error('Provisioning Error:', e.message);
     return { success: false, error: e.message };
   }
 }
@@ -121,16 +122,16 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
  * updateAccountStatusAction
  */
 export async function updateAccountStatusAction(idToken: string, employeeId: string, newStatus: string) {
-  const caller = await getAuthorizedCaller(idToken);
-  if (!caller) throw new Error("Unauthorized.");
-
   try {
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
     if (!empSnap.exists) throw new Error("Record not found.");
     const empData = empSnap.data()!;
 
+    // Verify caller is authorized for this employee's office
+    const caller = await getAuthorizedCaller(idToken, empData.office);
+
     if (empData.role === 'SUPER_ADMIN' && caller.role !== 'SUPER_ADMIN') {
-      throw new Error("Privilege Block: Only Super Admins can modify status for this role level.");
+      throw new Error("Privilege Block: Super Admin only.");
     }
 
     const batch = adminDb.batch();
@@ -144,16 +145,10 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
         status: newStatus,
         updatedAt: new Date().toISOString()
       });
+      await adminAuth.updateUser(empData.authUid, { disabled: newStatus === 'Suspended' });
     }
 
     await batch.commit();
-
-    if (empData.authUid) {
-      try {
-        await adminAuth.updateUser(empData.authUid, { disabled: newStatus === 'Suspended' });
-      } catch (authErr) {}
-    }
-
     await logAuditServer(caller.uid, `ADMIN_SET_STATUS_${newStatus.toUpperCase()}`, employeeId);
     return { success: true };
   } catch (e: any) {
@@ -165,39 +160,22 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
  * updateEmployeeRecordAction
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
-  const caller = await getAuthorizedCaller(idToken);
-  if (!caller) throw new Error("Unauthorized.");
-
   try {
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
     if (!empSnap.exists) throw new Error("Record not found.");
     const current = empSnap.data()!;
 
+    const caller = await getAuthorizedCaller(idToken, current.office);
+
     const allowed = ['fullName', 'whatsappNumber', 'department', 'designation', 'age', 'gender'];
     const filtered: any = {};
     allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
 
-    if (caller.role === 'SUPER_ADMIN') {
-      if (updates.role) filtered.role = updates.role;
-      if (updates.status) filtered.status = updates.status;
-      
-      if (updates.office) {
-        await assertOfficeActive(updates.office);
-        filtered.office = updates.office;
-      }
-      
-      if (updates.officeIds && Array.isArray(updates.officeIds)) {
-        for (const oId of updates.officeIds) {
-          await assertOfficeActive(oId);
-        }
-        filtered.officeIds = updates.officeIds;
-      }
-    }
-
-    if (updates.email && updates.email !== current.email) {
-      if (caller.role !== 'SUPER_ADMIN') throw new Error("Privilege Block: Email updates restricted to Super Admin node.");
-      await adminAuth.updateUser(current.authUid, { email: updates.email });
-      filtered.email = updates.email;
+    // Restrict identity fields for non-Super Admins
+    if (caller.role !== 'SUPER_ADMIN') {
+      delete filtered.role;
+      delete filtered.status;
+      delete filtered.office;
     }
 
     const batch = adminDb.batch();
@@ -213,7 +191,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     }
 
     await batch.commit();
-    await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId, { updatedFields: Object.keys(filtered) });
+    await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

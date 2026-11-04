@@ -1,8 +1,10 @@
+
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
 import { collection, query, where, orderBy, limit } from "firebase/firestore"
 import { useFirestore, useCollection } from "@/firebase"
+import { useOffice } from "@/context/office-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Users, 
@@ -17,7 +19,9 @@ import {
   Database, 
   Cpu, 
   PlaneTakeoff, 
-  CalendarDays 
+  CalendarDays,
+  Target,
+  AlertTriangle
 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts"
 import { DemoBadge } from "@/components/ui/demo-badge"
@@ -28,20 +32,41 @@ import { cn } from "@/lib/utils"
 
 export default function AdminDashboard() {
   const db = useFirestore();
+  const { selectedOffice, authorizedOffices } = useOffice();
   const [solverHealth, setSolverHealth] = useState<{ status: string; latency?: number } | null>(null);
   const [checkingHealth, setCheckingHealth] = useState(true);
 
-  const empQuery = useMemo(() => query(collection(db, 'employees'), where('status', '==', 'Active')), [db]);
-  const rosterQuery = useMemo(() => query(collection(db, 'published_rosters'), orderBy('publishedAt', 'desc'), limit(1)), [db]);
-  const logsQuery = useMemo(() => query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(100)), [db]);
-  const leavesQuery = useMemo(() => query(collection(db, 'employee_leaves'), where('status', '==', 'approved')), [db]);
-  const bookingsQuery = useMemo(() => query(collection(db, 'weekoff_bookings'), limit(200)), [db]);
+  // Scoped Queries based on selected office context
+  const empQuery = useMemo(() => {
+    if (!selectedOffice) return null;
+    return query(collection(db, 'employees'), where('office', '==', selectedOffice), where('status', '==', 'Active'));
+  }, [db, selectedOffice]);
+
+  const rosterQuery = useMemo(() => {
+    if (!selectedOffice) return null;
+    return query(collection(db, 'published_rosters'), where('office', '==', selectedOffice), orderBy('publishedAt', 'desc'), limit(1));
+  }, [db, selectedOffice]);
+
+  const leavesQuery = useMemo(() => {
+    if (!selectedOffice) return null;
+    return query(collection(db, 'employee_leaves'), where('office', '==', selectedOffice), where('status', '==', 'approved'));
+  }, [db, selectedOffice]);
+
+  const bookingsQuery = useMemo(() => {
+    if (!selectedOffice) return null;
+    return query(collection(db, 'weekoff_bookings'), where('office', '==', selectedOffice), limit(100));
+  }, [db, selectedOffice]);
+
+  const swapQuery = useMemo(() => {
+    if (!selectedOffice) return null;
+    return query(collection(db, 'shift_swaps'), where('office', '==', selectedOffice), where('status', '==', 'pending'));
+  }, [db, selectedOffice]);
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: rosters, loading: rosterLoading } = useCollection(rosterQuery);
-  const { data: logs } = useCollection(logsQuery);
   const { data: leaves } = useCollection(leavesQuery);
   const { data: currentBookings } = useCollection(bookingsQuery);
+  const { data: pendingSwaps } = useCollection(swapQuery);
 
   useEffect(() => {
     async function verifyNode() {
@@ -60,6 +85,7 @@ export default function AdminDashboard() {
 
   const latestRoster = rosters?.[0];
   const activeWeek = latestRoster?.weekId || 'N/A';
+  const officeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || "---";
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -77,9 +103,9 @@ export default function AdminDashboard() {
       availableToday: available,
       onLeaveToday: leavesToday,
       onWeekOffToday: offsToday,
-      apiHealth: logs && logs.length > 0 ? Math.round((logs.filter(l => l.status === 'success').length / logs.length) * 100) : 100
+      pendingRequests: (pendingSwaps?.length || 0) + (leaves?.filter(l => l.status === 'pending').length || 0)
     };
-  }, [employees, leaves, logs, currentBookings, activeWeek]);
+  }, [employees, leaves, currentBookings, activeWeek, pendingSwaps]);
 
   const chartData = useMemo(() => {
     if (!latestRoster) return [];
@@ -102,7 +128,7 @@ export default function AdminDashboard() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Command Center</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Institutional Roster Node • Week {activeWeek} <Activity className="size-3 text-secondary animate-pulse" />
+                  {officeName} • Week {activeWeek} <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -121,17 +147,17 @@ export default function AdminDashboard() {
               </div>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Meta Cloud API</label>
-              <div className="flex items-center gap-2">
-                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ONLINE</span>
-              </div>
-           </div>
-           <div className="px-6 py-1.5 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
+              </div>
+           </div>
+           <div className="px-6 py-1.5 space-y-0.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Regional Scoping</label>
+              <div className="flex items-center gap-2">
+                 <ShieldCheck className="size-3 text-emerald-500" />
+                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ENFORCED</span>
               </div>
            </div>
         </div>
@@ -142,7 +168,7 @@ export default function AdminDashboard() {
           { label: 'Clinical Pool', value: stats.totalActive, sub: 'Authorized Staff', icon: Users, color: 'text-primary' },
           { label: 'Active Capacity', value: stats.availableToday, sub: 'Eligible Today', icon: TrendingUp, color: 'text-secondary' },
           { label: 'Deployment', value: latestRoster ? `V${latestRoster.version.toString().slice(-4)}` : '---', sub: 'Production Node', icon: CheckCircle2, color: 'text-secondary' },
-          { label: 'API Efficiency', value: `${stats.apiHealth}%`, sub: 'Transmission Rate', icon: Globe, color: 'text-black' }
+          { label: 'Pending Pulse', value: stats.pendingRequests, sub: 'Needs Review', icon: Activity, color: 'text-destructive' }
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -167,7 +193,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Load Matrix</CardTitle>
-                <CardDescription className="text-[10px] font-black uppercase mt-2 text-muted-foreground tracking-[0.2em]">Daily Clinical Deployment Metrics.</CardDescription>
+                <CardDescription className="text-[10px] font-black uppercase mt-2 text-muted-foreground tracking-[0.2em]">Daily Deployment Pulse.</CardDescription>
               </div>
               <div className="p-3 rounded-xl bg-secondary/10 border border-secondary/20">
                 <BarChart3 className="size-6 text-secondary" />
@@ -233,9 +259,9 @@ export default function AdminDashboard() {
           <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white border-l-4 border-l-secondary">
              <CardHeader className="p-10 pb-6 border-b border-slate-100 bg-slate-50/50">
                 <CardTitle className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-4">
-                  <Activity className="size-6 text-secondary" /> Cluster Health
+                  <Activity className="size-6 text-secondary" /> Node Health
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Operational Delta Feed</CardDescription>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2 text-muted-foreground">Cluster Specific Delta.</CardDescription>
              </CardHeader>
              <CardContent className="p-10 space-y-10">
                 <div className="grid grid-cols-2 gap-6">
@@ -251,17 +277,22 @@ export default function AdminDashboard() {
 
                 <div className="space-y-6">
                    <h5 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] flex items-center justify-between">
-                      Infrastructure Trace <Clock className="size-4 text-secondary opacity-40" />
+                      Operational Alerts <Clock className="size-4 text-secondary opacity-40" />
                    </h5>
                    <div className="space-y-3">
+                      {!latestRoster && (
+                        <div className="flex items-center gap-4 p-4 rounded-xl bg-destructive/5 border border-destructive/10">
+                           <AlertTriangle className="size-4 text-destructive" />
+                           <span className="text-[10px] font-black uppercase text-destructive tracking-widest">No Active Roster Pulse</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-5 p-5 rounded-2xl bg-slate-50 border border-slate-100 group cursor-default hover:bg-slate-100 transition-all">
                         <div className="size-2.5 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[12px] font-black uppercase text-black tracking-tight">Node Verified</span>
-                            <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Active</span>
+                            <span className="text-[12px] font-black uppercase text-black tracking-tight">Identity Registry</span>
+                            <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">SYNCED</span>
                           </div>
-                          <Badge variant="outline" className="text-[8px] font-black tracking-widest bg-white uppercase text-secondary border-secondary/20">Deterministic CP-SAT</Badge>
                         </div>
                       </div>
                    </div>
@@ -269,22 +300,6 @@ export default function AdminDashboard() {
              </CardContent>
           </Card>
         </div>
-      </div>
-
-      <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 relative overflow-hidden group shadow-2xl">
-         <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><Database size={240} className="text-slate-200" /></div>
-         <div className="flex flex-col md:flex-row gap-10 items-start relative z-10">
-            <div className="size-16 rounded-2xl bg-primary flex items-center justify-center shadow-2xl shadow-primary/20 shrink-0">
-               <ShieldCheck className="size-8 text-white" />
-            </div>
-            <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-primary tracking-[0.4em]">Governance Protocol node</p>
-               <p className="text-lg font-bold text-black/70 leading-relaxed max-w-4xl tracking-tight">
-                  "ROC Workforce Command Center enforces 100% adherence to clinical staffing quotas through atomic transactions 
-                  and deterministic CP-SAT mathematical optimization. All operational events are immutably logged to the institutional registry."
-               </p>
-            </div>
-         </div>
       </div>
     </div>
   )
