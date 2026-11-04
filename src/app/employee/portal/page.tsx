@@ -25,7 +25,6 @@ import {
   Lock
 } from "lucide-react"
 import Link from "next/link"
-import { DemoBadge } from "@/components/ui/demo-badge"
 import { cn } from "@/lib/utils"
 import {
   Carousel,
@@ -35,27 +34,138 @@ import {
 } from "@/components/ui/carousel"
 import { getMyRosterAction } from "@/services/roster-actions"
 
+/**
+ * Institutional Weekly-Off Pulse Indicator
+ * Handles the logic for FCFS booking windows with IST formatting and countdowns.
+ */
+function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, userBooking: any, weekId: string }) {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (userBooking) {
+    return (
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-emerald-500/10 border-2 border-emerald-500/20 space-y-2 md:space-y-3">
+        <p className="text-[8px] md:text-[10px] font-black uppercase text-emerald-500 tracking-widest">FCFS Confirmed</p>
+        <p className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter italic leading-none">{userBooking.dayOfWeek}</p>
+        <p className="text-[9px] text-white/20 uppercase font-black tracking-widest">Locked for Cycle {weekId}</p>
+      </div>
+    );
+  }
+
+  if (!config) {
+    return (
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center">
+        <p className="text-[9px] font-black uppercase text-white/30 tracking-[0.25em]">No live week-off preference pool available</p>
+      </div>
+    );
+  }
+
+  const openTime = new Date(config.bookingOpen);
+  const closeTime = new Date(config.bookingClose);
+  const diffMs = openTime.getTime() - now.getTime();
+  const diffMins = diffMs / (1000 * 60);
+
+  if (now > closeTime) {
+    return (
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center">
+        <p className="text-[9px] font-black uppercase text-white/30 tracking-[0.25em]">Matrix Cycle Closed</p>
+      </div>
+    );
+  }
+
+  if (now >= openTime) {
+    return (
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
+        <p className="text-[8px] md:text-[10px] font-black uppercase text-secondary tracking-[0.3em] flex items-center gap-2">
+          <Zap className="size-3 fill-secondary" /> Live Pool Available
+        </p>
+        <div className="space-y-2">
+           <p className="text-[11px] font-bold text-white uppercase tracking-tight">No reservation secured for Cycle {config.weekId}.</p>
+           <Link href="/employee/book-off" className="block">
+              <Button className="w-full bg-secondary text-white font-black uppercase text-[10px] tracking-[0.15em] rounded-lg md:rounded-xl h-12 shadow-[0_10px_30px_-10px_rgba(59,130,246,0.5)] hover:scale-[1.02] active:scale-95 transition-all">
+                Enter Matrix Hub
+              </Button>
+           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (diffMins <= 3) {
+    const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return (
+      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center space-y-4">
+        <p className="text-[8px] md:text-[10px] font-black uppercase text-secondary tracking-[0.4em] animate-pulse">Pool Live In</p>
+        <p className="text-4xl font-black text-white tabular-nums tracking-tighter leading-none">
+          {mins}:{secs.toString().padStart(2, '0')}
+        </p>
+        <p className="text-[8px] font-black text-white/20 uppercase tracking-widest">Get Ready to Pulse</p>
+      </div>
+    );
+  }
+
+  const istTime = openTime.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return (
+    <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 text-center space-y-3">
+       <p className="text-[8px] md:text-[10px] font-black uppercase text-white/30 tracking-[0.3em]">Weekly-Off Matrix</p>
+       <p className="text-[12px] font-bold text-white uppercase tracking-tight leading-relaxed">
+          Live pool available at <br />
+          <span className="text-xl text-secondary mt-1 inline-block">{istTime} IST</span>
+       </p>
+       <p className="text-[9px] text-white/10 uppercase font-black tracking-widest mt-1">Status: Scheduled Pulse</p>
+    </div>
+  );
+}
+
 export default function EmployeePortal() {
   const db = useFirestore();
   const auth = useAuth();
   const { profile, loading: userLoading } = useUser();
-  const [loading, setLoading] = useState(true);
   const [api, setApi] = useState<CarouselApi>();
   
   const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
   const [rosterLoading, setRosterLoading] = useState(true);
+  const [activeConfig, setActiveConfig] = useState<any>(null);
 
   const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
-  const prev1Week = '2024-51';
-  const prev2Weeks = '2024-50';
-  const weeks = [upcomingWeek, currentWeek, prev1Week, prev2Weeks];
+  const weeks = [upcomingWeek, currentWeek];
 
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);
   
   const bookingId = profile?.employeeId ? `${currentWeek}_${profile.employeeId}` : null;
   const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
+
+  useEffect(() => {
+    if (!db || !profile?.office) return;
+    const q = query(
+      collection(db, 'weekoff_configs'), 
+      where('office', '==', profile.office),
+      orderBy('weekId', 'desc'), 
+      limit(1)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        setActiveConfig(snapshot.docs[0].data());
+      } else {
+        setActiveConfig(null);
+      }
+    });
+    return () => unsubscribe();
+  }, [db, profile?.office]);
 
   useEffect(() => {
     async function syncRosters() {
@@ -116,7 +226,6 @@ export default function EmployeePortal() {
                  </p>
               </div>
             </div>
-            <div className="ml-auto md:ml-0"><DemoBadge /></div>
           </div>
         </div>
         <div className="flex gap-2 md:gap-3 w-full md:w-auto">
@@ -279,20 +388,7 @@ export default function EmployeePortal() {
               </div>
 
               <div className="pt-8 md:pt-10 border-t border-white/10 space-y-6 md:space-y-8">
-                 {userBooking ? (
-                    <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-emerald-500/10 border-2 border-emerald-500/20 space-y-2 md:space-y-3">
-                       <p className="text-[8px] md:text-[10px] font-black uppercase text-emerald-500 tracking-widest">FCFS Confirmed</p>
-                       <p className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter italic">{userBooking.dayOfWeek}</p>
-                    </div>
-                 ) : (
-                    <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
-                       <p className="text-[8px] md:text-[10px] font-black uppercase text-white/30 tracking-widest">Weekly-Off Matrix</p>
-                       <p className="text-[12px] md:text-sm font-bold text-white uppercase tracking-tight">No reservation secured for Cycle {currentWeek}.</p>
-                       <Link href="/employee/book-off" className="block">
-                          <Button className="w-full bg-secondary text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest rounded-lg md:rounded-xl h-10 shadow-lg">Enter Matrix</Button>
-                       </Link>
-                    </div>
-                 )}
+                 <WeekOffMatrixStatus config={activeConfig} userBooking={userBooking} weekId={currentWeek} />
               </div>
             </CardContent>
           </Card>

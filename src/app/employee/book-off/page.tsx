@@ -10,12 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { CalendarDays, Clock, CheckCircle2, AlertTriangle, Loader2, Info, Lock, Sparkles, Zap, ArrowRight, ArrowLeft } from "lucide-react";
 import { bookWeeklyOff } from '@/lib/booking';
-import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
+/**
+ * Institutional Countdown Matrix
+ * Specifically optimized for IST synchronization and 3-minute alerting.
+ */
 function CountdownTimer({ targetDate, label }: { targetDate: string, label: string }) {
   const [timeLeft, setTimeLeft] = useState<string>('');
 
@@ -30,20 +31,18 @@ function CountdownTimer({ targetDate, label }: { targetDate: string, label: stri
         return;
       }
 
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-      setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+      setTimeLeft(`${minutes}:${seconds.toString().padStart(2, '0')}`);
     }, 1000);
     return () => clearInterval(timer);
   }, [targetDate]);
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <span className="text-[10px] font-black uppercase text-black/30 tracking-[0.3em]">{label}</span>
-      <span className="font-black tabular-nums text-4xl tracking-tighter text-black">{timeLeft}</span>
+      <span className="text-[10px] font-black uppercase text-black/30 tracking-[0.4em]">{label}</span>
+      <span className="font-black tabular-nums text-6xl tracking-tighter text-black">{timeLeft}</span>
     </div>
   );
 }
@@ -56,6 +55,12 @@ export default function BookOffPage() {
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bookingInProgress, setBookingInProgress] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!db || !profile?.office) return;
@@ -111,11 +116,18 @@ export default function BookOffPage() {
     return { label: "AVAILABLE", color: "default", disabled: false, remaining, percent };
   };
 
+  const openTime = useMemo(() => activeConfig ? new Date(activeConfig.bookingOpen) : null, [activeConfig]);
+  const closeTime = useMemo(() => activeConfig ? new Date(activeConfig.bookingClose) : null, [activeConfig]);
+  
   const isWindowOpen = useMemo(() => {
-    if (!activeConfig) return false;
-    const now = new Date();
-    return now >= new Date(activeConfig.bookingOpen) && now <= new Date(activeConfig.bookingClose);
-  }, [activeConfig]);
+    if (!openTime || !closeTime) return false;
+    return now >= openTime && now <= closeTime;
+  }, [openTime, closeTime, now]);
+
+  const diffMins = useMemo(() => {
+    if (!openTime) return 0;
+    return (openTime.getTime() - now.getTime()) / (1000 * 60);
+  }, [openTime, now]);
 
   if (loading || bookingLoading) return (
     <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
@@ -153,7 +165,6 @@ export default function BookOffPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-4">
               <h1 className="text-5xl font-black tracking-tighter text-black uppercase leading-none">Slot Reservation</h1>
-              <DemoBadge />
             </div>
             <div className="flex items-center gap-5 mt-4">
                <Badge className="bg-secondary text-white font-black text-[10px] uppercase px-5 py-1.5 rounded-full shadow-lg shadow-secondary/20">Cycle: {activeConfig.weekId}</Badge>
@@ -184,35 +195,37 @@ export default function BookOffPage() {
                 <p className="text-8xl font-black uppercase tracking-tighter italic text-white leading-none">{userBooking.dayOfWeek}</p>
               </div>
               <div className="flex flex-col items-center gap-5">
-                 <Badge className="bg-white text-emerald-600 px-12 py-4 text-[14px] font-black uppercase tracking-[0.4em] shadow-2xl rounded-2xl">Verified</Badge>
-                 <p className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em]">Institutional Pulse Hub</p>
+                 <Badge className="bg-white text-emerald-600 px-12 py-4 text-[14px] font-black uppercase tracking-[0.4em] shadow-2xl rounded-2xl">Verified Hub</Badge>
               </div>
             </div>
           </CardContent>
           <CardFooter className="bg-black/10 p-10 flex gap-8">
             <div className="size-10 rounded-full bg-white/10 flex items-center justify-center shrink-0"><Zap className="size-5 text-emerald-200" /></div>
             <p className="text-[14px] font-bold text-white/90 uppercase leading-relaxed tracking-tight max-w-3xl">
-              "CONGRATULATIONS! YOUR WEEKLY OFF IS CONFIRMED!" This record is server-locked. Manual modification is restricted to institutional clinical leads via mandatory audit override.
+              Institutional commitment established. Manual modification is restricted to clinical leads via audit override.
             </p>
           </CardFooter>
         </Card>
       ) : !isWindowOpen ? (
         <Card className="border-none bg-white shadow-2xl rounded-[3.5rem] overflow-hidden group border-2 border-slate-100">
           <CardHeader className="text-center p-24 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, black 1px, transparent 0)', backgroundSize: '40px 40px' }} />
             <div className="mx-auto size-40 rounded-[3rem] bg-secondary/5 flex items-center justify-center shadow-inner border-2 border-secondary/10 group-hover:scale-105 transition-all duration-700">
                <Clock className="size-20 text-secondary animate-pulse" />
             </div>
             <div className="space-y-8 relative z-10">
-               <CardTitle className="text-5xl font-black text-black uppercase tracking-tight leading-none">Pulse Opening Soon</CardTitle>
-               <div className="flex flex-col items-center gap-10">
-                  <div className="px-14 py-8 bg-slate-50 rounded-[2.5rem] border-2 shadow-inner border-slate-100">
-                     <CountdownTimer targetDate={activeConfig.bookingOpen} label="Clinical Window Initiates In" />
-                  </div>
-                  <p className="text-[11px] text-black/40 uppercase font-black tracking-[0.4em] mt-6 leading-relaxed max-w-sm">
-                    Atomic FCFS synchronization begins at precisely the opening second. Secure your preferences early.
-                  </p>
-               </div>
+               {diffMins <= 3 ? (
+                 <CountdownTimer targetDate={activeConfig.bookingOpen} label="Clinical Window Initiates In" />
+               ) : (
+                 <div className="space-y-4">
+                   <CardTitle className="text-5xl font-black text-black uppercase tracking-tight leading-none">Pulse Scheduled</CardTitle>
+                   <p className="text-xl font-bold text-secondary uppercase tracking-widest">
+                     Available at {openTime?.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} IST
+                   </p>
+                 </div>
+               )}
+               <p className="text-[11px] text-black/40 uppercase font-black tracking-[0.4em] mt-6 leading-relaxed max-w-sm mx-auto">
+                 Atomic FCFS synchronization begins at precisely the opening second. Secure your preferences early.
+               </p>
             </div>
           </CardHeader>
         </Card>
@@ -228,7 +241,7 @@ export default function BookOffPage() {
               </div>
             </div>
             <div className="flex items-center gap-5 text-[13px] font-black text-white uppercase tracking-[0.3em] bg-white/10 px-10 py-4 rounded-[1.75rem] border border-white/10 backdrop-blur-md">
-              <Clock className="size-5 text-secondary" /> Closes: {new Date(activeConfig.bookingClose).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              <Clock className="size-5 text-secondary" /> Closes: {closeTime?.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
 
