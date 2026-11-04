@@ -1,12 +1,13 @@
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { logAuditServer } from './audit-service';
 
 /**
- * Institutional Regional Analytics Node.
- * Exclusively for SUPER_ADMIN access.
- * Performs server-side aggregation to protect employee PII.
+ * ROC WORKFORCE — INSTITUTIONAL ANALYTICS ENGINE
+ * 
+ * Access Control: STRICT SUPER_ADMIN ONLY
+ * Scope: Regional (All Cluster Nodes)
+ * Data Policy: Aggregated Metrics (No employee PII)
  */
 
 async function getAuthorizedSuperAdmin(idToken: string) {
@@ -16,6 +17,7 @@ async function getAuthorizedSuperAdmin(idToken: string) {
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!userSnap.exists) return null;
     const profile = userSnap.data()!;
+    // Requirement: Must be Active and must be SUPER_ADMIN
     if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') return null;
     return { uid: decoded.uid, ...profile };
   } catch (e) {
@@ -23,14 +25,18 @@ async function getAuthorizedSuperAdmin(idToken: string) {
   }
 }
 
+/**
+ * getRegionalStatsAction
+ * Consolidates global KPIs for the executive pulse.
+ */
 export async function getRegionalStatsAction(idToken: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
-  if (!caller) throw new Error("Unauthorized: Regional access restricted to Super Admin.");
+  if (!caller) throw new Error("Unauthorized: Regional intelligence restricted to Super Admin.");
 
   try {
     const [officesSnap, empSnap, rosterSnap, draftSnap] = await Promise.all([
       adminDb.collection('offices').get(),
-      adminDb.collection('employees').where('status', '==', 'Active').get(),
+      adminDb.collection('employees').get(),
       adminDb.collection('published_rosters').get(),
       adminDb.collection('roster_drafts').where('status', '==', 'draft').get()
     ]);
@@ -38,12 +44,16 @@ export async function getRegionalStatsAction(idToken: string) {
     const offices = officesSnap.docs.map(d => d.data());
     const totalOffices = offices.length;
     const activeOffices = offices.filter(o => o.status === 'Active').length;
-    const totalActiveStaff = empSnap.size;
+    
+    const employees = empSnap.docs.map(d => d.data());
+    const totalEmployees = employees.length;
+    const activeEmployees = employees.filter(e => e.status === 'Active').length;
 
     let totalAssignments = 0;
     rosterSnap.docs.forEach(d => {
-      const validAssignments = (d.data().assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
-      totalAssignments += validAssignments.length;
+      const data = d.data();
+      const valid = (data.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
+      totalAssignments += valid.length;
     });
 
     return {
@@ -52,10 +62,12 @@ export async function getRegionalStatsAction(idToken: string) {
         totalOffices,
         activeOffices,
         inactiveOffices: totalOffices - activeOffices,
-        totalActiveStaff,
-        publishedRostersCount: rosterSnap.size,
-        draftRostersCount: draftSnap.size,
+        totalEmployees,
+        activeEmployees,
+        totalPublishedRosters: rosterSnap.size,
+        totalDrafts: draftSnap.size,
         totalAssignments,
+        timestamp: new Date().toISOString()
       }
     };
   } catch (e: any) {
@@ -63,6 +75,10 @@ export async function getRegionalStatsAction(idToken: string) {
   }
 }
 
+/**
+ * getOfficeComparisonAction
+ * Detailed matrix of ROC performance for a specific cycle.
+ */
 export async function getOfficeComparisonAction(idToken: string, weekId: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
   if (!caller) throw new Error("Unauthorized.");
@@ -71,16 +87,15 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
     const officesSnap = await adminDb.collection('offices').get();
     const offices = officesSnap.docs.map(d => d.data());
 
-    const results = await Promise.all(offices.map(async (office) => {
+    const comparisonData = await Promise.all(offices.map(async (office) => {
       const officeId = office.officeId;
       const localizedQuotaId = `${weekId}_${officeId}`;
 
-      const [empSnap, rosterSnap, quotaSnap, bookSnap, draftSnap] = await Promise.all([
+      const [empSnap, rosterSnap, quotaSnap, bookSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
-        adminDb.collection('published_rosters').where('weekId', '==', weekId).where('office', '==', officeId).limit(1).get(),
+        adminDb.collection('published_rosters').where('weekId', '==', weekId).where('office', '==', officeId).orderBy('publishedAt', 'desc').limit(1).get(),
         adminDb.collection('roster_quotas').doc(localizedQuotaId).get(),
-        adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
-        adminDb.collection('roster_drafts').where('weekId', '==', weekId).where('office', '==', officeId).get()
+        adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get()
       ]);
 
       const staffCount = empSnap.size;
@@ -92,75 +107,87 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
         requiredCount = Object.values(quota.quotas as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
       }
 
-      const validAssignments = (roster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
+      const validAssignments = (roster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
       const assignedCount = validAssignments.length;
       
+      // Coverage = Assigned / Required. If Required is 0 or missing, handle carefully.
       const coverage = quotaSnap.exists 
         ? (requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : (assignedCount > 0 ? 100 : 0))
-        : null;
+        : null; // null indicates configuration missing
 
       return {
         officeId,
         officeName: office.officeName,
         shortCode: office.shortCode,
-        status: office.status,
         staffCount,
         requiredCount,
         assignedCount,
         coverage,
         shortfall: Math.max(0, requiredCount - assignedCount),
         bookingsCount: bookSnap.size,
-        draftCount: draftSnap.size,
+        status: office.status
       };
     }));
 
-    return { success: true, data: results };
+    return { success: true, data: comparisonData };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
 
+/**
+ * getRegionalRosterAnalyticsAction
+ * Deep dive into regional deployment patterns.
+ */
 export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
   if (!caller) throw new Error("Unauthorized.");
 
   try {
-    const rosterSnap = await adminDb.collection('published_rosters').where('weekId', '==', weekId).get();
-    const quotaSnap = await adminDb.collection('roster_quotas').where('weekId', '==', weekId).get();
-    
-    const rosters = rosterSnap.docs.map(d => d.data());
-    const quotas = quotaSnap.docs.map(d => d.data());
+    const [rosterSnap, quotaSnap] = await Promise.all([
+      adminDb.collection('published_rosters').where('weekId', '==', weekId).get(),
+      adminDb.collection('roster_quotas').where('weekId', '==', weekId).get()
+    ]);
 
     const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-    const dailyCoverage = DAYS.map(day => {
+    
+    // Aggregated Daily Map
+    const dailyStats = DAYS.map(day => {
       let dayRequired = 0;
       let dayAssigned = 0;
 
-      quotas.forEach(q => {
-        Object.entries(q.quotas || {}).forEach(([key, val]) => {
-          if (key.split('_')[0] === day) dayRequired += (Number(val) || 0);
+      quotaSnap.docs.forEach(q => {
+        const quotas = q.data().quotas || {};
+        Object.entries(quotas).forEach(([key, val]) => {
+          if (key.startsWith(day)) dayRequired += (Number(val) || 0);
         });
       });
 
-      rosters.forEach(r => {
-        const dayAssignments = (r.assignments || []).filter((a: any) => a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
-        dayAssigned += dayAssignments.length;
+      rosterSnap.docs.forEach(r => {
+        const assignments = r.data().assignments || [];
+        const dayValid = assignments.filter((a: any) => a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none');
+        dayAssigned += dayValid.length;
       });
 
       return {
-        day: day.substring(0, 3),
+        day,
+        short: day.substring(0, 3),
         required: dayRequired,
         assigned: dayAssigned,
-        coverage: dayRequired > 0 ? Math.round((dayAssigned / dayRequired) * 100) : (dayAssigned > 0 ? 100 : 0)
+        coverage: dayRequired > 0 ? Math.round((dayAssigned / dayRequired) * 100) : 0
       };
     });
 
-    return { success: true, data: { dailyCoverage } };
+    return { success: true, data: { dailyStats } };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
 
+/**
+ * getRegionalLeaveAnalyticsAction
+ * Absence pressure analysis.
+ */
 export async function getRegionalLeaveAnalyticsAction(idToken: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
   if (!caller) throw new Error("Unauthorized.");
@@ -169,13 +196,26 @@ export async function getRegionalLeaveAnalyticsAction(idToken: string) {
     const leaveSnap = await adminDb.collection('employee_leaves').get();
     const leaves = leaveSnap.docs.map(d => d.data());
 
-    const stats = {
+    const statusBreakdown = {
       approved: leaves.filter(l => l.status === 'approved').length,
       pending: leaves.filter(l => l.status === 'pending').length,
-      rejected: leaves.filter(l => l.status === 'rejected').length,
+      rejected: leaves.filter(l => l.status === 'rejected').length
     };
 
-    return { success: true, data: stats };
+    const typeBreakdown = {
+      leave: leaves.filter(l => l.type === 'leave').length,
+      training: leaves.filter(l => l.type === 'training').length,
+      other: leaves.filter(l => l.type === 'other').length
+    };
+
+    return {
+      success: true,
+      data: {
+        total: leaves.length,
+        statusBreakdown,
+        typeBreakdown
+      }
+    };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
