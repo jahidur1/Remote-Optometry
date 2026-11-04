@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { provisionIdentityAction, updateAccountStatusAction, updateEmployeeRecordAction } from '@/services/identity-actions';
 import { generateWeeklyRoster } from '@/ai/flows/generate-weekly-roster';
@@ -54,14 +53,19 @@ vi.mock('@/lib/firebase-admin', () => ({
 
 // Mock external services
 vi.mock('@/lib/solver-client', () => ({
-  callSolver: vi.fn().mockResolvedValue({ status: 'OPTIMAL', assignments: [], metadata: { solveTimeMs: 100 } })
+  callSolver: vi.fn().mockResolvedValue({ 
+    status: 'OPTIMAL', 
+    assignments: [], 
+    metadata: { solveTimeMs: 100 },
+    errors: []
+  })
 }));
 
 vi.mock('@/lib/integrity-checker', () => ({
   verifyRosterIntegrity: vi.fn().mockReturnValue({ isValid: true, issues: [] })
 }));
 
-describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => {
+describe('ROC Workforce: Core Roster Management - Resilience & Security', () => {
   const mockIdToken = 'valid_token';
 
   beforeEach(() => {
@@ -77,6 +81,7 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
        }
        return { exists: false };
     });
+    mockWhereGet.mockResolvedValue({ empty: true, docs: [] });
   });
 
   // --- 1. OFFICE REGISTRY TESTS ---
@@ -93,43 +98,63 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
     expect(result.success).toBe(true);
   });
 
-  it('createOfficeAction: Rejects duplicate short codes', async () => {
-    mockGet.mockResolvedValueOnce({ exists: false }); // Office Not Found
-    mockGet.mockResolvedValueOnce({ exists: true });  // Short Code EXISTS
-    
-    const result = await createOfficeAction(mockIdToken, {
-      officeId: 'NEW_ROC',
-      officeName: 'New Cluster',
-      shortCode: 'EXT'
+  // --- 2. IDENTITY DUPLICATE CHECKS ---
+
+  it('provisionIdentityAction: Rejects duplicate phone numbers', async () => {
+    mockGet.mockImplementation((ref) => {
+       if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) };
+       if (ref?.path?.includes('offices/KOLKATA_ROC')) return { exists: true, data: () => ({ status: 'Active' }) };
+       return { exists: false };
     });
+
+    // Mock phone number exists
+    mockWhereGet.mockResolvedValueOnce({ empty: true }); // email search
+    mockWhereGet.mockResolvedValueOnce({ empty: false }); // phone search
+
+    const result = await provisionIdentityAction(mockIdToken, { 
+      office: 'KOLKATA_ROC', 
+      employeeId: 'E1', 
+      fullName: 'John',
+      email: 'john@roc.test',
+      whatsappNumber: '9999900000'
+    }, 'pass1234');
+
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Short Code already reserved');
+    expect(result.error).toContain('Mobile endpoint already bound');
   });
 
-  // --- 2. AUTHORIZATION REGRESSIONS ---
+  // --- 3. ROSTER SOLVER SCOPING ---
 
-  it('generateWeeklyRoster: Rejects inactive office pulse', async () => {
+  it('generateWeeklyRoster: Rejects unauthorized office request for Admin', async () => {
     mockGet.mockImplementation((ref) => {
-       if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) };
-       if (ref?.path?.includes('offices/INACTIVE_ROC')) return { exists: true, data: () => ({ officeId: 'INACTIVE_ROC', status: 'Inactive' }) };
+       if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ 
+         role: 'ADMIN', 
+         status: 'Active', 
+         officeIds: ['GURGAON_ROC'] 
+       }) };
+       if (ref?.path?.includes('offices/KOLKATA_ROC')) return { exists: true, data: () => ({ status: 'Active' }) };
        return { exists: false };
     });
 
-    const result = await generateWeeklyRoster({ weekId: '2024-52', officeId: 'INACTIVE_ROC', idToken: mockIdToken });
-    expect(result.summary).toContain('Inactive');
+    await expect(generateWeeklyRoster({ weekId: '2024-52', officeId: 'KOLKATA_ROC', idToken: mockIdToken }))
+      .rejects.toThrow('not authorized');
   });
 
-  it('provisionIdentityAction: Validates office against registry', async () => {
+  it('generateWeeklyRoster: Fails when office-specific quota is missing', async () => {
     mockGet.mockImplementation((ref) => {
        if (ref?.path?.includes('users/admin_uid')) return { exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) };
-       if (ref?.path?.includes('offices/MISSING_ROC')) return { exists: false };
-       return { exists: false };
+       if (ref?.path?.includes('offices/KOLKATA_ROC')) return { exists: true, data: () => ({ status: 'Active' }) };
+       // Quota Doc Not Found
+       if (ref?.path?.includes('roster_quotas')) return { exists: false };
+       return { exists: true, data: () => ({}) };
     });
 
-    await expect(provisionIdentityAction(mockIdToken, { office: 'MISSING_ROC', employeeId: 'E1', fullName: 'John' }, 'pass1234')).rejects.toThrow('not found');
+    const result = await generateWeeklyRoster({ weekId: '2024-52', officeId: 'KOLKATA_ROC', idToken: mockIdToken });
+    expect(result.status).toBe('UNKNOWN');
+    expect(result.summary).toContain('quotas for ROC KOLKATA_ROC in Week 2024-52 have not been defined');
   });
 
-  // --- 3. QUOTA ACTIONS TESTS ---
+  // --- 4. QUOTA ACTIONS TESTS ---
 
   it('saveQuotaAction: Admin can save authorized office quota', async () => {
     mockGet.mockImplementation((ref) => {

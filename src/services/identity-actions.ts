@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -33,8 +32,8 @@ async function getAuthorizedCaller(idToken: string) {
 }
 
 /**
- * A. provisionIdentityAction
- * Refactored: Uses dynamic Office Registry for validation.
+ * provisionIdentityAction
+ * Hardened: Performs triple-uniqueness check (ID, Email, Phone).
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken);
@@ -53,13 +52,16 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
   const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
 
   try {
-    const [idSnap, emailSnap] = await Promise.all([
+    // Triple Uniqueness Check
+    const [idSnap, emailSnap, phoneSnap] = await Promise.all([
       adminDb.collection('employees').doc(employeeId).get(),
-      adminDb.collection('employees').where('email', '==', email).get()
+      adminDb.collection('employees').where('email', '==', email).get(),
+      adminDb.collection('employees').where('whatsappNumber', '==', phoneFormatted).get()
     ]);
 
     if (idSnap.exists) throw new Error("Identity Lock: Employee ID already registered.");
     if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound to a record.");
+    if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile endpoint already bound to a record.");
 
     const authUser = await adminAuth.createUser({
       email,
@@ -112,7 +114,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
 }
 
 /**
- * B. updateAccountStatusAction
+ * updateAccountStatusAction
  */
 export async function updateAccountStatusAction(idToken: string, employeeId: string, newStatus: string) {
   const caller = await getAuthorizedCaller(idToken);
@@ -156,8 +158,7 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
 }
 
 /**
- * C. updateEmployeeRecordAction
- * Refactored: Validates target office and officeIds against registry.
+ * updateEmployeeRecordAction
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   const caller = await getAuthorizedCaller(idToken);
