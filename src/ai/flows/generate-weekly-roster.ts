@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Hardened: Gemini AI Exclusive Protocol with Shift Adjacency and Weekly Distribution.
+ * Hardened: Gemini AI Exclusive Protocol with Minimum Quota Enforcement and Max Utilization.
  */
 
 import { ai } from '@/ai/genkit';
@@ -83,33 +82,43 @@ const aiPrompt = ai.definePrompt({
   prompt: `You are an institutional scheduling orchestrator. Generate a clinical roster for Week {{{weekId}}} and Hub {{{officeId}}}.
 
 MANDATORY EXECUTION RULES:
-1. VACANCY LOCKS:
+
+1. VACANCY LOCKS (ABSOLUTE):
+The following professionals are OFF on specific days (Weekly-Off or Approved Leave). 
+You MUST NOT assign any shift to these professionals on these days:
 {{#each locks}}
-- Professional {{employeeId}} is OFF on {{dayOfWeek}}. NO SHIFT shall be assigned.
+- Prof {{employeeId}} is OFF on {{dayOfWeek}}.
 {{/each}}
 
-2. STAFFING QUOTAS (HARD REQUIREMENT):
-You MUST match these headcounts exactly:
+2. STAFFING QUOTAS (MINIMUM REQUIREMENT):
+You MUST assign AT LEAST the following number of professionals to each shift. 
+Over-staffing is perfectly acceptable if extra professionals are available, but you MUST NOT reduce the count below these requirements:
 {{#each weeklyQuotas}}
-- Day: {{dayOfWeek}} | Shift: {{shiftId}} | Required Count: {{requiredStaff}}
+- Day: {{dayOfWeek}} | Shift: {{shiftId}} | Minimum Required: {{requiredStaff}}
 {{/each}}
 
 3. FREQUENCY DISTRIBUTION MATRIX:
-Respect these weekly occurrence ranges for each professional:
+Respect these weekly occurrence ranges for each professional. Do not exceed the 'max' or go below the 'min' for each shift type:
 {{#each employees}}
 {{#if frequencyLimits}}
-- Prof {{id}}: {{#each frequencyLimits}}[{{@key}} must occur {{min}} to {{max}} times] {{/each}}
+- Prof {{id}}: {{#each frequencyLimits}}[{{@key}}: {{min}} to {{max}} times] {{/each}}
 {{/if}}
 {{/each}}
 
 4. TRANSITION INTEGRITY:
+Respect eligibility rules for days surrounding a professional's day off:
 {{#each adjacencies}}
-- Prof {{employeeId}} on {{dayOfWeek}} is RESTRICTED. They can ONLY work one of these: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
+- Prof {{employeeId}} on {{dayOfWeek}} is RESTRICTED. Only assign one of: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
 {{/each}}
+
+5. MAXIMUM UTILIZATION PROTOCOL:
+For every professional who is NOT locked (off/leave) on a given day, you MUST attempt to assign them a shift. 
+- Priority 1: Satisfy all Minimum Staffing Quotas.
+- Priority 2: Assign remaining available professionals to shifts to ensure no professional is left "Unassigned" unless they have reached their weekly maximum frequency limits.
 
 OUTPUT SPECIFICATION:
 - Return ONLY a JSON array of assignment objects.
-- Ensure 100% quota compliance.
+- Ensure 100% compliance with minimum quotas.
 - Never double-assign a professional on the same day.`,
 });
 
@@ -203,7 +212,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       return {
         rosterAssignments: resultAssignments,
-        summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: Roster violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol.`,
+        summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: Roster violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol. Min quotas satisfied with max personnel utilization.`,
         status: !integrity.isValid ? 'UNKNOWN' : 'FEASIBLE',
         issuesEncountered: integrity.issues,
         solverMetadata: {
