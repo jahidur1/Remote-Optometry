@@ -1,11 +1,11 @@
 
-import { addDays, format, parse, isValid, differenceInDays } from 'date-fns';
+import { addDays, format, parse, isValid, startOfISOWeek, endOfISOWeek, differenceInDays } from 'date-fns';
 
 /**
  * Institutional Date Registry Helpers
  * 
  * Manages the transition from ISO Week IDs to strict 7-day range identifiers.
- * Format: YYYYMMDD-YYYYMMDD
+ * Format: YYYYMMDD-YYYYMMDD (Strictly Monday to Sunday)
  */
 
 export function getDatesForWeek(weekId: string): Date[] {
@@ -22,7 +22,7 @@ export function getDatesForWeek(weekId: string): Date[] {
     }
   }
 
-  // 2. Legacy Fallback: YYYY-WW
+  // 2. Legacy Fallback: YYYY-WW (Normalized to Monday start)
   try {
     const [year, week] = weekId.split('-').map(Number);
     if (!isNaN(year) && !isNaN(week)) {
@@ -30,7 +30,8 @@ export function getDatesForWeek(weekId: string): Date[] {
       const day = jan4.getDay() || 7;
       const startOfFirstWeek = addDays(jan4, 1 - day);
       const startOfTargetWeek = addDays(startOfFirstWeek, (week - 1) * 7);
-      return Array.from({ length: 7 }, (_, i) => addDays(startOfTargetWeek, i));
+      const monday = startOfISOWeek(startOfTargetWeek);
+      return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
     }
   } catch (e) {
     // Pulse failure
@@ -39,9 +40,13 @@ export function getDatesForWeek(weekId: string): Date[] {
   return [];
 }
 
-export function formatWeekId(start: Date): string {
-  const end = addDays(start, 6);
-  return `${format(start, 'yyyyMMdd')}-${format(end, 'yyyyMMdd')}`;
+/**
+ * Forces any date to the Monday of its week to maintain institutional cycle integrity.
+ */
+export function formatWeekId(date: Date): string {
+  const monday = startOfISOWeek(date);
+  const sunday = endOfISOWeek(date);
+  return `${format(monday, 'yyyyMMdd')}-${format(sunday, 'yyyyMMdd')}`;
 }
 
 export function displayWeekRange(weekId: string): string {
