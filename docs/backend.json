@@ -3,7 +3,7 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "Firebase Auth user profile with role.",
+      "description": "Firebase Auth user profile with role and multi-office access.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -13,6 +13,11 @@
         "employeeId": { "type": "string" },
         "phoneNumber": { "type": "string" },
         "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
+        "officeIds": { 
+          "type": "array", 
+          "items": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
+          "description": "List of authorized ROC units for Admins."
+        },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
       },
       "required": ["uid", "role"]
@@ -55,7 +60,7 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "User profile with role access."
+      "description": "User profile with role and multi-office access."
     },
     "/employees/{employeeId}": {
       "schema": "Employee",

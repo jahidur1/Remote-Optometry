@@ -16,6 +16,7 @@ export type UserProfile = {
   employeeId?: string;
   phoneNumber?: string;
   office?: string;
+  officeIds?: string[];
 };
 
 export function useUser() {

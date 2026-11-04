@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -7,6 +8,8 @@ import { logAuditServer } from './audit-service';
 /**
  * Verifies the caller's identity and administrative role on the server.
  * USES checkRevocation=true for high-security administrative pulses.
+ * 
+ * ENHANCED: Extracts officeIds and provides backward-compatible mapping.
  */
 async function getAuthorizedCaller(idToken: string) {
   if (!idToken) return null;
@@ -21,7 +24,12 @@ async function getAuthorizedCaller(idToken: string) {
       return null;
     }
     
-    return { uid: decoded.uid, ...profile };
+    return { 
+      uid: decoded.uid, 
+      ...profile,
+      // Backward compatibility bridge: if officeIds is missing, use primary office
+      officeIds: profile?.officeIds || (profile?.office ? [profile.office] : [])
+    };
   } catch (e) {
     console.error('Handshake Failure:', e);
     return null;
@@ -31,13 +39,15 @@ async function getAuthorizedCaller(idToken: string) {
 /**
  * A. provisionIdentityAction
  * Orchestrates secure identity enrollment across Auth, Registry, and Profiles.
+ * 
+ * ENHANCED: Initializes officeIds with primary office.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken);
   if (!caller) throw new Error("Unauthorized: Administrative pulse required.");
 
   // 1. Office Isolation Check
-  if (caller.role === 'ADMIN' && caller.office !== formData.office) {
+  if (caller.role === 'ADMIN' && !caller.officeIds.includes(formData.office)) {
     throw new Error(`Unauthorized: You cannot provision staff for cluster ${formData.office}.`);
   }
 
@@ -70,6 +80,8 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       whatsappNumber: phoneFormatted,
       role: formData.role,
       office: formData.office,
+      // Initialize multi-office array with primary office
+      officeIds: [formData.office],
       status: 'Active',
       updatedAt: new Date().toISOString()
     };
@@ -142,7 +154,6 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
     await batch.commit();
 
     // Secondary Perimeter: Sync Firebase Auth status
-    // Failure here is logged but not thrown, as Firestore status blocks the app.
     if (empData.authUid) {
       try {
         await adminAuth.updateUser(empData.authUid, { disabled: newStatus === 'Suspended' });
@@ -162,6 +173,8 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
 /**
  * C. updateEmployeeRecordAction
  * Enforces strict metadata allowlists and synchronizes Auth credentials.
+ * 
+ * ENHANCED: Includes officeIds in privileged fields for Super Admin.
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   const caller = await getAuthorizedCaller(idToken);
@@ -185,6 +198,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
       if (updates.role) filtered.role = updates.role;
       if (updates.office) filtered.office = updates.office;
       if (updates.status) filtered.status = updates.status;
+      if (updates.officeIds) filtered.officeIds = updates.officeIds;
     }
 
     // Email Sync Node
@@ -208,6 +222,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
       if (filtered.office) userUpdates.office = filtered.office;
       if (filtered.status) userUpdates.status = filtered.status;
       if (filtered.whatsappNumber) userUpdates.phoneNumber = filtered.whatsappNumber;
+      if (filtered.officeIds) userUpdates.officeIds = filtered.officeIds;
 
       batch.update(adminDb.collection('users').doc(current.authUid), userUpdates);
     }
