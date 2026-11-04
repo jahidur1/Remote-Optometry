@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -192,7 +191,7 @@ export default function AuthCostDashboard() {
                     </div>
                     <div className="space-y-1">
                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Verification Validity</p>
-                        <p className="text-lg font-black text-black uppercase tracking-tight leading-none">365-Day Cycle</p>
+                        <p className="text-lg font-black text-black uppercase tracking-tight leading-none">30-Day Cycle</p>
                     </div>
                 </div>
 

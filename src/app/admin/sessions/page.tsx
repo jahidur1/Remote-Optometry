@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -153,7 +152,7 @@ export default function AdminSessionManager() {
         {[
           { label: 'Authorized Devices', value: stats.active, sub: 'Active Pulse', icon: Monitor, color: 'text-primary' },
           { label: 'Revoked Trace', value: stats.revoked, sub: 'Access Blocked', icon: ShieldX, color: 'text-destructive' },
-          { label: 'Security Cycle', value: '365D', sub: 'Standard Persistent', icon: RefreshCcw, color: 'text-secondary' },
+          { label: 'Security Cycle', value: '30D', sub: 'Standard Persistent', icon: RefreshCcw, color: 'text-secondary' },
           { label: 'Auth Efficiency', value: '100%', sub: 'Integrity Verified', icon: ShieldCheck, color: 'text-black' }
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
@@ -317,7 +316,7 @@ export default function AdminSessionManager() {
                   );
                 })
               )}
-            </tbody>
+            </TableBody>
           </Table>
         </CardContent>
       </Card>
@@ -332,7 +331,7 @@ export default function AdminSessionManager() {
                <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Governance Protocol Hub</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
                   "Device sessions are immutably linked to the clinical registry. Revocation is immediate across all cluster hubs. 
-                  Mandatory 365-day security deadlines ensure that dormant or compromised sessions are automatically neutralized within the solar cycle."
+                  Mandatory 30-day security deadlines ensure that dormant or compromised sessions are automatically neutralized within the monthly cycle."
                </p>
             </div>
          </div>

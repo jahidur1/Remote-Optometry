@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
@@ -78,7 +77,7 @@ export default function SessionManagement() {
           </Button>
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary font-headline uppercase">Authorized Devices</h1>
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">365-Day Security Cycle Active</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">30-Day Security Cycle Active</p>
           </div>
         </div>
       </div>
@@ -150,7 +149,7 @@ export default function SessionManagement() {
              <div className="space-y-1">
                 <p className="text-xs font-black text-primary uppercase tracking-widest">Institutional Session Policy</p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
-                  Your clinical portal access is authorized per device. Every verification remains valid for 365 days 
+                  Your clinical portal access is authorized per device. Every verification remains valid for 30 days 
                   before requiring a fresh mobile OTP check. Revoking a session will immediately sign you out 
                   of that specific device. 
                 </p>

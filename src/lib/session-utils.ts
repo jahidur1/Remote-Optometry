@@ -1,4 +1,3 @@
-
 import { doc, setDoc, Firestore, serverTimestamp } from 'firebase/firestore';
 import { addDays } from 'date-fns';
 
@@ -20,7 +19,7 @@ export function getLocalSessionId(): string {
 
 /**
  * Creates or refreshes a session record in Firestore.
- * Strictly adheres to the 365-day security rules using request.time alignment.
+ * Strictly adheres to the 30-day security rules.
  */
 export async function createOrUpdateSession(
   db: Firestore, 
@@ -32,10 +31,9 @@ export async function createOrUpdateSession(
   const sessionRef = doc(db, 'sessions', `${uid}_${sessionId}`);
   
   const now = new Date();
-  // Calculate exactly 365 days later. 
-  // Note: The Firestore Rule uses request.time + 31536000s (365 days).
-  // We match this exactly on the client to ensure the write is accepted.
-  const deadline = addDays(now, 365);
+  // Calculate exactly 30 days later. 
+  // We match this on the client to ensure the write is accepted.
+  const deadline = addDays(now, 30);
 
   const derivedLabel = label || (typeof navigator !== 'undefined' ? 
     `${navigator.platform} (${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'})` : 

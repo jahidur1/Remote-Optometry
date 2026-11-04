@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -67,7 +66,7 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
            </div>
            <h2 className="text-2xl font-black text-primary uppercase tracking-tight">Re-Verification Required</h2>
            <p className="text-sm text-muted-foreground leading-relaxed">
-              Your device session has reached the 365-day security deadline or was revoked by administration. 
+              Your device session has reached the 30-day security deadline or was revoked by administration. 
               Please re-verify with your mobile OTP to continue.
            </p>
            <Button className="w-full h-12 font-black uppercase tracking-widest bg-secondary" onClick={() => signOut(auth).then(() => router.push('/login'))}>
