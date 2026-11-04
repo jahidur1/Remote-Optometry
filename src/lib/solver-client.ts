@@ -35,7 +35,7 @@ async function getAuthHeaders(targetAudience: string) {
 
 export async function callSolver(payload: any) {
   if (!SOLVER_URL) {
-    throw new Error('Solver Node Failure: SOLVER_URL is not configured in the environment.');
+    throw new Error('Solver System Failure: SOLVER_URL is not configured in the environment.');
   }
 
   const headers = await getAuthHeaders(SOLVER_URL);
@@ -55,7 +55,7 @@ export async function callSolver(payload: any) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Solver Node Error (${response.status}): ${errorBody}`);
+      throw new Error(`Solver System Error (${response.status}): ${errorBody}`);
     }
 
     return response.json();

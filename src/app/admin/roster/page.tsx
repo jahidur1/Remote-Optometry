@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
-import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
 import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server, Clock, Zap, Cpu, Terminal, Database, Building2, CalendarDays } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,6 @@ export default function RosterSolver() {
   const [selectedOffice, setSelectedOffice] = useState<string>('');
   const [status, setStatus] = useState<"idle" | "running" | "success" | "conflict">("idle");
   const [progress, setProgress] = useState(0);
-  const [explanation, setExplanation] = useState<any>(null);
   const [solverResult, setSolverResult] = useState<any>(null);
   const [lastDraftId, setLastDraftId] = useState<string | null>(null);
 
@@ -81,7 +80,6 @@ export default function RosterSolver() {
     
     setStatus("running");
     setProgress(20);
-    setExplanation(null);
     setSolverResult(null);
     setLastDraftId(null);
 
