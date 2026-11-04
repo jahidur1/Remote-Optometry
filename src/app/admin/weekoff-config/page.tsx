@@ -73,6 +73,7 @@ export default function WeekOffConfiguration() {
   }, [authorizedOffices, office]);
 
   const activeDays = useMemo(() => {
+    if (!weekId) return [];
     const dates = getDatesForWeek(weekId);
     return dates.map(d => format(d, 'EEEE'));
   }, [weekId]);

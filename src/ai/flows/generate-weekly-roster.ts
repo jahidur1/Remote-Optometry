@@ -52,36 +52,43 @@ const aiPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterAIPrompt',
   input: { schema: z.any() },
   output: { schema: z.array(RosterAssignmentSchema) },
-  prompt: `You are an expert clinical scheduler. Generate a weekly roster for the cluster hub: {{{officeId}}}.
+  prompt: `You are an expert institutional clinical scheduler. Your objective is to generate a mathematically consistent and clinicaly safe roster for the hub: {{{officeId}}}.
 
-## Context
-Week Cycle: {{{weekId}}}
-Days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+## TEMPORAL CONTEXT
+Week Cycle ID: {{{weekId}}}
+Operational Days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
 
-## Staff Pool
-{{#each employees}}
-- ID: {{id}}, Gender: {{gender}}, History (SO: {{historicalSO}}, OP: {{historicalOP}})
-{{/each}}
-
-## Clinical Requirements (Quotas)
+## CLINICAL REQUIREMENTS (SHIFT QUOTAS) - MANDATORY
+You MUST fulfill these exact counts for every day and every shift. Failure to match these numbers is an institutional breach.
 {{#each weeklyQuotas}}
-- {{dayOfWeek}}: {{shiftId}} requires {{requiredStaff}} professionals.
+- {{dayOfWeek}} | Shift: {{shiftId}} | Required Professionals: {{requiredStaff}}
 {{/each}}
 
-## Hard Constraints
-1. NEVER assign a professional on their confirmed Weekly-Off.
-2. NEVER assign a professional during their approved leave window.
-3. Adhere strictly to Shift Adjacency Rules:
-{{#each employeeHardConstraints}}
-   {{#if (eq type "restrictedShift")}}
-   - Professional {{employeeId}} on {{dayOfWeek}} MUST be assigned one of these shifts: [{{#each restrictedToShifts}}{{this}}, {{/each}}].
-   {{/if}}
+## PROFESSIONAL REGISTRY (STAFF POOL)
+{{#each employees}}
+- ID: {{id}}, Gender: {{gender}}, History Metrics: [SO: {{historicalSO}}, OP: {{historicalOP}}]
 {{/each}}
 
-## Instructions
-- Ensure 100% quota fulfillment from Shift Quotas.
-- Balance demand shifts (SO/OP) fairly across history counts.
-- Return a valid JSON array of assignments.
+## INSTITUTIONAL GUARDRAILS (HARD CONSTRAINTS)
+1. NO-DUTY LOCKS (Weekly-Offs & Leaves):
+{{#each locks}}
+- Professional {{employeeId}} is LOCKED on {{dayOfWeek}}. DO NOT assign any shift.
+{{/each}}
+
+2. ADJACENCY CONSTRAINTS (Transition Eligibility):
+{{#each adjacencies}}
+- Professional {{employeeId}} on {{dayOfWeek}} is RESTRICTED to these shifts only: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
+{{/each}}
+
+## EXECUTION LOGIC
+- FIRST: Lock in all Weekly-Offs and Leaves. These professionals are removed from the pool for those specific days.
+- SECOND: Satisfy the mandatory Quotas for each shift and day using the remaining available professionals.
+- THIRD: Apply Adjacency Rules for professional transitions around their off-days.
+- FOURTH: Distribute "SO" (Super Opening) and "OP" (Opening) shifts fairly based on historical metrics (lower counts get priority).
+
+## OUTPUT PROTOCOL
+Return ONLY a JSON array of assignment objects.
+Example: [{"employeeId": "EMP1", "dayOfWeek": "Monday", "shiftId": "SO"}]
 `,
 });
 
@@ -98,7 +105,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     const weekDates = getDatesForWeek(weekId);
 
     try {
-      // 1. Institutional Permission Gate
       if (!idToken) throw new Error("Access Denied: Authentication token missing.");
       
       const decoded = await adminAuth.verifyIdToken(idToken, true);
@@ -111,7 +117,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         throw new Error("Access Denied: Unauthorized administrative identity.");
       }
       
-      // 2. Dynamic Registry & Scoping Check
       await assertOfficeActive(officeId);
       
       const authorizedOffices = adminData.officeIds || (adminData.office ? [adminData.office] : []);
@@ -119,7 +124,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         throw new Error(`Access Denied: Not authorized for cluster ${officeId}.`);
       }
 
-      // 3. Institutional Sync (Retrieve Quotas, Bookings, Rules)
       const quotaId = `${weekId}_${officeId}`;
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
@@ -161,7 +165,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       });
       const adjacencyRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
 
-      // 4. Hard Constraint Synthesis (Including Adjacency Options)
       const employeeHardConstraints: any[] = [
         ...bookings.map(b => ({ employeeId: b.employeeId, type: 'weeklyOff', dayOfWeek: b.dayOfWeek })),
         ...leaves.flatMap(leaf => {
@@ -204,7 +207,13 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       let metadata: any = { solveTimeMs: 0, constraintsChecked: employeeHardConstraints.length };
 
       if (method === 'ai') {
-          const { output } = await aiPrompt(solverPayload);
+          // Pre-process for AI protocol clarity
+          const aiInput = {
+            ...solverPayload,
+            locks: employeeHardConstraints.filter(c => ['weeklyOff', 'unavailable'].includes(c.type)),
+            adjacencies: employeeHardConstraints.filter(c => c.type === 'restrictedShift')
+          };
+          const { output } = await aiPrompt(aiInput);
           resultAssignments = output || [];
           solverStatus = 'FEASIBLE';
           metadata.solveTimeMs = Date.now() - start;
