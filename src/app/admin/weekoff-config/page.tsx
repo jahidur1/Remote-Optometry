@@ -39,6 +39,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function WeekOffConfiguration() {
   const [weekId, setWeekId] = useState('');
@@ -131,32 +133,38 @@ export default function WeekOffConfiguration() {
     }
 
     setLoading(true);
-    try {
-      const configId = `${weekId}_${office}`;
-      const configRef = doc(db, 'weekoff_configs', configId);
-      
-      const payload = {
-        id: configId,
-        weekId,
-        office,
-        bookingOpen: openTime,
-        bookingClose: closeTime,
-        quotas,
-        booked: exists ? {} : activeDays.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
-        status: 'scheduled',
-        updatedAt: new Date().toISOString(),
-        actorId: profile?.uid,
-      };
+    const configId = `${weekId}_${office}`;
+    const configRef = doc(db, 'weekoff_configs', configId);
+    
+    const payload = {
+      id: configId,
+      weekId,
+      office,
+      bookingOpen: openTime,
+      bookingClose: closeTime,
+      quotas,
+      booked: exists ? {} : activeDays.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
+      status: 'scheduled',
+      updatedAt: new Date().toISOString(),
+      actorId: profile?.uid,
+    };
 
-      await setDoc(configRef, payload, { merge: true });
-      logAudit(db, profile?.uid || 'system', exists ? 'UPDATE_WEEKOFF_CONFIG' : 'CONFIGURE_WEEKOFF_OFFICE', configId, payload);
-
-      toast({ title: exists ? "Registry Updated" : "Pulse established", description: `FCFS window for ${office} secured.` });
-    } catch (e: any) {
-      toast({ title: "Sync Failure", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
+    setDoc(configRef, payload, { merge: true })
+      .then(() => {
+        logAudit(db, profile?.uid || 'system', exists ? 'UPDATE_WEEKOFF_CONFIG' : 'CONFIGURE_WEEKOFF_OFFICE', configId, payload);
+        toast({ title: exists ? "Registry Updated" : "Pulse established", description: `FCFS window for ${office} secured.` });
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: configRef.path,
+          operation: 'write',
+          requestResourceData: payload,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const handleDelete = async (targetConfigId?: string) => {
@@ -166,21 +174,29 @@ export default function WeekOffConfiguration() {
     if (!confirm(`DECOMMISSION ALERT: Remove clinical cycle ${idToDelete}? This will purge all associated FCFS preferences.`)) return;
 
     setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'weekoff_configs', idToDelete));
-      logAudit(db, profile?.uid || 'system', 'DELETE_WEEKOFF_CONFIG', idToDelete, { office, weekId });
-      toast({ title: "Registry Decommissioned" });
-      
-      if (!targetConfigId || targetConfigId === `${weekId}_${office}`) {
-        setOpenTime('');
-        setCloseTime('');
-        setExists(false);
-      }
-    } catch (e: any) {
-      toast({ title: "Operation Failed", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
+    const docRef = doc(db, 'weekoff_configs', idToDelete);
+    
+    deleteDoc(docRef)
+      .then(() => {
+        logAudit(db, profile?.uid || 'system', 'DELETE_WEEKOFF_CONFIG', idToDelete, { office, weekId });
+        toast({ title: "Registry Decommissioned" });
+        
+        if (!targetConfigId || targetConfigId === `${weekId}_${office}`) {
+          setOpenTime('');
+          setCloseTime('');
+          setExists(false);
+        }
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   return (

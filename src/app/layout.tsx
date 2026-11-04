@@ -1,9 +1,11 @@
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase';
 import { SessionTimeout } from '@/components/auth/session-timeout';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -25,6 +27,7 @@ export default function RootLayout({
     <html lang="en" className={`light ${inter.variable}`}>
       <body className="font-body antialiased selection:bg-secondary/30">
         <FirebaseClientProvider>
+          <FirebaseErrorListener />
           <SessionTimeout />
           {children}
         </FirebaseClientProvider>
