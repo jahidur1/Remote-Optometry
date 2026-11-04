@@ -3,35 +3,45 @@
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 /**
- * ROC WORKFORCE — INSTITUTIONAL ANALYTICS ENGINE
+ * ROC WORKFORCE — INSTITUTIONAL ANALYTICS ENGINE (PHASE 3.2)
  * 
  * Access Control: STRICT SUPER_ADMIN ONLY
- * Scope: Regional (All Cluster Nodes)
- * Data Policy: Aggregated Metrics (No employee PII)
+ * Scope: Regional (All Cluster Nodes, Active and Inactive)
+ * Data Policy: Aggregated Metrics (Zero PII Leakage)
  */
 
+/**
+ * Verifies the caller's identity and confirms active SUPER_ADMIN status.
+ * This is the primary security gate for all regional analytics.
+ */
 async function getAuthorizedSuperAdmin(idToken: string) {
   if (!idToken) return null;
   try {
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
+    
     if (!userSnap.exists) return null;
     const profile = userSnap.data()!;
-    // Requirement: Must be Active and must be SUPER_ADMIN
-    if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') return null;
+    
+    // STRICT REQUIREMENT: Must be Active AND SUPER_ADMIN
+    if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') {
+      return null;
+    }
+    
     return { uid: decoded.uid, ...profile };
   } catch (e) {
+    console.error('Regional Auth Pulse Failure:', e);
     return null;
   }
 }
 
 /**
  * getRegionalStatsAction
- * Consolidates global KPIs for the executive pulse.
+ * Consolidates global KPIs for the executive regional pulse.
  */
 export async function getRegionalStatsAction(idToken: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
-  if (!caller) throw new Error("Unauthorized: Regional intelligence restricted to Super Admin.");
+  if (!caller) throw new Error("Unauthorized: Regional intelligence restricted to active Super Admin nodes.");
 
   try {
     const [officesSnap, empSnap, rosterSnap, draftSnap] = await Promise.all([
@@ -41,18 +51,17 @@ export async function getRegionalStatsAction(idToken: string) {
       adminDb.collection('roster_drafts').where('status', '==', 'draft').get()
     ]);
 
-    const offices = officesSnap.docs.map(d => d.data());
-    const totalOffices = offices.length;
-    const activeOffices = offices.filter(o => o.status === 'Active').length;
+    const totalOffices = officesSnap.size;
+    const activeOffices = officesSnap.docs.filter(d => d.data().status === 'Active').length;
     
-    const employees = empSnap.docs.map(d => d.data());
-    const totalEmployees = employees.length;
-    const activeEmployees = employees.filter(e => e.status === 'Active').length;
+    const totalEmployees = empSnap.size;
+    const activeEmployees = empSnap.docs.filter(d => d.data().status === 'Active').length;
 
     let totalAssignments = 0;
     rosterSnap.docs.forEach(d => {
       const data = d.data();
-      const valid = (data.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
+      // Filter out 'none' or 'unassigned' markers to get real deployment count
+      const valid = (data.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
       totalAssignments += valid.length;
     });
 
@@ -77,7 +86,7 @@ export async function getRegionalStatsAction(idToken: string) {
 
 /**
  * getOfficeComparisonAction
- * Detailed matrix of ROC performance for a specific cycle.
+ * Generates the performance comparison matrix across all ROC nodes for a specific week.
  */
 export async function getOfficeComparisonAction(idToken: string, weekId: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
@@ -93,9 +102,17 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
 
       const [empSnap, rosterSnap, quotaSnap, bookSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
-        adminDb.collection('published_rosters').where('weekId', '==', weekId).where('office', '==', officeId).orderBy('publishedAt', 'desc').limit(1).get(),
+        adminDb.collection('published_rosters')
+          .where('weekId', '==', weekId)
+          .where('office', '==', officeId)
+          .orderBy('publishedAt', 'desc')
+          .limit(1)
+          .get(),
         adminDb.collection('roster_quotas').doc(localizedQuotaId).get(),
-        adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get()
+        adminDb.collection('weekoff_bookings')
+          .where('weekId', '==', weekId)
+          .where('office', '==', officeId)
+          .get()
       ]);
 
       const staffCount = empSnap.size;
@@ -107,13 +124,15 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
         requiredCount = Object.values(quota.quotas as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
       }
 
-      const validAssignments = (roster?.assignments || []).filter((a: any) => a.shiftId && a.shiftId !== 'none');
+      const validAssignments = (roster?.assignments || []).filter((a: any) => 
+        a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned'
+      );
       const assignedCount = validAssignments.length;
       
-      // Coverage = Assigned / Required. If Required is 0 or missing, handle carefully.
+      // COVERAGE LOGIC: Handle missing configs distinctly from zero demand
       const coverage = quotaSnap.exists 
         ? (requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : (assignedCount > 0 ? 100 : 0))
-        : null; // null indicates configuration missing
+        : null; 
 
       return {
         officeId,
@@ -137,7 +156,7 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
 
 /**
  * getRegionalRosterAnalyticsAction
- * Deep dive into regional deployment patterns.
+ * Provides day-wise trend analysis across the region.
  */
 export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
@@ -156,6 +175,7 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
       let dayRequired = 0;
       let dayAssigned = 0;
 
+      // Sum all office quotas for this day
       quotaSnap.docs.forEach(q => {
         const quotas = q.data().quotas || {};
         Object.entries(quotas).forEach(([key, val]) => {
@@ -163,9 +183,12 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
         });
       });
 
+      // Sum all assigned shifts for this day (Published rosters only)
       rosterSnap.docs.forEach(r => {
         const assignments = r.data().assignments || [];
-        const dayValid = assignments.filter((a: any) => a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none');
+        const dayValid = assignments.filter((a: any) => 
+          a.dayOfWeek === day && a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned'
+        );
         dayAssigned += dayValid.length;
       });
 
@@ -186,7 +209,7 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
 
 /**
  * getRegionalLeaveAnalyticsAction
- * Absence pressure analysis.
+ * Absence and unavailability pressure analysis.
  */
 export async function getRegionalLeaveAnalyticsAction(idToken: string) {
   const caller = await getAuthorizedSuperAdmin(idToken);
@@ -213,7 +236,8 @@ export async function getRegionalLeaveAnalyticsAction(idToken: string) {
       data: {
         total: leaves.length,
         statusBreakdown,
-        typeBreakdown
+        typeBreakdown,
+        timestamp: new Date().toISOString()
       }
     };
   } catch (e: any) {
