@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 
@@ -31,6 +32,12 @@ class EmployeeConstraint(BaseModel):
     dayOfWeek: str
     restrictedToShifts: Optional[List[str]] = None
 
+class EmployeeShiftLimit(BaseModel):
+    employeeId: str
+    shiftId: str
+    minOccurrences: int = 0
+    maxOccurrences: int = 7
+
 class EmployeePreference(BaseModel):
     employeeId: str
     dayOfWeek: str
@@ -44,11 +51,12 @@ class SolverWeights(BaseModel):
 
 class SolveRosterRequest(BaseModel):
     weekId: str
-    officeId: str # KOLKATA_ROC, GURGAON_ROC, LUCKNOW_ROC
+    officeId: str 
     shifts: List[Shift]
     employees: List[Employee]
     weeklyQuotas: List[DailyQuota]
     employeeHardConstraints: List[EmployeeConstraint]
+    employeeShiftLimits: Optional[List[EmployeeShiftLimit]] = Field(default_factory=list)
     employeeSoftPreferences: Optional[List[EmployeePreference]] = Field(default_factory=list)
     genderTargets: Optional[List[GenderTarget]] = Field(default_factory=list)
     weights: Optional[SolverWeights] = Field(default_factory=SolverWeights)
