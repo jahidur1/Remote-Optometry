@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -34,19 +35,22 @@ export default function RosterReviewWorkspace() {
   const [publishing, setPublishing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Super Admin Override State
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
   const [overrideData, setOverrideData] = useState<any>(null);
   const [overrideReason, setOverrideReason] = useState('');
 
-  // Data Fetching
   const { data: draft, loading: draftLoading } = useDoc(doc(db, 'roster_drafts', draftId));
   const { data: employees, loading: empLoading } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active')));
   const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
   
   const weekId = draft?.weekId;
-  const { data: quotaDoc } = useDoc(weekId ? doc(db, 'roster_quotas', weekId) : null);
-  const { data: bookings } = useCollection(weekId ? query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId)) : null);
+  const officeId = draft?.office;
+
+  // Localized Quota Fetch
+  const quotaDocId = weekId && officeId ? `${weekId}_${officeId}` : null;
+  const { data: quotaDoc, loading: quotaLoading } = useDoc(quotaDocId ? doc(db, 'roster_quotas', quotaDocId) : null);
+  
+  const { data: bookings } = useCollection(weekId && officeId ? query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId), where('office', '==', officeId)) : null);
   const { data: leaves } = useCollection(query(collection(db, 'employee_leaves'), where('status', '==', 'approved')));
 
   useEffect(() => {
@@ -58,15 +62,14 @@ export default function RosterReviewWorkspace() {
   const weekDates = useMemo(() => weekId ? getDatesForWeek(weekId) : [], [weekId]);
 
   const filteredEmployees = useMemo(() => {
-    if (!employees) return [];
-    // Only show employees matching the draft's office
+    if (!employees || !draft) return [];
     return employees.filter(e => 
-      e.office === draft?.office && (
+      e.office === draft.office && (
         e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.id.toLowerCase().includes(searchTerm.toLowerCase())
       )
     );
-  }, [employees, searchTerm, draft?.office]);
+  }, [employees, searchTerm, draft]);
 
   const getConstraintStatus = (employeeId: string, day: string, dateIndex: number) => {
     const isOff = bookings?.some(b => b.employeeId === employeeId && b.dayOfWeek === day);
@@ -81,13 +84,11 @@ export default function RosterReviewWorkspace() {
   const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
     const constraint = getConstraintStatus(employeeId, day, DAYS.indexOf(day));
     
-    // FCFS Protection: Strictly prohibit non-Super Admins from overriding off-days
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role !== 'SUPER_ADMIN') {
       toast({ title: "FCFS Lock Active", description: "Only Super Admins can override clinical weekly-offs.", variant: "destructive" });
       return;
     }
 
-    // Super Admin Override Pulse
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role === 'SUPER_ADMIN') {
       setOverrideData({ employeeId, day, shiftId });
       setOverrideDialogOpen(true);
@@ -155,7 +156,11 @@ export default function RosterReviewWorkspace() {
   const handlePublish = async () => {
     if (!profile) return;
     
-    // Strict Quota Enforcement Gateway
+    if (!quotaDoc) {
+      toast({ variant: "destructive", title: "Institutional Block", description: "Publication restricted. Office-specific quota configuration is missing." });
+      return;
+    }
+
     const hasConflicts = Object.values(quotaValidation).some((v: any) => !v.ok);
     if (hasConflicts) {
       toast({ variant: "destructive", title: "Institutional Block", description: "Publication requires 100% compliance with daily clinical quotas." });
@@ -261,7 +266,25 @@ export default function RosterReviewWorkspace() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto no-scrollbar">
+        <CardContent className="p-0 overflow-x-auto no-scrollbar relative">
+          {!quotaDoc && !quotaLoading && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-md z-30 flex items-center justify-center p-10 text-center">
+               <div className="p-16 rounded-[3rem] bg-destructive text-white shadow-2xl border-none max-w-xl animate-in zoom-in-95">
+                  <AlertTriangle className="size-20 mx-auto mb-8 animate-bounce" />
+                  <h3 className="text-4xl font-black uppercase tracking-tight leading-none mb-4">Quota Pulse Missing</h3>
+                  <p className="text-[14px] font-bold uppercase tracking-widest text-white/60 leading-relaxed mb-10">
+                    Clinical requirements for ROC {draft?.office} in Week {weekId} are not configured. 
+                    Assignments cannot be validated against institutional standards.
+                  </p>
+                  <Link href="/admin/quotas">
+                    <Button className="h-16 px-14 bg-white text-destructive font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-100 transition-all">
+                       Configure Quotas
+                    </Button>
+                  </Link>
+               </div>
+            </div>
+          )}
+
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/50 border-b border-slate-100">
               <TableRow>
@@ -359,7 +382,7 @@ export default function RosterReviewWorkspace() {
               <div className="flex gap-6 pb-2 pr-8">
                  {DAYS.map(day => {
                     const dayShifts = shifts?.map(s => quotaValidation[`${day}_${s.id}`]).filter(Boolean);
-                    const allOk = dayShifts?.every(v => v.ok);
+                    const allOk = quotaDoc && dayShifts?.every(v => v.ok);
                     return (
                       <div key={day} className={cn(
                           "px-10 py-5 rounded-[2rem] border-2 flex flex-col items-center min-w-[170px] transition-all duration-700",
@@ -392,7 +415,6 @@ export default function RosterReviewWorkspace() {
         </div>
       </div>
 
-      {/* Super Admin Override Dialog */}
       <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
         <DialogContent className="rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden sm:max-w-[600px] bg-white">
           <div className="bg-primary p-12 text-white space-y-3">

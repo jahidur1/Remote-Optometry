@@ -159,8 +159,14 @@ service cloud.firestore {
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive(); 
-      allow write: if isAdmin();
+      allow read: if isUserActive() && (
+        !quotaId.contains('_') || // Legacy support
+        matchesOffice(resource.data.officeId)
+      );
+      allow write: if isAdmin() && 
+        matchesOffice(request.resource.data.officeId) &&
+        quotaId == request.resource.data.weekId + "_" + request.resource.data.officeId;
+      allow delete: if isSuperAdmin();
     }
     
     match /roster_drafts/{draftId} { 

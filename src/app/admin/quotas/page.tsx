@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, doc, setDoc, onSnapshot, where } from 'firebase/firestore';
-import { useFirestore, useUser, useCollection } from '@/firebase';
+import { collection, query, orderBy, doc, onSnapshot, where } from 'firebase/firestore';
+import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,27 +12,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   Target, 
   Save, 
-  Copy, 
   AlertTriangle, 
   Info, 
   Users, 
-  CheckCircle2, 
   Activity, 
   ShieldCheck, 
   Zap, 
-  ArrowUpRight,
   Database,
-  ChevronRight,
-  Clock,
-  Building2
+  Building2,
+  Clock
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DemoBadge } from '@/components/ui/demo-badge';
-import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
+import { getDatesForWeek } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
+import { saveQuotaAction } from '@/services/quota-actions';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const ALL_OFFICES = [
@@ -49,21 +45,17 @@ export default function QuotaConfiguration() {
   const [saving, setSaving] = useState(false);
 
   const db = useFirestore();
+  const auth = useAuth();
   const { profile } = useUser();
   const { toast } = useToast();
 
-  // 1. Authorized Office List Calculation
   const authorizedOffices = useMemo(() => {
     if (!profile) return [];
     if (profile.role === 'SUPER_ADMIN') return ALL_OFFICES;
-    
-    // For ADMIN: Check officeIds array (introduced in Phase 2.2) 
-    // fallback to single office string for legacy compatibility
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
     return ALL_OFFICES.filter(o => allowedIds.includes(o.id));
   }, [profile]);
 
-  // Set default office once profile is loaded
   useEffect(() => {
     if (authorizedOffices.length > 0 && !selectedOffice) {
       setSelectedOffice(authorizedOffices[0].id);
@@ -72,7 +64,6 @@ export default function QuotaConfiguration() {
 
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   
-  // Filtered queries to satisfy hardened matchesOffice rules
   const empQuery = useMemo(() => {
     if (!profile || !selectedOffice) return null;
     return query(
@@ -95,7 +86,6 @@ export default function QuotaConfiguration() {
   const { data: employees } = useCollection(empQuery);
   const { data: bookings } = useCollection(bookQuery);
 
-  // 2. Localized Quota Subscription: {weekId}_{officeId}
   useEffect(() => {
     if (!db || !weekId || !selectedOffice) return;
     
@@ -106,7 +96,6 @@ export default function QuotaConfiguration() {
         setQuotas(data.quotas || {});
         setGenderTargets(data.genderTargets || {});
       } else {
-        // Handle unconfigured state: Reset to 0
         setQuotas({});
         setGenderTargets({});
       }
@@ -116,11 +105,8 @@ export default function QuotaConfiguration() {
 
   const dailyAvailability = useMemo(() => {
     if (!employees || !weekId) return {};
-    const weekDates = getDatesForWeek(weekId);
-    if (weekDates.length === 0) return {};
-
     const avail: Record<string, number> = {};
-    DAYS.forEach((day, index) => {
+    DAYS.forEach((day) => {
       const offCount = bookings?.filter(b => b.dayOfWeek === day).length || 0;
       avail[day] = Math.max(0, employees.length - offCount);
     });
@@ -149,21 +135,21 @@ export default function QuotaConfiguration() {
     if (!selectedOffice) return;
     setSaving(true);
     try {
-      const localizedId = `${weekId}_${selectedOffice}`;
-      const docRef = doc(db, 'roster_quotas', localizedId);
-      
-      const payload = {
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("Session expired.");
+
+      const result = await saveQuotaAction(idToken, {
         weekId,
         officeId: selectedOffice,
         quotas,
-        genderTargets,
-        updatedAt: new Date().toISOString(),
-        actorId: profile?.uid
-      };
+        genderTargets
+      });
       
-      await setDoc(docRef, payload);
-      logAudit(db, profile?.uid || 'system', 'CONFIGURE_ROSTER_QUOTAS_OFFICE', localizedId, { quotaCount: Object.keys(quotas).length });
-      toast({ title: "Configuration Secured", description: `${selectedOffice.replace('_', ' ')} targets updated in registry.` });
+      if (result.success) {
+        toast({ title: "Configuration Secured", description: `${selectedOffice.replace('_', ' ')} targets updated in registry.` });
+      } else {
+        throw new Error(result.error);
+      }
     } catch (e: any) {
       toast({ title: "Sync Failed", description: e.message, variant: "destructive" });
     } finally {

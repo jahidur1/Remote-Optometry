@@ -74,16 +74,18 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         throw new Error("Access Denied: Unauthorized administrative identity.");
       }
       
-      // Office Isolation: Admins can only solve for their own cluster
-      if (adminData.role === 'ADMIN' && adminData.office !== officeId) {
+      // Multi-Office Scoping Check
+      const authorizedOffices = adminData.officeIds || (adminData.office ? [adminData.office] : []);
+      if (adminData.role === 'ADMIN' && !authorizedOffices.includes(officeId)) {
         throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
       }
 
       // 2. Data Synchronization (Authoritative Fetch via Admin SDK)
+      const quotaId = `${weekId}_${officeId}`;
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
         adminDb.collection('shift_master').orderBy('displayOrder').get(),
-        adminDb.collection('roster_quotas').doc(weekId).get(),
+        adminDb.collection('roster_quotas').doc(quotaId).get(),
         adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
         adminDb.collection('employee_leaves').where('status', '==', 'approved').get(),
         adminDb.collection('shift_adjacency_rules').where('weekId', '==', weekId).get(),
@@ -91,7 +93,13 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       ]);
 
       if (!quotaSnap.exists) {
-        throw new Error(`Configuration Missing: Clinical quotas for Week ${weekId} have not been defined.`);
+        return {
+          rosterAssignments: [],
+          summary: `Configuration Missing: Clinical quotas for ROC ${officeId} in Week ${weekId} have not been defined.`,
+          status: 'UNKNOWN',
+          issuesEncountered: [`MISSING_QUOTA_CONFIG: ${quotaId}`],
+          solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }
+        };
       }
 
       const quotaData = quotaSnap.data()!;
@@ -175,7 +183,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
           : result.status === 'OPTIMAL' 
           ? `Mathematically optimal roster found for clinical cluster ${officeId}.` 
           : result.status === 'INFEASIBLE'
-          ? `Optimization failed: Clinical constraints (quotas/offs) are mathematically incompatible.`
+          ? `Optimization failed: Clinical constraints (quotas/offs) for ${officeId} are mathematically incompatible.`
           : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
         status: !integrity.isValid ? 'UNKNOWN' : result.status,
         issuesEncountered: [...(result.errors || []), ...integrity.issues],
