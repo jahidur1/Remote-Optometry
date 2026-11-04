@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2, Clock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { signOut } from 'firebase/auth';
+import { signOut, sendEmailVerification } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 
 interface RoleGuardProps {
@@ -38,6 +38,8 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     // Skip if login is strictly via Phone (which doesn't have an email verification link flow)
     const isEmailUser = user.providerData.some(p => p.providerId === 'password' || p.providerId === 'google.com');
     if (isEmailUser && !emailVerified && pathname !== '/verify-email' && pathname !== '/login') {
+      // Trigger verification on first access
+      sendEmailVerification(user).catch(console.error);
       router.push('/verify-email');
       return;
     }

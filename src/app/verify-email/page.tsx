@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -25,6 +24,16 @@ export default function VerifyEmailPage() {
       router.push('/');
     }
   }, [user, loading, emailVerified, router]);
+
+  // Automatically trigger verification on mount if not yet sent
+  useEffect(() => {
+    if (user && !emailVerified && !loading) {
+       // Firebase handles throttling this call automatically
+       sendEmailVerification(user).catch(err => {
+         console.warn("Verification already sent or throttled:", err.message);
+       });
+    }
+  }, [user, emailVerified, loading]);
 
   const handleResend = async () => {
     if (!user) return;
@@ -65,37 +74,37 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-primary p-4">
-      <Card className="w-full max-w-md shadow-2xl">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-            <Mail className="size-8" />
+      <Card className="w-full max-w-md shadow-2xl bg-white border-none rounded-[3rem] overflow-hidden">
+        <CardHeader className="text-center p-12 pb-8">
+          <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-3xl bg-secondary/10 text-secondary shadow-inner">
+            <Mail className="size-10" />
           </div>
-          <CardTitle className="text-2xl font-bold font-headline">Verify Your Email</CardTitle>
-          <CardDescription>
-            We've sent a verification link to <span className="font-semibold text-foreground">{user?.email}</span>
+          <CardTitle className="text-3xl font-black uppercase tracking-tight text-primary leading-none mb-2">Verify Identity</CardTitle>
+          <CardDescription className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+            A pulse has been sent to: <br /><span className="text-primary mt-1 inline-block">{user?.email}</span>
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Please check your email and click the link to activate your account. If you don't see it, check your spam folder.
+        <CardContent className="space-y-6 text-center px-12">
+          <p className="text-sm font-medium text-muted-foreground leading-relaxed uppercase tracking-tight">
+            Please check your official ROC email and click the verification node to activate your clinical profile.
           </p>
-          <div className="flex justify-center py-2">
-            <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-full text-xs font-medium">
-              <CheckCircle2 className="size-4 text-accent" />
-              Status: Verification Pending
+          <div className="flex justify-center">
+            <div className="flex items-center gap-3 px-6 py-2 bg-slate-50 border border-slate-100 rounded-full text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+              <CheckCircle2 className="size-3 text-secondary" />
+              STATUS: VALIDATION PENDING
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleRefresh}>
-            <RefreshCcw className="mr-2 h-4 w-4" /> I've Verified My Email
+        <CardFooter className="flex flex-col gap-4 p-12 pt-6">
+          <Button className="w-full h-16 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl transition-all" onClick={handleRefresh}>
+            <RefreshCcw className="mr-3 h-5 w-5" /> RE-SCAN IDENTITY
           </Button>
-          <div className="grid grid-cols-2 gap-3 w-full">
-            <Button variant="outline" onClick={handleResend} disabled={resending}>
-              {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Resend Link"}
+          <div className="grid grid-cols-2 gap-4 w-full">
+            <Button variant="outline" className="h-12 rounded-xl font-bold uppercase text-[10px] tracking-widest border-2" onClick={handleResend} disabled={resending}>
+              {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : "RESEND PULSE"}
             </Button>
-            <Button variant="ghost" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" /> Sign Out
+            <Button variant="ghost" className="h-12 rounded-xl font-bold uppercase text-[10px] tracking-widest text-destructive hover:bg-destructive/5" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" /> ABORT
             </Button>
           </div>
         </CardFooter>
