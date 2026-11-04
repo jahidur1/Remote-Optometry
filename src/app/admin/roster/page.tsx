@@ -16,11 +16,12 @@ import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, getISOWeek, getISOWeekYear } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { formatWeekId, displayWeekRange } from '@/lib/date-utils';
 
 export default function RosterSolver() {
-  const [weekId, setWeekId] = useState('2024-52');
+  const [weekId, setWeekId] = useState('');
   const [selectedOffice, setSelectedOffice] = useState<string>('');
   const [status, setStatus] = useState<"idle" | "running" | "success" | "conflict">("idle");
   const [progress, setProgress] = useState(0);
@@ -60,50 +61,34 @@ export default function RosterSolver() {
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-    const year = getISOWeekYear(date);
-    const week = getISOWeek(date);
-    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
-    setWeekId(formattedWeek);
+    setWeekId(formatWeekId(date));
   };
 
   const handleRunSolver = async () => {
-    const targetOffice = selectedOffice;
-
-    if (!targetOffice || !profile?.uid) {
-      toast({ 
-        variant: "destructive", 
-        title: "Authorization Required", 
-        description: "Please select a target cluster hub to initiate the solver." 
-      });
+    if (!selectedOffice || !weekId) {
+      toast({ variant: "destructive", title: "Input Required", description: "Select Hub and Clinical Cycle." });
       return;
     }
     
     setStatus("running");
     setProgress(20);
     setSolverResult(null);
-    setLastDraftId(null);
-
-    const interval = setInterval(() => {
-      setProgress(prev => (prev < 90 ? prev + Math.random() * 5 : prev));
-    }, 1000);
 
     try {
       const idToken = await auth.currentUser?.getIdToken(true);
-      if (!idToken) throw new Error("Session expired. Please re-authenticate.");
+      if (!idToken) throw new Error("Session expired.");
 
       const result = await generateWeeklyRoster({
         weekId,
-        officeId: targetOffice,
+        officeId: selectedOffice,
         idToken: idToken
       });
       
-      clearInterval(interval);
       setSolverResult(result);
       setProgress(100);
 
       if (result.status === 'INFEASIBLE') {
         setStatus("conflict");
-        toast({ variant: "destructive", title: "Mathematical Infeasibility", description: "Solver could not satisfy exact quotas within clinical constraints." });
         return;
       }
 
@@ -111,29 +96,27 @@ export default function RosterSolver() {
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
         weekId,
-        office: targetOffice,
+        office: selectedOffice,
         assignments: result.rosterAssignments,
         status: 'draft',
         solverStatus: result.status,
         summary: result.summary,
         solverMetadata: result.solverMetadata,
         createdAt: new Date().toISOString(),
-        actorId: profile.uid
+        actorId: profile?.uid
       });
 
       setLastDraftId(draftId);
-      logAudit(db, profile.uid, 'RUN_CP_SAT_SOLVER', draftId, { weekId, solverStatus: result.status, office: targetOffice });
+      logAudit(db, profile?.uid || 'system', 'RUN_SOLVER', draftId, { weekId, office: selectedOffice });
       setStatus("success");
-      toast({ title: "Optimization Complete", description: "Deterministic draft secured in cluster registry." });
     } catch (e: any) {
-      clearInterval(interval);
       setStatus("conflict");
       toast({ variant: "destructive", title: "Pipeline Failure", description: e.message });
     }
   };
 
   return (
-    <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4">
+    <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -142,11 +125,6 @@ export default function RosterSolver() {
             </div>
             <div>
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  CP-SAT Optimization Logic <Activity className="size-3 text-secondary animate-pulse" />
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -155,44 +133,33 @@ export default function RosterSolver() {
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
-                <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
+                <SelectTrigger className="h-6 w-48 font-black border-none bg-transparent p-0 text-[14px]">
                   <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                <SelectContent className="rounded-xl bg-white p-2 border-none shadow-2xl">
                   {authorizedOffices.map(o => (
-                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
-                      {o.officeName} [{o.shortCode}]
-                    </SelectItem>
+                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-2 uppercase text-[10px]">{o.officeName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cycle</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[16px]">{weekId}</span>
+                    <span className="text-[14px] uppercase">{weekId ? displayWeekRange(weekId) : 'Select Start'}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
-                  <Calendar
-                    mode="single"
-                    onSelect={handleDateSelect}
-                    initialFocus
-                    className="bg-white"
-                  />
+                  <Calendar mode="single" onSelect={handleDateSelect} initialFocus />
                 </PopoverContent>
               </Popover>
            </div>
-           <Button 
-             className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
-             onClick={handleRunSolver} 
-             disabled={status === 'running' || !selectedOffice}
-           >
+           <Button className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl" onClick={handleRunSolver} disabled={status === 'running' || !selectedOffice || !weekId}>
             {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : <Play className="size-4 mr-2 fill-white" />}
-            {status === 'running' ? 'OPTIMIZING...' : 'EXECUTE HUB'}
+            EXECUTE HUB
            </Button>
         </div>
       </div>
@@ -200,95 +167,33 @@ export default function RosterSolver() {
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-8">
           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div className="size-14 rounded-2xl flex items-center justify-center shadow-inner bg-primary border border-slate-200">
-                  <Server className="size-7 text-secondary" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">CP-SAT Orchestrator</CardTitle>
-                  <CardDescription className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                     Deterministic Cluster Hub: {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || '---'}
-                  </CardDescription>
-                </div>
-              </div>
+            <CardHeader className="bg-slate-50/50 border-b p-10">
+              <CardTitle className="text-xl uppercase font-black leading-none">CP-SAT Orchestrator</CardTitle>
             </CardHeader>
-            <CardContent className="p-10 space-y-10">
-              <div className="space-y-4">
-                <div className="flex justify-between items-end px-1">
-                   <span className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em]">Load Status</span>
-                   <span className="text-2xl font-black text-black tabular-nums">{Math.floor(progress)}%</span>
+            <CardContent className="p-10">
+              <div className="space-y-10">
+                <div className="h-4 bg-slate-100 rounded-full overflow-hidden border p-0.5">
+                   <div className="h-full bg-secondary rounded-full transition-all duration-700 shadow-[0_0_15px_rgba(59,130,246,0.5)]" style={{ width: `${progress}%` }} />
                 </div>
-                <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5 shadow-inner">
-                   <div 
-                    className="h-full bg-secondary rounded-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
-                    style={{ width: `${progress}%` }}
-                   />
-                </div>
+
+                {solverResult && (
+                  <div className={cn("p-8 rounded-[2rem] border-2 animate-in zoom-in-95", solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20')}>
+                    <div className="flex gap-8 items-start">
+                      <div className={cn("size-14 rounded-2xl flex items-center justify-center shrink-0", solverResult.status === 'INFEASIBLE' ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600')}>
+                         {solverResult.status === 'INFEASIBLE' ? <AlertTriangle className="size-7" /> : <Sparkles className="size-7" />}
+                      </div>
+                      <div className="space-y-4 flex-1">
+                         <p className="text-lg font-black leading-snug">{solverResult.summary}</p>
+                         {lastDraftId && solverResult.status !== 'INFEASIBLE' && (
+                           <Link href={`/admin/roster/review/${lastDraftId}`}>
+                              <Button className="w-full h-14 bg-emerald-600 text-white font-black uppercase tracking-[0.2em] rounded-xl shadow-xl">Review Workspace <ChevronRight className="ml-2 size-5" /></Button>
+                           </Link>
+                         )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {solverResult && (
-                <div className={cn(
-                    "p-8 rounded-[2rem] border-2 animate-in zoom-in-95 transition-all duration-500",
-                    solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20'
-                )}>
-                  <div className="flex flex-col md:flex-row gap-8 items-start">
-                    <div className={cn(
-                        "size-14 rounded-2xl flex items-center justify-center shrink-0",
-                        solverResult.status === 'INFEASIBLE' ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600'
-                    )}>
-                       {solverResult.status === 'INFEASIBLE' ? <AlertTriangle className="size-7" /> : <Sparkles className="size-7" />}
-                    </div>
-                    <div className="space-y-4 flex-1">
-                       <p className="text-lg font-black text-black leading-snug">{solverResult.summary}</p>
-                       
-                       {lastDraftId && solverResult.status !== 'INFEASIBLE' && (
-                         <Link href={`/admin/roster/review/${lastDraftId}`} className="block">
-                            <Button className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-[0.2em] rounded-xl shadow-xl transition-all group">
-                                Enter Review Workspace <ChevronRight className="ml-2 size-5 group-hover:translate-x-1 transition-transform" />
-                            </Button>
-                         </Link>
-                       )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8 flex flex-row items-center justify-between">
-               <div className="flex items-center gap-5">
-                  <div className="size-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary">
-                    <History className="size-6" />
-                  </div>
-                  <CardTitle className="text-base font-black uppercase tracking-[0.15em] text-black">Deployment Registry</CardTitle>
-               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-               <div className="divide-y divide-slate-50">
-                {recentDrafts?.length === 0 ? (
-                    <div className="py-24 text-center opacity-20 italic font-black uppercase text-[10px] tracking-[0.3em] text-slate-400">No registry history detected for selected hub.</div>
-                ) : recentDrafts?.map(draft => (
-                  <div key={draft.id} className="flex items-center justify-between p-8 hover:bg-slate-50 transition-colors group">
-                    <div className="flex items-center gap-8">
-                       <div className={cn(
-                           "size-2.5 rounded-full shadow-lg",
-                           draft.status === 'published' ? 'bg-emerald-500 shadow-emerald-500/30' : 'bg-secondary shadow-secondary/30'
-                       )} />
-                       <div>
-                          <p className="text-xl font-black uppercase tracking-tighter text-black group-hover:translate-x-1 transition-transform leading-none">Cycle {draft.weekId}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-2 tracking-widest">{new Date(draft.createdAt).toLocaleDateString()} • {draft.office?.substring(0,3)}_HUB</p>
-                       </div>
-                    </div>
-                    <Link href={`/admin/roster/review/${draft.id}`}>
-                      <Button variant="outline" className="h-11 px-8 text-[9px] font-black uppercase tracking-[0.2em] border-2 border-slate-100 rounded-xl hover:bg-white hover:border-secondary transition-all">
-                          Review Workspace <ChevronRight className="ml-2 size-3" />
-                      </Button>
-                    </Link>
-                  </div>
-                ))}
-               </div>
             </CardContent>
           </Card>
         </div>

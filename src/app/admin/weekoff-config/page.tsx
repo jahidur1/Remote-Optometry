@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -35,19 +36,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, getISOWeek, getISOWeekYear } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
 
 export default function WeekOffConfiguration() {
-  const [weekId, setWeekId] = useState('2024-52');
+  const [weekId, setWeekId] = useState('');
   const [office, setOffice] = useState('');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
-  const [quotas, setQuotas] = useState<Record<string, number>>(
-    DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {})
-  );
+  const [quotas, setQuotas] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [exists, setExists] = useState(false);
 
@@ -73,6 +71,23 @@ export default function WeekOffConfiguration() {
     }
   }, [authorizedOffices, office]);
 
+  const activeDays = useMemo(() => {
+    const dates = getDatesForWeek(weekId);
+    return dates.map(d => format(d, 'EEEE'));
+  }, [weekId]);
+
+  useEffect(() => {
+    if (activeDays.length > 0) {
+      setQuotas(prev => {
+        const next: Record<string, number> = {};
+        activeDays.forEach(day => {
+          next[day] = prev[day] || 15;
+        });
+        return next;
+      });
+    }
+  }, [activeDays]);
+
   useEffect(() => {
     if (!db || !weekId || !office) return;
     
@@ -82,12 +97,11 @@ export default function WeekOffConfiguration() {
         const data = snap.data();
         setOpenTime(data.bookingOpen || '');
         setCloseTime(data.bookingClose || '');
-        setQuotas(data.quotas || DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {}));
+        setQuotas(data.quotas || {});
         setExists(true);
       } else {
         setOpenTime('');
         setCloseTime('');
-        setQuotas(DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {}));
         setExists(false);
       }
     });
@@ -107,10 +121,7 @@ export default function WeekOffConfiguration() {
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-    const year = getISOWeekYear(date);
-    const week = getISOWeek(date);
-    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
-    setWeekId(formattedWeek);
+    setWeekId(formatWeekId(date));
   };
 
   const handleSave = async () => {
@@ -131,7 +142,7 @@ export default function WeekOffConfiguration() {
         bookingOpen: openTime,
         bookingClose: closeTime,
         quotas,
-        booked: exists ? {} : DAYS.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
+        booked: exists ? {} : activeDays.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
         status: 'scheduled',
         updatedAt: new Date().toISOString(),
         actorId: profile?.uid,
@@ -152,22 +163,17 @@ export default function WeekOffConfiguration() {
     const idToDelete = targetConfigId || `${weekId}_${office}`;
     if (!idToDelete) return;
 
-    const confirmMessage = targetConfigId 
-      ? `DECOMMISSION ALERT: This will permanently remove the configuration for cycle ${idToDelete}. Proceed?`
-      : `DECOMMISSION ALERT: Remove the live configuration for ${office} in Cycle ${weekId}? Professionals will immediately lose access to this preference pool.`;
-
-    if (!confirm(confirmMessage)) return;
+    if (!confirm(`DECOMMISSION ALERT: Remove clinical cycle ${idToDelete}?`)) return;
 
     setLoading(true);
     try {
       await deleteDoc(doc(db, 'weekoff_configs', idToDelete));
       logAudit(db, profile?.uid || 'system', 'DELETE_WEEKOFF_CONFIG', idToDelete, { office, weekId });
-      toast({ title: "Registry Decommissioned", description: "The clinical cycle has been removed from the operational registry." });
+      toast({ title: "Registry Decommissioned" });
       
       if (!targetConfigId) {
         setOpenTime('');
         setCloseTime('');
-        setQuotas(DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {}));
         setExists(false);
       }
     } catch (e: any) {
@@ -178,7 +184,7 @@ export default function WeekOffConfiguration() {
   };
 
   return (
-    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
+    <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -213,12 +219,12 @@ export default function WeekOffConfiguration() {
               </Select>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle (7 Days)</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[16px]">{weekId}</span>
+                    <span className="text-[14px] uppercase tracking-tight">{weekId ? displayWeekRange(weekId) : 'Select Start Date'}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
@@ -246,7 +252,7 @@ export default function WeekOffConfiguration() {
               <Button 
                 className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
                 onClick={handleSave} 
-                disabled={loading || !office}
+                disabled={loading || !office || !weekId}
               >
                 {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
                 {loading ? 'SYNCING...' : exists ? 'UPDATE MATRIX' : 'PUBLISH WINDOW'}
@@ -265,7 +271,6 @@ export default function WeekOffConfiguration() {
                 </div>
                 <div>
                   <CardTitle className="text-xl uppercase font-black tracking-tight text-black leading-none">Unit Parameters</CardTitle>
-                  <CardDescription className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-2">Unit Assignment</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -308,7 +313,7 @@ export default function WeekOffConfiguration() {
                 </div>
              </div>
              <p className="text-[13px] text-muted-foreground leading-relaxed font-black uppercase tracking-widest">
-               Slot reservations are processed via server-side atomic transactions. Once secured, they are mathematically locked for the solver.
+               Slot reservations are strictly limited to one per professional per cycle.
              </p>
           </Card>
         </div>
@@ -322,33 +327,32 @@ export default function WeekOffConfiguration() {
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Reservation Matrix</CardTitle>
-                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                     Maximum daily FCFS slot limits for {authorizedOffices.find(o => o.officeId === office)?.officeName || '---'}.
-                  </CardDescription>
                 </div>
               </div>
               <Badge variant="outline" className="px-6 py-2 rounded-xl font-black text-[10px] uppercase border-secondary/20 text-secondary bg-secondary/5 shadow-inner">
-                CYCLE {weekId}
+                {weekId ? displayWeekRange(weekId) : 'CYCLE_PENDING'}
               </Badge>
             </CardHeader>
             <CardContent className="p-10">
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-5">
-                {DAYS.map((day) => (
-                  <div key={day} className="space-y-4 group">
-                    <div className="text-center">
-                      <Label className="text-[10px] uppercase tracking-[0.3em] font-black text-black/40 group-hover:text-secondary transition-colors">{day.substring(0, 3)}</Label>
-                    </div>
-                    <div className="relative">
+              {!weekId ? (
+                <div className="py-20 text-center opacity-30 italic font-black uppercase text-xs tracking-[0.3em]">Select a clinical start date to configure quotas.</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-5">
+                  {activeDays.map((day) => (
+                    <div key={day} className="space-y-4 group">
+                      <div className="text-center">
+                        <Label className="text-[10px] uppercase tracking-[0.3em] font-black text-black/40 group-hover:text-secondary transition-colors">{day.substring(0, 3)}</Label>
+                      </div>
                       <Input 
                         type="number" 
-                        className="h-16 font-black text-center text-2xl border-2 border-slate-100 bg-slate-50 rounded-2xl focus:border-secondary focus:bg-white transition-all shadow-inner text-black tabular-nums"
-                        value={quotas[day]}
+                        className="h-16 font-black text-center text-2xl border-2 border-slate-100 bg-slate-50 rounded-2xl focus:border-secondary transition-all shadow-inner text-black"
+                        value={quotas[day] || 0}
                         onChange={(e) => setQuotas({ ...quotas, [day]: parseInt(e.target.value) || 0 })}
                       />
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -360,62 +364,35 @@ export default function WeekOffConfiguration() {
                   </div>
                   <CardTitle className="text-base font-black uppercase tracking-[0.15em] text-black">Pulse Ledger</CardTitle>
                </div>
-               <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-slate-200 text-black/30">Registry History</Badge>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto no-scrollbar">
               <Table className="border-collapse">
                 <TableHeader className="bg-slate-50/30">
                   <TableRow className="border-b border-slate-100">
-                    <TableHead className="py-6 px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">ROC Cluster</TableHead>
-                    <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Cycle</TableHead>
-                    <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Execution Window (IST)</TableHead>
-                    <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
+                    <TableHead className="py-6 px-10 border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">ROC Cluster</TableHead>
+                    <TableHead className="px-10 border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Clinical Cycle</TableHead>
+                    <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody className="divide-y divide-slate-100">
+                <TableBody>
                   {fetching ? (
                     Array(4).fill(0).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={4} className="p-10"><Skeleton className="h-10 w-full rounded-2xl bg-slate-50 opacity-10" /></TableCell></TableRow>
+                      <TableRow key={i}><TableCell colSpan={3} className="p-10"><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                     ))
                   ) : configs?.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-32 text-center opacity-40 italic font-black uppercase text-xs tracking-[0.3em] text-black">No history in cluster ledger.</TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={3} className="py-32 text-center opacity-40 italic font-black uppercase text-xs tracking-[0.3em]">No history in cluster ledger.</TableCell></TableRow>
                   ) : configs?.map((c) => (
                     <TableRow key={c.id} className="hover:bg-slate-50 transition-all group">
                       <TableCell className="py-8 px-10 border-r border-slate-100">
-                         <div className="flex items-center gap-4">
-                            <div className="size-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                            <span className="font-black text-[14px] text-black tracking-tight uppercase group-hover:translate-x-1 transition-transform">{authorizedOffices.find(o => o.officeId === c.office)?.officeName || c.office}</span>
-                         </div>
+                         <span className="font-black text-[14px] uppercase">{authorizedOffices.find(o => o.officeId === c.office)?.officeName || c.office}</span>
                       </TableCell>
                       <TableCell className="px-10 border-r border-slate-100">
-                        <Badge variant="outline" className="font-black text-[10px] border-slate-200 text-black/60 bg-white px-4 py-1.5 rounded-lg">WEEK {c.weekId}</Badge>
-                      </TableCell>
-                      <TableCell className="px-10 border-r border-slate-100">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[12px] font-black text-black/80 tabular-nums">
-                            {new Date(c.bookingOpen).toLocaleString()}
-                          </span>
-                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                             <ArrowUpRight className="size-3 text-secondary" /> TO {new Date(c.bookingClose).toLocaleString()}
-                          </span>
-                        </div>
+                        <Badge variant="outline" className="font-black text-[10px] border-slate-200 text-black/60 bg-white px-4 py-1.5 rounded-lg">{displayWeekRange(c.weekId)}</Badge>
                       </TableCell>
                       <TableCell className="text-right pr-12">
-                         <div className="flex items-center justify-end gap-3">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="size-10 rounded-xl text-slate-300 hover:text-destructive hover:bg-destructive/5 transition-all"
-                              onClick={() => handleDelete(c.id)}
-                            >
-                               <Trash2 className="size-4" />
-                            </Button>
-                            <div className="size-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 shadow-inner">
-                               <Server className="size-4 text-black/20" />
-                            </div>
-                         </div>
+                         <Button variant="ghost" size="icon" className="text-slate-300 hover:text-destructive transition-all" onClick={() => handleDelete(c.id)}>
+                            <Trash2 className="size-4" />
+                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
