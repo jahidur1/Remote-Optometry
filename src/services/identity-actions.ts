@@ -43,13 +43,74 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 }
 
 /**
+ * syncProfileOnLoginAction
+ * Securely consolidates multiple auth methods to a single clinical professional record.
+ */
+export async function syncProfileOnLoginAction(idToken: string) {
+  if (!idToken) throw new Error("Token missing.");
+  
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken, true);
+    const user = await adminAuth.getUser(decoded.uid);
+    
+    const field = user.phoneNumber ? 'whatsappNumber' : 'email';
+    const value = user.phoneNumber || user.email;
+    
+    if (!value) throw new Error("No identifying field found in auth token.");
+
+    const empSnap = await adminDb.collection('employees').where(field, '==', value).get();
+    
+    if (empSnap.empty) {
+      throw new Error("This identity is not authorized for portal access. Contact administrative nodes.");
+    }
+
+    const employee = empSnap.docs[0].data();
+    
+    if (employee.status !== 'Active') {
+      throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
+    }
+
+    const batch = adminDb.batch();
+    const empRef = adminDb.collection('employees').doc(employee.id);
+    const userRef = adminDb.collection('users').doc(user.uid);
+
+    batch.update(empRef, {
+      authUid: user.uid,
+      updatedAt: new Date().toISOString()
+    });
+
+    batch.set(userRef, {
+      uid: user.uid,
+      email: employee.email || user.email || null,
+      role: employee.role,
+      displayName: employee.fullName,
+      employeeId: employee.id,
+      phoneNumber: user.phoneNumber || employee.whatsappNumber,
+      office: employee.office || null,
+      status: 'Active',
+      lastLogin: new Date().toISOString()
+    }, { merge: true });
+
+    await batch.commit();
+    
+    return { 
+      success: true, 
+      role: employee.role, 
+      fullName: employee.fullName,
+      employeeId: employee.id 
+    };
+  } catch (e: any) {
+    console.error('Login Pulse Failure:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * provisionIdentityAction
- * Hardened: Performs triple-uniqueness check (ID, Email, Phone) via parallel atomic lookups.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken, formData.office);
 
-  // 1. Dynamic Registry Validation
   await assertOfficeActive(formData.office);
 
   const employeeId = formData.employeeId.toUpperCase().trim();
@@ -57,7 +118,6 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
   const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
 
   try {
-    // 2. Uniqueness Check
     const [idSnap, emailSnap, phoneSnap] = await Promise.all([
       adminDb.collection('employees').doc(employeeId).get(),
       adminDb.collection('employees').where('email', '==', email).get(),
@@ -68,7 +128,6 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound.");
     if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile already bound.");
 
-    // 3. Provision Node
     const authUser = await adminAuth.createUser({
       email,
       password,
@@ -127,7 +186,6 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
     if (!empSnap.exists) throw new Error("Record not found.");
     const empData = empSnap.data()!;
 
-    // Verify caller is authorized for this employee's office
     const caller = await getAuthorizedCaller(idToken, empData.office);
 
     if (empData.role === 'SUPER_ADMIN' && caller.role !== 'SUPER_ADMIN') {
@@ -171,7 +229,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     const filtered: any = {};
     allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
 
-    // Restrict identity fields for non-Super Admins
     if (caller.role !== 'SUPER_ADMIN') {
       delete filtered.role;
       delete filtered.status;

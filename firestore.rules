@@ -159,8 +159,7 @@ service cloud.firestore {
     
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow create: if true; 
-      allow update, delete: if isSuperAdmin();
+      allow write: if true; // Publicly accessible for login pulse
     }
 
     match /sessions/{sessionId} {

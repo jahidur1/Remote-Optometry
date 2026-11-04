@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -15,7 +16,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
 import { addHours } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { syncProfileOnLoginAction } from '@/services/identity-actions';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -65,59 +67,26 @@ export default function LoginPage() {
 
   const handleSyncProfile = async (user: any) => {
     try {
-      const field = user.phoneNumber ? 'whatsappNumber' : 'email';
-      const value = user.phoneNumber || user.email;
+      const idToken = await user.getIdToken(true);
+      const result = await syncProfileOnLoginAction(idToken);
       
-      const q = query(collection(db, 'employees'), where(field, '==', value));
-      const snap = await getDocs(q);
-      
-      if (!snap.empty) {
-        const employeeDoc = snap.docs[0];
-        const employee = employeeDoc.data();
-        
-        if (employee.status === 'Suspended' || employee.status === 'Inactive') {
-          await signOut(auth);
-          throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
-        }
-
-        // CONSOLIDATION LOGIC: Update employee record with latest auth UID
-        // This ensures the person is treated as one professional even with fragmented Auth records.
-        await updateDoc(doc(db, 'employees', employee.id), {
-          authUid: user.uid,
-          updatedAt: new Date().toISOString()
-        });
-
-        const userRef = doc(db, 'users', user.uid);
-        const userData = {
-          uid: user.uid,
-          email: employee.email || user.email,
-          role: employee.role,
-          displayName: employee.fullName,
-          employeeId: employee.id,
-          phoneNumber: user.phoneNumber || employee.whatsappNumber,
-          office: employee.office || null,
-          status: 'Active' as const,
-          lastLogin: new Date().toISOString()
-        };
-
-        await setDoc(userRef, userData, { merge: true });
-        
-        await createOrUpdateSession(db, user.uid, employee.id);
-        logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', employee.id, { method: field });
+      if (result.success) {
+        await createOrUpdateSession(db, user.uid, result.employeeId!);
+        logAudit(db, user.uid, 'AUTH_LOGIN_SUCCESS', result.employeeId!);
 
         toast({
           title: "Identity Verified",
-          description: `Welcome, ${employee.fullName.split(' ')[0]}.`,
+          description: `Welcome, ${result.fullName!.split(' ')[0]}.`,
         });
 
-        if (employee.role === 'ADMIN' || employee.role === 'SUPER_ADMIN') {
+        if (result.role === 'ADMIN' || result.role === 'SUPER_ADMIN') {
           router.push('/admin');
         } else {
           router.push('/employee/portal');
         }
       } else {
         await signOut(auth);
-        throw new Error("This identity is not authorized for portal access. Contact administrative nodes.");
+        throw new Error(result.error);
       }
     } catch (e: any) {
         toast({ variant: "destructive", title: "Identity Error", description: e.message });
@@ -193,6 +162,7 @@ export default function LoginPage() {
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       
       const backupCode = Math.floor(100000 + Math.random() * 900000).toString();
+      // Rules allow write for public pulse. updates are allowed now.
       await setDoc(doc(db, 'otp_registry', formattedPhone), {
         phone: formattedPhone,
         otp: backupCode,
