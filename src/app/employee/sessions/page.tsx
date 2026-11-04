@@ -10,7 +10,7 @@ import { Monitor, Smartphone, Clock, ShieldX, RefreshCw, Loader2, ArrowLeft, Lap
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { getLocalSessionId } from '@/lib/session-utils';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 
 export default function SessionManagement() {
@@ -23,11 +23,15 @@ export default function SessionManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
 
-  const sessionsQuery = user ? query(
-    collection(db, 'sessions'), 
-    where('uid', '==', user.uid), 
-    where('status', '==', 'active')
-  ) : null;
+  // Memoized query to prevent infinite database listener re-attachments
+  const sessionsQuery = useMemo(() => {
+    if (!user) return null;
+    return query(
+      collection(db, 'sessions'), 
+      where('uid', '==', user.uid), 
+      where('status', '==', 'active')
+    );
+  }, [db, user]);
 
   const { data: sessions, loading } = useCollection(sessionsQuery);
 

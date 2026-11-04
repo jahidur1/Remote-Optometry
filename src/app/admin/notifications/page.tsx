@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,16 +20,20 @@ export default function NotificationDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [testing, setTesting] = useState(false);
 
-  // Fetch Delivery Logs (PII Masked in the DB logic or UI)
-  const logsQuery = query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(100));
-  const { data: logs, loading } = useCollection(logsQuery);
-  const { data: employees } = useCollection(query(collection(db, 'employees')));
+  // Memoized Queries for stable performance
+  const logsQuery = useMemo(() => query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(100)), [db]);
+  const employeesQuery = useMemo(() => query(collection(db, 'employees')), [db]);
 
-  const filteredLogs = logs?.filter(log => {
-    const emp = employees?.find(e => e.id === log.employeeId);
-    return emp?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-           log.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const { data: logs, loading } = useCollection(logsQuery);
+  const { data: employees } = useCollection(employeesQuery);
+
+  const filteredLogs = useMemo(() => {
+    return logs?.filter(log => {
+      const emp = employees?.find(e => e.id === log.employeeId);
+      return emp?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+             log.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+  }, [logs, employees, searchTerm]);
 
   const handleTestConnection = async () => {
     const targetEmp = employees?.find(e => e.whatsappNumber);
@@ -61,7 +66,7 @@ export default function NotificationDashboard() {
             <DemoBadge />
           </div>
           <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
-             Meta Cloud API Node • Automated Shift Briefings <MessageCircle className="size-3 text-secondary" />
+             Meta Cloud API Center • Automated Shift Briefings <MessageCircle className="size-3 text-secondary" />
           </p>
         </div>
         <div className="flex gap-4">
@@ -112,7 +117,7 @@ export default function NotificationDashboard() {
                         <p className="text-[11px] font-black uppercase text-secondary tracking-[0.3em]">Scheduler Policy</p>
                         <p className="text-sm font-medium leading-relaxed opacity-80 max-w-md">
                             Shift briefings are dispatched daily at **22:00 IST**. 
-                            The engine exclusively pulls data from the **active published roster version**. 
+                            The system exclusively pulls data from the **active published roster version**. 
                             Drafts are never notified to employees.
                         </p>
                     </div>

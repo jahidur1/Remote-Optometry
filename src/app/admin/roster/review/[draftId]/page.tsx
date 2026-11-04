@@ -40,18 +40,32 @@ export default function RosterReviewWorkspace() {
   const [overrideData, setOverrideData] = useState<any>(null);
   const [overrideReason, setOverrideReason] = useState('');
 
-  const { data: draft, loading: draftLoading } = useDoc(doc(db, 'roster_drafts', draftId));
-  const { data: employees, loading: empLoading } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active')));
-  const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
+  // Memoized stable document reference
+  const draftRef = useMemo(() => doc(db, 'roster_drafts', draftId), [db, draftId]);
+  const { data: draft, loading: draftLoading } = useDoc(draftRef);
+
+  // Memoized stable queries to prevent re-subscriptions and infinite loops
+  const activeEmployeesQuery = useMemo(() => query(collection(db, 'employees'), where('status', '==', 'Active')), [db]);
+  const shiftMasterQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
+
+  const { data: employees, loading: empLoading } = useCollection(activeEmployeesQuery);
+  const { data: shifts } = useCollection(shiftMasterQuery);
   
   const weekId = draft?.weekId;
   const officeId = draft?.office;
 
-  const quotaDocId = weekId && officeId ? `${weekId}_${officeId}` : null;
-  const { data: quotaDoc, loading: quotaLoading } = useDoc(quotaDocId ? doc(db, 'roster_quotas', quotaDocId) : null);
+  const quotaDocId = useMemo(() => weekId && officeId ? `${weekId}_${officeId}` : null, [weekId, officeId]);
+  const quotaRef = useMemo(() => quotaDocId ? doc(db, 'roster_quotas', quotaDocId) : null, [db, quotaDocId]);
+  const { data: quotaDoc, loading: quotaLoading } = useDoc(quotaRef);
   
-  const { data: bookings } = useCollection(weekId && officeId ? query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId), where('office', '==', officeId)) : null);
-  const { data: leaves } = useCollection(query(collection(db, 'employee_leaves'), where('status', '==', 'approved')));
+  const bookingsQuery = useMemo(() => 
+    weekId && officeId ? query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId), where('office', '==', officeId)) : null
+  , [db, weekId, officeId]);
+  
+  const approvedLeavesQuery = useMemo(() => query(collection(db, 'employee_leaves'), where('status', '==', 'approved')), [db]);
+
+  const { data: bookings } = useCollection(bookingsQuery);
+  const { data: leaves } = useCollection(approvedLeavesQuery);
 
   useEffect(() => {
     if (draft?.assignments) {
@@ -183,7 +197,7 @@ export default function RosterReviewWorkspace() {
       await updateDoc(doc(db, 'roster_drafts', draftId), { status: 'published' });
       
       logAudit(db, profile.uid, 'PUBLISH_ROSTER', versionId, { weekId, office: draft?.office });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Meta Cloud API Node." });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Meta Cloud API Center." });
       router.push('/admin/roster');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -247,7 +261,7 @@ export default function RosterReviewWorkspace() {
                 <ShieldCheck className="size-8 md:size-10 text-secondary" /> Clinical Assignment Grid
               </CardTitle>
               <CardDescription className="text-[9px] md:text-[11px] font-black uppercase text-white/40 tracking-[0.2em] mt-2 md:mt-3">
-                Deterministic Model Node: {draft?.office?.substring(0,3)} • {draft?.solverStatus}
+                Deterministic Model Center: {draft?.office?.substring(0,3)} • {draft?.solverStatus}
               </CardDescription>
             </div>
             {draft?.solverMetadata && (
@@ -401,7 +415,7 @@ export default function RosterReviewWorkspace() {
            
            <div className="hidden xl:flex flex-col justify-center bg-white/5 p-8 rounded-3xl border border-white/10 text-right shrink-0">
               <div className="flex items-center justify-end gap-4 text-[13px] font-black text-secondary uppercase tracking-[0.3em]">
-                 <Server className="size-5" /> NODE_SYNC
+                 <Server className="size-5" /> SYSTEM_SYNC
               </div>
               <p className="text-[11px] text-white/30 font-bold leading-relaxed mt-4 uppercase tracking-tighter max-w-[260px]">
                  Automated rollout is restricted until daily headcount imbalances are neutralized.

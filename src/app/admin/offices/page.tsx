@@ -20,7 +20,7 @@ import {
   Globe, 
   Activity, 
   Zap, 
-  Database,
+  Database, 
   Building2,
   Clock,
   Search,
@@ -72,10 +72,9 @@ export default function ClusterManager() {
     country: 'India'
   });
 
-  // Dynamic Registry Subscription
-  const { data: offices, loading } = useCollection(
-    query(collection(db, 'offices'), orderBy('officeName', 'asc'))
-  );
+  // Memoized Query for stable performance
+  const officesQuery = useMemo(() => query(collection(db, 'offices'), orderBy('officeName', 'asc')), [db]);
+  const { data: offices, loading } = useCollection(officesQuery);
 
   const filteredOffices = useMemo(() => 
     offices?.filter(o => 

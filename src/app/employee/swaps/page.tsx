@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { collection, query, where, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -21,8 +21,20 @@ export default function ShiftSwaps() {
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: employees } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active')));
-  const { data: mySwaps } = useCollection(profile?.employeeId ? query(collection(db, 'shift_swaps'), where('requesterId', '==', profile.employeeId), orderBy('createdAt', 'desc')) : null);
+  // Memoized Queries for performance stability
+  const activeEmployeesQuery = useMemo(() => query(collection(db, 'employees'), where('status', '==', 'Active')), [db]);
+  const { data: employees } = useCollection(activeEmployeesQuery);
+
+  const mySwapsQuery = useMemo(() => {
+    if (!profile?.employeeId) return null;
+    return query(
+      collection(db, 'shift_swaps'), 
+      where('requesterId', '==', profile.employeeId), 
+      orderBy('createdAt', 'desc')
+    );
+  }, [db, profile?.employeeId]);
+
+  const { data: mySwaps } = useCollection(mySwapsQuery);
 
   const [swapData, setSwapData] = useState({
     targetEmployeeId: '',
@@ -130,7 +142,7 @@ export default function ShiftSwaps() {
               <Label className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground ml-1">Clinical Justification</Label>
               <Textarea 
                 placeholder="Brief reason for the swap (e.g. Continuing Education, Family Commitments)..." 
-                className="min-h-[160px] font-medium rounded-2xl border-2 p-6 transition-all focus:border-secondary"
+                className="min-h-[140px] font-medium rounded-2xl border-2 p-6 transition-all focus:border-secondary"
                 value={swapData.reason}
                 onChange={(e) => setSwapData({ ...swapData, reason: e.target.value })}
               />

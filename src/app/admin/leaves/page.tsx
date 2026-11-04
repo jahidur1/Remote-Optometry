@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { collection, query, orderBy, setDoc, doc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -33,16 +33,24 @@ export default function LeaveManagement() {
     reason: ''
   });
 
-  const leavesQuery = query(
-    collection(db, 'employee_leaves'), 
-    profile?.role === 'super_admin' ? orderBy('startDate', 'desc') : where('office', '==', profile?.office || '')
-  );
+  // Memoized Stable Queries for performance
+  const leavesQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'employee_leaves');
+    return profile.role === 'super_admin' 
+      ? query(q, orderBy('startDate', 'desc')) 
+      : query(q, where('office', '==', profile.office || ''));
+  }, [db, profile]);
+
+  const employeesQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'employees');
+    return profile.role === 'super_admin' 
+      ? query(q, orderBy('fullName', 'asc')) 
+      : query(q, where('office', '==', profile.office || ''));
+  }, [db, profile]);
+
   const { data: leaves, loading: leavesLoading } = useCollection(leavesQuery);
-  
-  const employeesQuery = query(
-    collection(db, 'employees'), 
-    profile?.role === 'super_admin' ? orderBy('fullName', 'asc') : where('office', '==', profile?.office || '')
-  );
   const { data: employees } = useCollection(employeesQuery);
 
   const handleAddLeave = async () => {
@@ -105,11 +113,13 @@ export default function LeaveManagement() {
     }
   };
 
-  const filteredLeaves = leaves?.filter(l => {
-    const emp = employees?.find(e => e.id === l.employeeId);
-    const text = `${emp?.fullName} ${l.employeeId} ${l.reason}`.toLowerCase();
-    return text.includes(searchTerm.toLowerCase());
-  });
+  const filteredLeaves = useMemo(() => {
+    return leaves?.filter(l => {
+      const emp = employees?.find(e => e.id === l.employeeId);
+      const text = `${emp?.fullName} ${l.employeeId} ${l.reason}`.toLowerCase();
+      return text.includes(searchTerm.toLowerCase());
+    });
+  }, [leaves, employees, searchTerm]);
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto animate-in pb-40 px-4">
@@ -236,6 +246,8 @@ export default function LeaveManagement() {
                     Array(5).fill(0).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={4} className="py-8 px-10"><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                     ))
+                  ) : filteredLeaves?.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="py-24 text-center text-muted-foreground font-black uppercase text-xs tracking-widest opacity-30">No active absences found</TableCell></TableRow>
                   ) : filteredLeaves?.map((l) => {
                     const emp = employees?.find(e => e.id === l.employeeId);
                     return (
