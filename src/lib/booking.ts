@@ -4,7 +4,6 @@ import {
   runTransaction, 
   Firestore, 
   serverTimestamp,
-  increment
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -67,8 +66,9 @@ export async function bookWeeklyOff(
       }
 
       // 3. Strict Quota Enforcement (Deterministic Read-Check)
-      const totalQuota = Number(config.quotas?.[dayOfWeek]) || 0;
-      const currentBooked = Number(config.booked?.[dayOfWeek]) || 0;
+      // Fix: Ensure we handle undefined keys by defaulting to 0 before Number coercion
+      const totalQuota = Number(config.quotas?.[dayOfWeek] || 0);
+      const currentBooked = Number(config.booked?.[dayOfWeek] || 0);
 
       if (currentBooked >= totalQuota) {
         return { success: false, message: "sorry currently no slot available in this day you choice, you can select different day as a week off" };
@@ -95,7 +95,6 @@ export async function bookWeeklyOff(
       return { success: true, message: `successfully booking week off on ${dayOfWeek}` };
     });
   } catch (error: any) {
-    // If we have a permission error, emit for debugging
     if (error.code === 'permission-denied') {
         const permissionError = new FirestorePermissionError({
           path: configRef.path,

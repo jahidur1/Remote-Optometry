@@ -140,7 +140,7 @@ export default function WeekOffConfiguration() {
     const configId = `${weekId}_${office}`;
     const configRef = doc(db, 'weekoff_configs', configId);
     
-    // Ensure all active days have a booked entry to prevent NaN in UI
+    // Hardening: Ensure every active day has an initialized booked count
     const finalBookedMap = { ...currentBookedMap };
     activeDays.forEach(day => {
       if (finalBookedMap[day] === undefined) finalBookedMap[day] = 0;
@@ -162,7 +162,7 @@ export default function WeekOffConfiguration() {
     setDoc(configRef, payload, { merge: true })
       .then(() => {
         logAudit(db, profile?.uid || 'system', exists ? 'UPDATE_WEEKOFF_CONFIG' : 'CONFIGURE_WEEKOFF_OFFICE', configId, payload);
-        toast({ title: exists ? "Registry Updated" : "Pulse established", description: `FCFS window for ${office} secured.` });
+        toast({ title: exists ? "Registry Updated" : "Pulse Established", description: `FCFS window for ${office} secured.` });
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -238,14 +238,14 @@ export default function WeekOffConfiguration() {
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
                   {authorizedOffices.map(o => (
                     <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
-                      {o.officeName} [{o.shortCode}] Hub
+                      {o.officeName} Hub
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle (Strict 7-Day)</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
@@ -316,7 +316,7 @@ export default function WeekOffConfiguration() {
                 <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-3">
                     <Clock className="size-3 text-secondary" /> Pulse Termination (IST)
-                  </Label>
+                  </label>
                   <Input 
                     type="datetime-local" 
                     className="h-12 font-black border-2 border-slate-100 bg-slate-50 rounded-xl px-6 text-black focus:border-secondary transition-all shadow-inner" 

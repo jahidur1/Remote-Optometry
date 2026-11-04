@@ -59,6 +59,23 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["officeId", "officeName", "shortCode", "status"]
+    },
+    "WeekOffConfig": {
+      "title": "Week-Off Configuration",
+      "description": "Rules and quotas for weekly-off reservations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "weekId": { "type": "string" },
+        "office": { "type": "string" },
+        "bookingOpen": { "type": "string", "format": "date-time" },
+        "bookingClose": { "type": "string", "format": "date-time" },
+        "quotas": { "type": "object", "description": "Map of Day -> Number" },
+        "booked": { "type": "object", "description": "Map of Day -> Current Count" },
+        "status": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "weekId", "office", "bookingOpen", "bookingClose", "quotas"]
     }
   },
   "auth": {
@@ -82,7 +99,7 @@
       "description": "Office-specific booking window settings."
     },
     "/roster_quotas/{quotaId}": {
-      "schema": "OtpPulse",
+      "schema": { "$ref": "#/entities/OtpPulse" },
       "description": "Localized staffing requirements (weekId_officeId)."
     }
   }
