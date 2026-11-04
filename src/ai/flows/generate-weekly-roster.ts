@@ -17,6 +17,7 @@ import { assertOfficeActive } from '@/lib/office-utils';
 export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
   officeId: z.string(),
+  employeeIds: z.array(z.string()).describe('List of professional IDs selected for this generation pulse.'),
   idToken: z.string().describe('Firebase ID token for administrative authentication.'),
 });
 
@@ -117,7 +118,7 @@ OUTPUT SPECIFICATION:
  */
 export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
   const start = Date.now();
-  const { weekId, officeId, idToken } = input;
+  const { weekId, officeId, employeeIds, idToken } = input;
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekDates = getDatesForWeek(weekId);
 
@@ -150,7 +151,9 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     }
 
     const rulesData = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const employees = empSnap.docs.map(d => {
+    
+    // Filter employees based on selection
+    const allEmployees = empSnap.docs.map(d => {
       const data = d.data();
       const rule: any = rulesData.find(r => r.employeeId === d.id);
       return { 
@@ -162,8 +165,14 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       };
     });
 
-    const bookings = bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const leaves = leavesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const employees = allEmployees.filter(e => employeeIds.includes(e.id));
+
+    if (employees.length === 0) {
+      throw new Error("Pipeline Blocked: No professionals selected for generation.");
+    }
+
+    const bookings = bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => employeeIds.includes(b.employeeId));
+    const leaves = leavesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((l: any) => employeeIds.includes(l.employeeId));
 
     const locks = [
       ...bookings.map((b: any) => ({ employeeId: b.employeeId, dayOfWeek: b.dayOfWeek })),
@@ -197,13 +206,11 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     const resultAssignments = output || [];
     const solveTimeMs = Date.now() - start;
     
-    // Convert dates to strings for integrity checker to prevent serialization issues
-    const dateStrings = weekDates.map(d => d.toISOString());
     const integrity = verifyRosterIntegrity(resultAssignments, bookings, leaves, weekDates);
 
     return {
       rosterAssignments: resultAssignments,
-      summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: AI violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol. Min quotas satisfied with max personnel utilization.`,
+      summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: AI violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol for ${employees.length} selected professionals.`,
       status: !integrity.isValid ? 'UNKNOWN' : 'FEASIBLE',
       issuesEncountered: integrity.issues,
       solverMetadata: {

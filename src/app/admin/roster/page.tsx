@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, orderBy, doc, setDoc, where, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, doc, setDoc, where } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,30 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
 import { 
   BrainCircuit, 
-  Sparkles, 
-  AlertTriangle, 
-  History, 
   ShieldCheck, 
-  Loader2, 
-  Play, 
   Activity, 
   ChevronRight, 
-  Target, 
-  Lock, 
-  Server, 
-  Clock, 
-  Zap, 
-  Cpu, 
-  Terminal, 
-  Database, 
-  Building2, 
-  CalendarDays,
+  Play, 
   Wand2,
-  BarChart3,
-  ArrowRightLeft,
   Search,
-  Plus,
-  ArrowLeft
+  ArrowLeft,
+  CalendarDays,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -65,6 +52,7 @@ export default function RosterSolver() {
   const [solverResult, setSolverResult] = useState<any>(null);
   const [lastDraftId, setLastDraftId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
 
   const db = useFirestore();
   const auth = useAuth();
@@ -81,7 +69,6 @@ export default function RosterSolver() {
     return registryOffices.filter(o => allowedIds.includes(o.officeId));
   }, [profile, registryOffices]);
 
-  // Constraints Data
   const empQuery = useMemo(() => {
     if (!selectedOffice) return null;
     return query(collection(db, 'employees'), where('office', '==', selectedOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
@@ -110,9 +97,41 @@ export default function RosterSolver() {
     }
   }, [authorizedOffices, selectedOffice]);
 
+  // Filter for role === 'user'
+  const rosterEligibleUsers = useMemo(() => {
+    return employees?.filter(e => e.role === 'user') || [];
+  }, [employees]);
+
+  // Pre-select all users when loaded
+  useEffect(() => {
+    if (rosterEligibleUsers.length > 0 && selectedEmpIds.length === 0 && status === 'idle') {
+      setSelectedEmpIds(rosterEligibleUsers.map(e => e.id));
+    }
+  }, [rosterEligibleUsers, status]);
+
+  const filteredEmployees = rosterEligibleUsers.filter(emp => 
+    emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || emp.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
     setWeekId(formatWeekId(date));
+  };
+
+  const toggleAllSelection = (checked: boolean) => {
+    if (checked) {
+      setSelectedEmpIds(rosterEligibleUsers.map(e => e.id));
+    } else {
+      setSelectedEmpIds([]);
+    }
+  };
+
+  const toggleEmpSelection = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedEmpIds(prev => [...prev, id]);
+    } else {
+      setSelectedEmpIds(prev => prev.filter(eid => eid !== id));
+    }
   };
 
   const handleUpdateRule = async (employeeId: string, type: 'pre' | 'post', shiftId: string, checked: boolean) => {
@@ -158,6 +177,11 @@ export default function RosterSolver() {
       toast({ variant: "destructive", title: "Input Required", description: "Select Hub and Clinical Cycle." });
       return;
     }
+
+    if (selectedEmpIds.length === 0) {
+      toast({ variant: "destructive", title: "Selection Required", description: "Select at least one professional for roster generation." });
+      return;
+    }
     
     setStatus("running");
     setProgress(15);
@@ -171,6 +195,7 @@ export default function RosterSolver() {
       const result = await generateWeeklyRoster({
         weekId,
         officeId: selectedOffice,
+        employeeIds: selectedEmpIds,
         idToken: idToken,
       });
       
@@ -194,21 +219,18 @@ export default function RosterSolver() {
         solverMetadata: result.solverMetadata,
         createdAt: new Date().toISOString(),
         actorId: profile?.uid,
-        generationMethod: 'ai'
+        generationMethod: 'ai',
+        includedProfessionals: selectedEmpIds
       });
 
       setLastDraftId(draftId);
-      logAudit(db, profile?.uid || 'system', 'RUN_AI_ROSTER_ENGINE', draftId, { weekId, office: selectedOffice });
+      logAudit(db, profile?.uid || 'system', 'RUN_AI_ROSTER_ENGINE', draftId, { weekId, office: selectedOffice, empCount: selectedEmpIds.length });
       setStatus("success");
     } catch (e: any) {
       setStatus("conflict");
       toast({ variant: "destructive", title: "Engine Conflict", description: e.message });
     }
   };
-
-  const filteredEmployees = employees?.filter(emp => 
-    emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || emp.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
@@ -219,7 +241,7 @@ export default function RosterSolver() {
               <BrainCircuit className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">AI Roster Engine</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">GenAI Roster Engine</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Gemini 1.5 Flash Orchestrator <Activity className="size-3 text-secondary animate-pulse" />
@@ -267,22 +289,31 @@ export default function RosterSolver() {
         <div className="space-y-8 animate-in">
            <div className="flex items-center justify-between">
               <Button variant="ghost" onClick={() => setStatus('idle')} className="font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Engine</Button>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
-                <Input placeholder="Search Professionals..." className="pl-10 h-10 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <div className="flex items-center gap-4">
+                <div className="bg-secondary/5 px-6 py-2 rounded-xl border border-secondary/20 font-black text-[10px] uppercase text-secondary">Selected: {selectedEmpIds.length} / {rosterEligibleUsers.length}</div>
+                <div className="relative w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
+                    <Input placeholder="Search Professionals..." className="pl-10 h-10 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
               </div>
            </div>
 
            <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white overflow-hidden border-t-8 border-t-secondary">
              <CardHeader className="bg-slate-50/50 border-b p-8">
-                <CardTitle className="text-xl font-black uppercase">Constraint Matrix (Cycle {displayWeekRange(weekId)})</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Define shift distribution and adjacency eligibility before generation.</CardDescription>
+                <CardTitle className="text-xl font-black uppercase">Clinical Enrollment & Constraints</CardTitle>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Select professionals to include and define their individual distribution rules.</CardDescription>
              </CardHeader>
              <CardContent className="p-0 overflow-x-auto">
                 <Table>
                    <TableHeader className="bg-slate-50/30">
                       <TableRow>
-                         <TableHead className="w-[200px] pl-10 py-6 uppercase text-[9px] font-black tracking-widest">Professional</TableHead>
+                         <TableHead className="w-[60px] pl-10">
+                            <Checkbox 
+                               checked={selectedEmpIds.length === rosterEligibleUsers.length && rosterEligibleUsers.length > 0} 
+                               onCheckedChange={(c) => toggleAllSelection(!!c)} 
+                            />
+                         </TableHead>
+                         <TableHead className="w-[200px] py-6 uppercase text-[9px] font-black tracking-widest">Professional</TableHead>
                          <TableHead className="w-[100px] py-6 uppercase text-[9px] font-black tracking-widest text-center">Off-Day</TableHead>
                          <TableHead className="py-6 uppercase text-[9px] font-black tracking-widest text-center">Frequency limits</TableHead>
                          <TableHead className="py-6 uppercase text-[9px] font-black tracking-widest text-center">Pre-Off eligibility</TableHead>
@@ -293,9 +324,17 @@ export default function RosterSolver() {
                       {filteredEmployees?.map(emp => {
                         const rule = rules?.find(r => r.employeeId === emp.id);
                         const booking = bookings?.find(b => b.employeeId === emp.id);
+                        const isSelected = selectedEmpIds.includes(emp.id);
+
                         return (
-                          <TableRow key={emp.id} className="hover:bg-slate-50 border-b">
-                             <TableCell className="pl-10 py-4">
+                          <TableRow key={emp.id} className={cn("hover:bg-slate-50 border-b transition-colors", !isSelected && "opacity-40 grayscale")}>
+                             <TableCell className="pl-10">
+                                <Checkbox 
+                                   checked={isSelected} 
+                                   onCheckedChange={(c) => toggleEmpSelection(emp.id, !!c)} 
+                                />
+                             </TableCell>
+                             <TableCell className="py-4">
                                 <p className="font-black text-[13px] uppercase">{emp.fullName}</p>
                                 <code className="text-[9px] font-bold text-slate-300">{emp.id}</code>
                              </TableCell>
