@@ -113,7 +113,8 @@ service cloud.firestore {
 
       allow read: if isUserActive() && (resource == null || resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
       allow create: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
-      allow delete, update: if isAdmin() && isMemberOf(resource.data.office);
+      // HARDENED: Only Super Admin can modify or delete confirmed week-off bookings
+      allow delete, update: if isSuperAdmin();
     }
 
     match /published_rosters/{versionId} { 
@@ -143,7 +144,7 @@ service cloud.firestore {
       }
 
       allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
-      allow write: if isAdmin() && isMemberOf(request.resource.data.office);
+      allow write: if isAdmin() && isMemberOf(resource.data.office);
     }
 
     match /shift_swaps/{swapId} {

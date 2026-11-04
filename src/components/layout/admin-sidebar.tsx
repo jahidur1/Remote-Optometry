@@ -25,6 +25,7 @@ import {
   Globe,
   Building2,
   ChevronDown,
+  ListTodo,
 } from "lucide-react"
 
 import {
@@ -73,6 +74,7 @@ const navGroups = [
     label: "Workforce",
     items: [
       { title: "User Details", url: "/admin/employees", icon: Users, roles: ["super_admin", "admin"] },
+      { title: "Week-Off Ledger", url: "/admin/week-off-ledger", icon: ListTodo, roles: ["super_admin", "admin"] },
       { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["super_admin", "admin"] },
       { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["super_admin", "admin"] },
     ]
