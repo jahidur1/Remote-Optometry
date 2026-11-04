@@ -1,8 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { useFirestore, useUser } from '@/firebase';
+import { useAuth } from '@/firebase';
 import {
   Dialog,
   DialogContent,
@@ -22,9 +22,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { logAudit } from '@/lib/audit';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ShieldAlert, Zap, Lock, Mail, User, Fingerprint, ShieldCheck } from 'lucide-react';
+import { Zap, User, Fingerprint } from 'lucide-react';
+import { updateEmployeeRecordAction } from '@/services/identity-actions';
 import Link from 'next/link';
 
 interface EmployeeDialogProps {
@@ -40,8 +40,7 @@ const OFFICES = [
 ];
 
 export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogProps) {
-  const db = useFirestore();
-  const { profile } = useUser();
+  const auth = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
@@ -81,40 +80,26 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
     setLoading(true);
     try {
-      const employeeRef = doc(db, 'employees', employee.id);
-      const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
-      
-      const payload = {
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("Session expired.");
+
+      const updates = {
         ...formData,
-        whatsappNumber: phoneFormatted,
-        age: parseInt(formData.age) || 0,
-        updatedAt: new Date().toISOString(),
+        whatsappNumber: `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`,
+        age: parseInt(formData.age) || 0
       };
 
-      await updateDoc(employeeRef, payload);
+      const result = await updateEmployeeRecordAction(idToken, employee.id, updates);
       
-      // SYNC: Propagate role and metadata to user profile
-      const userQuery = query(collection(db, 'users'), where('employeeId', '==', employee.id));
-      const userSnap = await getDocs(userQuery);
-      if (!userSnap.empty) {
-        await updateDoc(userSnap.docs[0].ref, {
-          displayName: formData.fullName,
-          email: formData.email.toLowerCase(),
-          role: formData.role,
-          office: formData.office,
-          status: formData.status,
-          phoneNumber: phoneFormatted,
-          updatedAt: new Date().toISOString()
+      if (result.success) {
+        toast({
+          title: 'Registry Synchronized',
+          description: `Institutional record for ${formData.fullName} secured via Trusted Node.`,
         });
+        onOpenChange(false);
+      } else {
+        throw new Error(result.error);
       }
-
-      logAudit(db, profile?.uid || 'system', 'ADMIN_UPDATE_IDENTITY', employee.id, { role: formData.role });
-
-      toast({
-        title: 'Registry Synchronized',
-        description: `Institutional record for ${formData.fullName} has been secured.`,
-      });
-      onOpenChange(false);
     } catch (error: any) {
       toast({ title: 'Registry Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -131,7 +116,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
             {employee ? 'Edit Identity Node' : 'Registry Alert'}
           </DialogTitle>
           <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">
-            Identity Management Protocol — v3.1
+            Trusted Backend Identity Protocol — v4.0
           </DialogDescription>
         </div>
 
@@ -150,7 +135,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                   <Input
                     className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
                     value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value.toUpperCase() })}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                     required
                   />
                 </div>
@@ -218,8 +203,8 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
                         <SelectItem value="Male" className="font-bold text-[11px] uppercase py-3">Male</SelectItem>
-                        <SelectItem value="Female" className="font-bold text-[11px] uppercase py-3">Female</SelectItem>
-                        <SelectItem value="Other" className="font-bold text-[11px] uppercase py-3">Other</SelectItem>
+                        <SelectItem value="Female" className="font-bold py-3 uppercase text-[11px]">Female</SelectItem>
+                        <SelectItem value="Other" className="font-bold py-3 uppercase text-[11px]">Other</SelectItem>
                       </SelectContent>
                     </Select>
                  </div>
@@ -270,7 +255,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
           <DialogFooter className="p-12 bg-slate-50 border-t border-slate-100">
             <Button type="submit" disabled={loading} className="w-full h-18 font-black uppercase tracking-[0.25em] text-[15px] rounded-3xl shadow-2xl bg-primary hover:bg-black text-white transition-all" onClick={handleSubmit}>
               {loading ? <Loader2 className="animate-spin mr-3 size-6" /> : <Zap className="mr-3 size-6 fill-white" />}
-              {loading ? 'SYNCING REGISTRY...' : 'Update Audit Trail'}
+              {loading ? 'SYNCING REGISTRY...' : 'Update Institutional Record'}
             </Button>
           </DialogFooter>
         )}

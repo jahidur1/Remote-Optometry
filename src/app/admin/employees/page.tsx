@@ -2,9 +2,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, orderBy, where, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
-import { useFirestore, useCollection, useUser } from '@/firebase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { collection, query, orderBy } from 'firebase/firestore';
+import { useFirestore, useCollection, useUser, useAuth } from '@/firebase';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { logAudit } from '@/lib/audit';
+import { updateAccountStatusAction } from '@/services/identity-actions';
 import Link from 'next/link';
 
 export default function EmployeeManagement() {
@@ -50,6 +50,7 @@ export default function EmployeeManagement() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   
   const firestore = useFirestore();
+  const auth = useAuth();
   const { profile } = useUser();
   const { toast } = useToast();
 
@@ -86,24 +87,19 @@ export default function EmployeeManagement() {
     
     setProcessingId(employee.id);
     try {
-      const empRef = doc(firestore, 'employees', employee.id);
-      await updateDoc(empRef, { 
-        status: newStatus,
-        updatedAt: serverTimestamp() 
-      });
-      
-      // SYNC: Update corresponding user record if it exists
-      const userQuery = query(collection(firestore, 'users'), where('employeeId', '==', employee.id));
-      const userSnap = await getDocs(userQuery);
-      if (!userSnap.empty) {
-        await updateDoc(userSnap.docs[0].ref, { status: newStatus });
-      }
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("Session expired.");
 
-      logAudit(firestore, profile.uid, `ADMIN_${newStatus.toUpperCase()}_EMPLOYEE`, employee.id);
-      toast({ 
-        title: `Protocol Updated`, 
-        description: `${employee.fullName} status set to ${newStatus} in registry.` 
-      });
+      const result = await updateAccountStatusAction(idToken, employee.id, newStatus);
+      
+      if (result.success) {
+        toast({ 
+          title: `Protocol Updated`, 
+          description: `${employee.fullName} status set to ${newStatus} via Trusted Node.` 
+        });
+      } else {
+        throw new Error(result.error);
+      }
     } catch (e: any) {
       toast({ title: "Registry Error", description: e.message, variant: "destructive" });
     } finally {
@@ -113,7 +109,6 @@ export default function EmployeeManagement() {
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* Institutional Header Pulse */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -158,13 +153,12 @@ export default function EmployeeManagement() {
         </div>
       </div>
 
-      {/* KPI Ledger */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Authorized Pool', value: stats.active, sub: 'Active Personnel', icon: Users, color: 'text-primary' },
           { label: 'Cluster Distribution', value: stats.offices, sub: 'ROC Units Engaged', icon: Building2, color: 'text-secondary' },
           { label: 'Sync Pulse', value: `${stats.syncIntegrity}%`, sub: 'Registry Integrity', icon: Database, color: 'text-secondary' },
-          { label: 'Security Mode', value: 'Z-TRUST', sub: 'IAM OIDC Policy', icon: ShieldCheck, color: 'text-black' }
+          { label: 'Security Mode', value: 'B-TRUST', sub: 'Trusted Node Policy', icon: ShieldCheck, color: 'text-black' }
         ].map((kpi, i) => (
           <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -183,7 +177,6 @@ export default function EmployeeManagement() {
         ))}
       </div>
 
-      {/* Main Staff Ledger */}
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
@@ -307,7 +300,7 @@ export default function EmployeeManagement() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64 rounded-2xl shadow-2xl border border-slate-100 bg-white p-2 animate-in zoom-in-95">
                           <DropdownMenuItem className="h-12 font-black uppercase text-[10px] tracking-[0.2em] rounded-xl focus:bg-primary focus:text-white" onClick={() => handleEdit(employee)}>
-                            <Edit2 className="mr-3 h-4 w-4" /> Edit Audit Trail
+                            <Edit2 className="mr-3 h-4 w-4" /> Edit Registry Metadata
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-slate-50" />
                           <DropdownMenuItem 
@@ -318,9 +311,9 @@ export default function EmployeeManagement() {
                             onClick={() => toggleStatus(employee)}
                           >
                             {employee.status === 'Active' ? (
-                              <><ShieldAlert className="mr-3 h-4 w-4" /> Suspend Auth Node</>
+                              <><ShieldAlert className="mr-3 h-4 w-4" /> Suspend Identity Node</>
                             ) : (
-                              <><CheckCircle2 className="mr-3 h-4 w-4" /> Reactivate Profile</>
+                              <><CheckCircle2 className="mr-3 h-4 w-4" /> Reactivate Node</>
                             )}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -334,7 +327,6 @@ export default function EmployeeManagement() {
         </CardContent>
       </Card>
 
-      {/* Institutional Protocol Matrix */}
       <div className="grid md:grid-cols-2 gap-8">
           <Card className="shadow-xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white relative group">
             <div className="absolute top-0 right-0 p-10 transform group-hover:scale-110 transition-transform duration-[2s] opacity-[0.03] pointer-events-none">
@@ -345,10 +337,10 @@ export default function EmployeeManagement() {
                     <Terminal className="size-8 text-white" />
                 </div>
                 <div className="space-y-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Registry Protocol</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Trusted Registry Protocol</p>
                   <p className="text-[15px] leading-relaxed font-bold text-black/80 uppercase tracking-tight">
-                    Professional identity records are immutably linked to the clinical cluster pulse. Every provisioning action is audited 
-                    and logged to ensure complete traceability within the workforce management lifecycle.
+                    Identity records are managed via Trusted Server Actions. Direct browser writes to authorization profiles are blocked 
+                    to ensure 100% synchronization between the clinical registry and authentication nodes.
                   </p>
                 </div>
             </CardContent>
@@ -364,14 +356,14 @@ export default function EmployeeManagement() {
                 </div>
                 <div className="space-y-1">
                    <p className="text-[11px] font-black uppercase tracking-[0.4em] text-secondary">Operational Pulse</p>
-                   <p className="text-2xl font-black text-black uppercase tracking-tight leading-none">Sync Intelligence</p>
+                   <p className="text-2xl font-black text-black uppercase tracking-tight leading-none">Status Intelligence</p>
                 </div>
              </div>
              
              <div className="space-y-6 pt-2">
                <p className="text-[14px] text-black/60 leading-relaxed font-black uppercase tracking-widest">
-                 The CP-SAT engine utilizes this directory to calculate clinical eligibility. Personnel marked as 'Suspended' or 'Inactive' 
-                 are automatically excluded from the optimization matrix to prevent invalid assignments.
+                 The CP-SAT engine utilizes this directory to calculate clinical eligibility. The Trusted Node ensures that 
+                 suspensions are propagated instantly across all authorization matrices.
                </p>
                <div className="pt-6 border-t border-slate-100 flex items-center gap-4">
                   <Zap className="size-5 text-secondary" />

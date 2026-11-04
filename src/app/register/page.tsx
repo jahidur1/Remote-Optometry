@@ -3,25 +3,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { 
-  getAuth,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  sendEmailVerification,
-  signOut
-} from 'firebase/auth';
-import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
-import { useFirestore, firebaseConfig, useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff, Phone } from 'lucide-react';
+import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff, Phone, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { logAudit } from '@/lib/audit';
 import { RoleGuard } from '@/components/auth/role-guard';
+import { provisionIdentityAction } from '@/services/identity-actions';
 
 const OFFICES = [
   { id: "KOLKATA_ROC", name: "KOLKATA ROC" },
@@ -45,22 +36,9 @@ export default function RegisterPage() {
     office: 'KOLKATA_ROC'
   });
   
-  const mainDb = useFirestore();
-  const { profile: adminProfile } = useUser();
+  const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-
-  const validateInput = async () => {
-    const idQ = query(collection(mainDb, 'employees'), where('id', '==', formData.employeeId.toUpperCase()));
-    const idSnap = await getDocs(idQ);
-    if (!idSnap.empty) throw new Error("Employee ID is already registered in the institutional registry.");
-
-    const emailQ = query(collection(mainDb, 'employees'), where('email', '==', formData.email.toLowerCase()));
-    const emailSnap = await getDocs(emailQ);
-    if (!emailSnap.empty) throw new Error("This email is already bound to an active identity node.");
-
-    if (formData.whatsappNumber.length < 10) throw new Error("A valid 10-digit mobile number is required.");
-  };
 
   const handleProvisionIdentity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,92 +48,38 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    
-    // SECURITY: Use temporary Firebase App to provision new user without logging out the current admin session.
-    const tempAppName = `temp-provision-${Date.now()}`;
-    let tempApp;
-    
     try {
-      await validateInput();
-      
-      tempApp = initializeApp(firebaseConfig, tempAppName);
-      const tempAuth = getAuth(tempApp);
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("Session Expired: Please re-authenticate.");
 
-      const userCredential = await createUserWithEmailAndPassword(tempAuth, formData.email, password);
-      const newUser = userCredential.user;
+      const result = await provisionIdentityAction(idToken, formData, password);
       
-      await updateProfile(newUser, { displayName: formData.fullName.toUpperCase() });
-      await sendEmailVerification(newUser);
-
-      // Final identity synchronization
-      await commitRecords(newUser.uid);
-      await signOut(tempAuth);
-      await deleteApp(tempApp);
-
-      toast({ 
-        title: "Enrollment Successful", 
-        description: `Identity [${formData.employeeId}] provisioned. Verification pulse dispatched.` 
-      });
-      
-      setFormData({
-        fullName: '',
-        email: '',
-        employeeId: '',
-        whatsappNumber: '',
-        role: 'EMPLOYEE',
-        gender: 'Male',
-        department: 'Remote Optometry',
-        designation: 'Staff Professional',
-        office: 'KOLKATA_ROC'
-      });
-      setPassword('');
-      
+      if (result.success) {
+        toast({ 
+          title: "Enrollment Successful", 
+          description: `Identity [${formData.employeeId}] provisioned in cluster registry.` 
+        });
+        
+        setFormData({
+          fullName: '',
+          email: '',
+          employeeId: '',
+          whatsappNumber: '',
+          role: 'EMPLOYEE',
+          gender: 'Male',
+          department: 'Remote Optometry',
+          designation: 'Staff Professional',
+          office: 'KOLKATA_ROC'
+        });
+        setPassword('');
+      } else {
+        throw new Error(result.error);
+      }
     } catch (error: any) {
-      if (tempApp) await deleteApp(tempApp);
       toast({ variant: "destructive", title: "Enrollment Failed", description: error.message });
     } finally {
       setLoading(false);
     }
-  };
-
-  const commitRecords = async (uid: string) => {
-    const empRef = doc(mainDb, 'employees', formData.employeeId.toUpperCase());
-    const userRef = doc(mainDb, 'users', uid);
-    const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
-
-    const commonData = {
-      fullName: formData.fullName.toUpperCase(),
-      email: formData.email.toLowerCase(),
-      whatsappNumber: phoneFormatted,
-      role: formData.role,
-      office: formData.office,
-      status: 'Active',
-      updatedAt: new Date().toISOString()
-    };
-
-    // Commit to Master Employee Registry
-    await setDoc(empRef, {
-      ...commonData,
-      id: formData.employeeId.toUpperCase(),
-      gender: formData.gender,
-      department: formData.department,
-      designation: formData.designation,
-      joinedAt: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      authUid: uid
-    });
-
-    // Commit to Authentication Profile Registry
-    await setDoc(userRef, {
-      ...commonData,
-      uid,
-      displayName: formData.fullName.toUpperCase(),
-      employeeId: formData.employeeId.toUpperCase(),
-      phoneNumber: phoneFormatted,
-      lastLogin: new Date().toISOString()
-    });
-
-    logAudit(mainDb, adminProfile?.uid || 'ADMIN', 'ADMIN_PROVISION_IDENTITY', formData.employeeId, { role: formData.role, email: formData.email });
   };
 
   return (
@@ -172,7 +96,7 @@ export default function RegisterPage() {
                 </div>
              </div>
              <CardTitle className="text-4xl font-black uppercase tracking-tight leading-none relative z-10 text-white">Enroll Professional</CardTitle>
-             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Institutional Authentication Deployment — v3.1</CardDescription>
+             <CardDescription className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mt-4 relative z-10">Institutional Trusted Backend Provisioning — Closure B</CardDescription>
              <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none"><Zap size={240} /></div>
           </CardHeader>
           
@@ -181,9 +105,9 @@ export default function RegisterPage() {
               <div className="p-6 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex gap-6 items-start">
                   <ShieldAlert className="size-6 text-secondary shrink-0 mt-1" />
                   <div className="space-y-1">
-                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Administrative Guard</p>
+                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Trusted Node Authentication</p>
                     <p className="text-[12px] font-bold text-black/60 uppercase leading-relaxed tracking-tight">
-                        Enrollment provisions both the clinical registry and authentication node. Roles are immutably mapped during deployment.
+                        Enrollment uses a server-side atomic pulse. Direct client-side writes are restricted to maintain institutional registry integrity.
                     </p>
                   </div>
               </div>
@@ -193,7 +117,7 @@ export default function RegisterPage() {
                     <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
                     <div className="relative group">
                         <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
-                        <Input className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all bg-white" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value.toUpperCase()})} required placeholder="JANE DOE" />
+                        <Input className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all bg-white" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} required placeholder="JANE DOE" />
                     </div>
                  </div>
                  <div className="space-y-3">
@@ -308,11 +232,10 @@ export default function RegisterPage() {
                 <ShieldCheck className="size-8" />
              </div>
              <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight">
-                Institutional protocol: Enrollment provisions both the clinical registry and authentication node. Every identity is assigned a permanent `role` (SUPER_ADMIN, ADMIN, or EMPLOYEE) that governs platform-wide access logic.
+                Institutional protocol: Enrollment utilizes the Trusted Server Action `provisionIdentityAction`. Every operation is ledgered for institutional compliance.
              </p>
           </CardFooter>
         </Card>
-        <div id="recaptcha-container"></div>
       </div>
     </RoleGuard>
   );
