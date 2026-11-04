@@ -41,6 +41,82 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 }
 
 /**
+ * selfRegisterAction
+ * PUBLIC NODE: Allows new users to sign up with a default 'user' role.
+ * Hardened for ROC 2026 Registry Protocols.
+ */
+export async function selfRegisterAction(formData: any, password: string) {
+  const { fullName, email, employeeId, whatsappNumber, office } = formData;
+  const normalizedEmployeeId = employeeId.toUpperCase().trim();
+  const normalizedEmail = email.toLowerCase().trim();
+  const phoneFormatted = `+91${whatsappNumber.replace(/\D/g, '').slice(-10)}`;
+
+  try {
+    // 1. Availability Pulse
+    const [idSnap, emailSnap, phoneSnap] = await Promise.all([
+      adminDb.collection('employees').doc(normalizedEmployeeId).get(),
+      adminDb.collection('employees').where('email', '==', normalizedEmail).get(),
+      adminDb.collection('employees').where('whatsappNumber', '==', phoneFormatted).get()
+    ]);
+
+    if (idSnap.exists) throw new Error("Registry Conflict: Employee ID already registered.");
+    if (!emailSnap.empty) throw new Error("Registry Conflict: Email already bound to a node.");
+    if (!phoneSnap.empty) throw new Error("Registry Conflict: Mobile number already bound.");
+
+    // 2. Provision Auth Node
+    const authUser = await adminAuth.createUser({
+      email: normalizedEmail,
+      password: password,
+      displayName: fullName,
+      phoneNumber: phoneFormatted,
+      emailVerified: false
+    });
+
+    const commonData = {
+      fullName,
+      email: normalizedEmail,
+      whatsappNumber: phoneFormatted,
+      role: 'user', // Strictly enforced default
+      office: office,
+      status: 'Active',
+      updatedAt: new Date().toISOString()
+    };
+
+    const batch = adminDb.batch();
+    
+    // 3. Mirror to Master Registry
+    batch.set(adminDb.collection('employees').doc(normalizedEmployeeId), {
+      ...commonData,
+      id: normalizedEmployeeId,
+      gender: 'Male', // Default, user can update in profile
+      department: 'Remote Optometry',
+      designation: 'Professional Staff',
+      joinedAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      authUid: authUser.uid
+    });
+
+    // 4. Mirror to Governance Profile
+    batch.set(adminDb.collection('users').doc(authUser.uid), {
+      ...commonData,
+      uid: authUser.uid,
+      displayName: fullName,
+      employeeId: normalizedEmployeeId,
+      phoneNumber: phoneFormatted,
+      lastLogin: null
+    });
+
+    await batch.commit();
+    await logAuditServer('system_self_reg', 'USER_SELF_REGISTRATION', normalizedEmployeeId, { office });
+
+    return { success: true, uid: authUser.uid };
+  } catch (e: any) {
+    console.error('Self-Registration Failure:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * syncProfileOnLoginAction
  * Securely consolidates multiple auth methods to a single clinical professional record.
  */
