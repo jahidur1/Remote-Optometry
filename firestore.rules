@@ -131,6 +131,11 @@ service cloud.firestore {
       allow write: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office); 
     }
 
+    match /shift_adjacency_rules/{ruleId} {
+      allow read: if isAdmin() && isMemberOf(resource.data.office);
+      allow write: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
+    }
+
     match /employee_leaves/{leaveId} {
       function getEmployeeId() {
         let profile = getProfile();
@@ -139,11 +144,6 @@ service cloud.firestore {
 
       allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
       allow write: if isAdmin() && isMemberOf(request.resource.data.office);
-    }
-
-    match /shift_adjacency_rules/{ruleId} {
-      allow read: if isAdmin() && isMemberOf(resource.data.office);
-      allow write: if isAdmin() && isMemberOf(resource.data.office);
     }
 
     match /shift_swaps/{swapId} {

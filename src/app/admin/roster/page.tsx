@@ -8,7 +8,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
-import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server, Clock, Zap, Cpu, Terminal, Database, Building2, CalendarDays } from "lucide-react";
+import { 
+  BrainCircuit, 
+  Sparkles, 
+  AlertTriangle, 
+  History, 
+  ShieldCheck, 
+  Loader2, 
+  Play, 
+  Activity, 
+  ChevronRight, 
+  Target, 
+  Lock, 
+  Server, 
+  Clock, 
+  Zap, 
+  Cpu, 
+  Terminal, 
+  Database, 
+  Building2, 
+  CalendarDays,
+  Wand2
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,13 +37,13 @@ import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { formatWeekId, displayWeekRange } from '@/lib/date-utils';
 
 export default function RosterSolver() {
   const [weekId, setWeekId] = useState('');
   const [selectedOffice, setSelectedOffice] = useState<string>('');
+  const [method, setMethod] = useState<'solver' | 'ai'>('solver');
   const [status, setStatus] = useState<"idle" | "running" | "success" | "conflict">("idle");
   const [progress, setProgress] = useState(0);
   const [solverResult, setSolverResult] = useState<any>(null);
@@ -50,14 +71,6 @@ export default function RosterSolver() {
     }
   }, [authorizedOffices, selectedOffice]);
 
-  const draftsQuery = useMemo(() => {
-    if (!profile || !selectedOffice) return null;
-    const q = collection(db, 'roster_drafts');
-    return query(q, where('office', '==', selectedOffice), orderBy('createdAt', 'desc'), limit(10));
-  }, [db, profile, selectedOffice]);
-  
-  const { data: recentDrafts } = useCollection(draftsQuery);
-
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
     setWeekId(formatWeekId(date));
@@ -70,29 +83,26 @@ export default function RosterSolver() {
     }
     
     setStatus("running");
-    setProgress(20);
+    setProgress(15);
     setSolverResult(null);
     setLastDraftId(null);
 
     try {
       const idToken = await auth.currentUser?.getIdToken(true);
-      if (!idToken) throw new Error("Session expired.");
+      if (!idToken) throw new Error("Session pulse failed.");
 
+      setProgress(40);
       const result = await generateWeeklyRoster({
         weekId,
         officeId: selectedOffice,
-        idToken: idToken
+        idToken: idToken,
+        method
       });
       
       setSolverResult(result);
       setProgress(100);
 
-      if (result.status === 'INFEASIBLE') {
-        setStatus("conflict");
-        return;
-      }
-
-      if (result.status === 'UNKNOWN') {
+      if (result.status === 'INFEASIBLE' || result.status === 'UNKNOWN') {
         setStatus("conflict");
         return;
       }
@@ -108,16 +118,16 @@ export default function RosterSolver() {
         summary: result.summary,
         solverMetadata: result.solverMetadata,
         createdAt: new Date().toISOString(),
-        actorId: profile?.uid
+        actorId: profile?.uid,
+        generationMethod: method
       });
 
       setLastDraftId(draftId);
-      logAudit(db, profile?.uid || 'system', 'RUN_SOLVER', draftId, { weekId, office: selectedOffice });
+      logAudit(db, profile?.uid || 'system', 'RUN_ROSTER_ENGINE', draftId, { weekId, office: selectedOffice, method });
       setStatus("success");
     } catch (e: any) {
       setStatus("conflict");
-      console.error('Solver UI Hub Failure:', e);
-      toast({ variant: "destructive", title: "Pipeline Failure", description: "The server encountered an unexpected pulse conflict. Check audit logs." });
+      toast({ variant: "destructive", title: "Engine Conflict", description: e.message });
     }
   };
 
@@ -130,12 +140,29 @@ export default function RosterSolver() {
               <Cpu className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Engine</h1>
+              <div className="flex items-center gap-3 mt-2">
+                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
+                  Multi-Engine Orchestrator <Activity className="size-3 text-secondary animate-pulse" />
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+        <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+           <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Strategy</label>
+              <Select value={method} onValueChange={(v: any) => setMethod(v)}>
+                <SelectTrigger className="h-6 w-40 font-black border-none bg-transparent p-0 text-[14px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl bg-white p-2 border-none shadow-2xl">
+                  <SelectItem value="solver" className="font-bold py-2 uppercase text-[10px]">CP-SAT Mathematical</SelectItem>
+                  <SelectItem value="ai" className="font-bold py-2 uppercase text-[10px]">GenAI Intelligence</SelectItem>
+                </SelectContent>
+              </Select>
+           </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
@@ -155,7 +182,7 @@ export default function RosterSolver() {
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[14px] uppercase">{weekId ? displayWeekRange(weekId) : 'Select Start'}</span>
+                    <span className="text-[14px] uppercase">{weekId ? displayWeekRange(weekId) : 'Select Cycle'}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
@@ -163,43 +190,71 @@ export default function RosterSolver() {
                 </PopoverContent>
               </Popover>
            </div>
-           <Button className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl" onClick={handleRunSolver} disabled={status === 'running' || !selectedOffice || !weekId}>
-            {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : <Play className="size-4 mr-2 fill-white" />}
-            EXECUTE HUB
+           <Button className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-black" onClick={handleRunSolver} disabled={status === 'running' || !selectedOffice || !weekId}>
+            {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : method === 'solver' ? <Zap className="size-4 mr-2" /> : <Wand2 className="size-4 mr-2" />}
+            INITIATE GENERATION
            </Button>
         </div>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-8">
-          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
-            <CardHeader className="bg-slate-50/50 border-b p-10">
-              <CardTitle className="text-xl uppercase font-black leading-none">CP-SAT Orchestrator</CardTitle>
+          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
+            <CardHeader className="bg-slate-50/50 border-b p-10 flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl uppercase font-black leading-none">Institutional Pulse Hub</CardTitle>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Active Generation strategy: {method === 'solver' ? 'Deterministic Optimization' : 'LLM-Based Scheduling'}</CardDescription>
+              </div>
+              <div className="size-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary">
+                 {method === 'solver' ? <Cpu className="size-7" /> : <BrainCircuit className="size-7" />}
+              </div>
             </CardHeader>
             <CardContent className="p-10">
-              <div className="space-y-10">
-                <div className="h-4 bg-slate-100 rounded-full overflow-hidden border p-0.5">
-                   <div className="h-full bg-secondary rounded-full transition-all duration-700 shadow-[0_0_15px_rgba(59,130,246,0.5)]" style={{ width: `${progress}%` }} />
+              <div className="space-y-12">
+                <div className="space-y-4">
+                    <div className="flex justify-between items-end">
+                       <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/40">Processing Velocity</span>
+                       <span className="text-xl font-black tabular-nums">{progress}%</span>
+                    </div>
+                    <div className="h-4 bg-slate-100 rounded-full overflow-hidden border p-0.5 shadow-inner">
+                       <div className={cn(
+                           "h-full rounded-full transition-all duration-700 shadow-[0_0_15px_rgba(59,130,246,0.3)]",
+                           status === 'running' ? 'bg-secondary animate-pulse' : status === 'success' ? 'bg-emerald-500' : status === 'conflict' ? 'bg-destructive' : 'bg-slate-200'
+                       )} style={{ width: `${progress}%` }} />
+                    </div>
                 </div>
 
                 {solverResult && (
-                  <div className={cn("p-8 rounded-[2rem] border-2 animate-in zoom-in-95", (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20')}>
-                    <div className="flex gap-8 items-start">
-                      <div className={cn("size-14 rounded-2xl flex items-center justify-center shrink-0", (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600')}>
-                         {(solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? <AlertTriangle className="size-7" /> : <Sparkles className="size-7" />}
+                  <div className={cn(
+                      "p-10 rounded-[2.5rem] border-2 animate-in zoom-in-95", 
+                      (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20'
+                  )}>
+                    <div className="flex flex-col md:flex-row gap-10 items-start">
+                      <div className={cn(
+                          "size-20 rounded-3xl flex items-center justify-center shrink-0 shadow-2xl", 
+                          (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive text-white shadow-destructive/20' : 'bg-emerald-500 text-white shadow-emerald-500/20'
+                      )}>
+                         {(solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? <AlertTriangle className="size-10" /> : <ShieldCheck className="size-10" />}
                       </div>
-                      <div className="space-y-4 flex-1">
-                         <p className="text-lg font-black leading-snug">{solverResult.summary}</p>
+                      <div className="space-y-8 flex-1">
+                         <div className="space-y-2">
+                            <h3 className="text-2xl font-black uppercase tracking-tight leading-none">Orchestration Result</h3>
+                            <p className="text-[15px] font-medium leading-relaxed text-black/60">{solverResult.summary}</p>
+                         </div>
                          
                          {solverResult.status === 'UNKNOWN' && solverResult.issuesEncountered?.some((i: string) => i.includes('MISSING_QUOTA')) && (
                            <Link href="/admin/quotas">
-                              <Button variant="destructive" className="w-full h-14 font-black uppercase tracking-[0.2em] rounded-xl shadow-xl">Configure Quotas Hub <ChevronRight className="ml-2 size-5" /></Button>
+                              <Button variant="destructive" className="w-full h-16 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl transition-all hover:scale-[1.02]">
+                                Fix Matrix: Configure Quotas <ChevronRight className="ml-3 size-5" />
+                              </Button>
                            </Link>
                          )}
 
                          {lastDraftId && solverResult.status !== 'INFEASIBLE' && solverResult.status !== 'UNKNOWN' && (
                            <Link href={`/admin/roster/review/${lastDraftId}`}>
-                              <Button className="w-full h-14 bg-emerald-600 text-white font-black uppercase tracking-[0.2em] rounded-xl shadow-xl">Review Workspace <ChevronRight className="ml-2 size-5" /></Button>
+                              <Button className="w-full h-16 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:bg-black transition-all hover:scale-[1.02]">
+                                Audit & Review Workspace <ChevronRight className="ml-3 size-5" />
+                              </Button>
                            </Link>
                          )}
                       </div>
@@ -209,6 +264,26 @@ export default function RosterSolver() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="lg:col-span-4 space-y-8">
+           <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white p-10 space-y-8 group border-l-4 border-l-secondary">
+              <div className="size-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary shadow-inner group-hover:rotate-6 transition-all">
+                 <ShieldCheck className="size-8" />
+              </div>
+              <div className="space-y-3">
+                 <p className="text-[11px] font-black uppercase text-secondary tracking-[0.3em]">Institutional Guard</p>
+                 <p className="text-[13px] font-bold text-black/50 leading-relaxed uppercase tracking-tight">
+                   Both engines strictly enforce **Shift Adjacency Rules** set in the control matrix. Professionals will never be assigned 
+                   invalid shifts before or after their protected week-off.
+                 </p>
+              </div>
+              <Link href="/admin/adjacency" className="block">
+                 <Button variant="outline" className="w-full h-12 border-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-secondary/5 hover:text-secondary hover:border-secondary transition-all">
+                   Manage Adjacency Matrix
+                 </Button>
+              </Link>
+           </Card>
         </div>
       </div>
     </div>

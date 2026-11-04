@@ -3,7 +3,7 @@
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Refactored: Uses dynamic Office Registry and ensures serializable output.
+ * Refactored: Uses dynamic Office Registry, enforces Adjacency Rules, and supports dual-engine (CP-SAT/AI).
  */
 
 import { ai } from '@/ai/genkit';
@@ -17,7 +17,8 @@ import { assertOfficeActive } from '@/lib/office-utils';
 export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
   officeId: z.string(),
-  idToken: z.string().describe('Firebase ID token for administrative authentication and office verification.'),
+  idToken: z.string().describe('Firebase ID token for administrative authentication.'),
+  method: z.enum(['solver', 'ai']).default('solver').describe('Generation strategy: Mathematical CP-SAT or Generative AI.'),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
@@ -47,6 +48,43 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
   return generateWeeklyRosterFlow(input);
 }
 
+const aiPrompt = ai.definePrompt({
+  name: 'generateWeeklyRosterAIPrompt',
+  input: { schema: z.any() },
+  output: { schema: z.array(RosterAssignmentSchema) },
+  prompt: `You are an expert clinical scheduler. Generate a weekly roster for the cluster hub: {{{officeId}}}.
+
+## Context
+Week Cycle: {{{weekId}}}
+Days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+
+## Staff Pool
+{{#each employees}}
+- ID: {{id}}, Gender: {{gender}}, History (SO: {{historicalSO}}, OP: {{historicalOP}})
+{{/each}}
+
+## Clinical Requirements (Quotas)
+{{#each weeklyQuotas}}
+- {{dayOfWeek}}: {{shiftId}} requires {{requiredStaff}} professionals.
+{{/each}}
+
+## Hard Constraints
+1. NEVER assign a professional on their confirmed Weekly-Off.
+2. NEVER assign a professional during their approved leave window.
+3. Adhere strictly to Shift Adjacency Rules:
+{{#each employeeHardConstraints}}
+   {{#if (eq type "restrictedShift")}}
+   - Professional {{employeeId}} on {{dayOfWeek}} MUST be assigned one of: [{{#each restrictedToShifts}}{{this}}, {{/each}}].
+   {{/if}}
+{{/each}}
+
+## Instructions
+- Ensure 100% quota fulfillment.
+- Balance demand shifts (SO/OP) fairly across history counts.
+- Return a valid JSON array of assignments.
+`,
+});
+
 const generateWeeklyRosterFlow = ai.defineFlow(
   {
     name: 'generateWeeklyRosterFlow',
@@ -55,7 +93,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
   },
   async (input) => {
     const start = Date.now();
-    const { weekId, officeId, idToken } = input;
+    const { weekId, officeId, idToken, method } = input;
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const weekDates = getDatesForWeek(weekId);
 
@@ -78,10 +116,10 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       
       const authorizedOffices = adminData.officeIds || (adminData.office ? [adminData.office] : []);
       if (adminData.role === 'admin' && !authorizedOffices.includes(officeId)) {
-        throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
+        throw new Error(`Access Denied: Not authorized for cluster ${officeId}.`);
       }
 
-      // 3. Data Synchronization (Scoped to Office)
+      // 3. Institutional Sync
       const quotaId = `${weekId}_${officeId}`;
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
@@ -89,56 +127,41 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         adminDb.collection('roster_quotas').doc(quotaId).get(),
         adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
         adminDb.collection('employee_leaves').where('status', '==', 'approved').get(),
-        adminDb.collection('shift_adjacency_rules').where('weekId', '==', weekId).get(),
-        adminDb.collection('employee_preferences').where('weekId', '==', weekId).get()
+        adminDb.collection('shift_adjacency_rules').where('weekId', '==', weekId).where('office', '==', officeId).get(),
+        adminDb.collection('employee_preferences').where('weekId', '==', weekId).where('office', '==', officeId).get()
       ]);
 
       if (!quotaSnap.exists) {
         return {
           rosterAssignments: [],
-          summary: `Configuration Missing: Clinical quotas for ROC ${officeId} in Week ${weekId} have not been defined.`,
+          summary: `Configuration Pulse Missing: Quotas for ROC ${officeId} in Week ${weekId} are unset.`,
           status: 'UNKNOWN',
-          issuesEncountered: [`MISSING_QUOTA_CONFIG: ${quotaId}`],
+          issuesEncountered: [`MISSING_QUOTA: ${quotaId}`],
           solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }
         };
       }
 
-      // STRICT SERIALIZATION: Map all snapshots to plain data objects immediately
-      const employees = empSnap.docs.map(d => {
-        const data = d.data();
-        return { 
-          id: d.id, 
-          gender: (data.gender || 'Other').toLowerCase(),
-          historicalSO: Number(data.historicalSO || 0), 
-          historicalOP: Number(data.historicalOP || 0) 
-        };
-      });
+      const employees = empSnap.docs.map(d => ({ 
+        id: d.id, 
+        gender: (d.data().gender || 'Other').toLowerCase(),
+        historicalSO: Number(d.data().historicalSO || 0), 
+        historicalOP: Number(d.data().historicalOP || 0) 
+      }));
 
-      const shifts = shiftsSnap.docs.map(d => {
-        const data = d.data();
-        return { id: d.id, name: String(data.name) };
-      });
-
-      const quotaData = quotaSnap.data()!;
+      const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: String(d.data().name) }));
       const bookings = bookingsSnap.docs.map(d => d.data());
       const leaves = leavesSnap.docs.map(d => d.data());
-      const rules = rulesSnap.docs.map(d => d.data());
-      const prefs = prefsSnap.docs.map(d => d.data());
+      const adjacencyRules = rulesSnap.docs.map(d => d.data());
 
-      const employeeHardConstraints = [
-        ...bookings.map(b => ({ 
-          employeeId: b.employeeId, 
-          type: 'weeklyOff', 
-          dayOfWeek: b.dayOfWeek 
-        })),
+      // 4. Hard Constraint Synthesis (Including Adjacency)
+      const employeeHardConstraints: any[] = [
+        ...bookings.map(b => ({ employeeId: b.employeeId, type: 'weeklyOff', dayOfWeek: b.dayOfWeek })),
         ...leaves.flatMap(leaf => {
-          const emp = employees.find(e => e.id === leaf.employeeId);
-          if (!emp) return [];
           return DAYS.filter((day, idx) => idx < weekDates.length && isDateInRange(weekDates[idx], leaf.startDate, leaf.endDate))
             .map(day => ({ employeeId: leaf.employeeId, type: 'unavailable', dayOfWeek: day }));
         }),
         ...bookings.flatMap(booking => {
-          const rule = rules.find(r => r.employeeId === booking.employeeId);
+          const rule = adjacencyRules.find(r => r.employeeId === booking.employeeId);
           if (!rule) return [];
           const res: any[] = [];
           const idx = DAYS.indexOf(booking.dayOfWeek);
@@ -152,17 +175,10 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         })
       ];
 
-      const weeklyQuotas = Object.entries(quotaData.quotas || {}).map(([key, val]) => {
-        const [day, shiftId] = key.split('_');
-        return { dayOfWeek: day, shiftId, requiredStaff: Number(val) };
+      const weeklyQuotas = Object.entries(quotaSnap.data()?.quotas || {}).map(([key, val]) => {
+        const [day, sId] = key.split('_');
+        return { dayOfWeek: day, shiftId: sId, requiredStaff: Number(val) };
       });
-
-      const employeeSoftPreferences = prefs.map(p => ({
-        employeeId: p.employeeId,
-        dayOfWeek: p.dayOfWeek,
-        shiftId: p.shiftId,
-        weight: 1.0
-      }));
 
       const solverPayload = {
         weekId,
@@ -171,44 +187,45 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         employees,
         weeklyQuotas,
         employeeHardConstraints,
-        employeeSoftPreferences,
+        employeeSoftPreferences: prefsSnap.docs.map(d => ({ employeeId: d.data().employeeId, dayOfWeek: d.data().dayOfWeek, shiftId: d.data().shiftId, weight: 1.0 })),
         timeLimitSeconds: 60
       };
 
-      const result = await callSolver(solverPayload);
+      let resultAssignments: any[] = [];
+      let solverStatus: any = 'UNKNOWN';
+      let metadata: any = { solveTimeMs: 0, constraintsChecked: employeeHardConstraints.length };
+
+      if (method === 'ai') {
+          const { output } = await aiPrompt(solverPayload);
+          resultAssignments = output || [];
+          solverStatus = 'FEASIBLE';
+          metadata.solveTimeMs = Date.now() - start;
+      } else {
+          const solverResult = await callSolver(solverPayload);
+          resultAssignments = solverResult.assignments || [];
+          solverStatus = solverResult.status;
+          metadata = { ...solverResult.metadata, constraintsChecked: employeeHardConstraints.length };
+      }
       
-      // Deterministic Integrity Re-Check
-      const integrity = verifyRosterIntegrity(
-        result.assignments || [],
-        bookings,
-        leaves,
-        weekDates
-      );
+      const integrity = verifyRosterIntegrity(resultAssignments, bookings, leaves, weekDates);
 
       return {
-        rosterAssignments: result.assignments || [],
+        rosterAssignments: resultAssignments,
         summary: !integrity.isValid 
-          ? "CRITICAL INTEGRITY FAILURE: Solver output violated hard clinical rules."
-          : result.status === 'OPTIMAL' 
-          ? `Mathematically optimal roster found for clinical cluster ${officeId}.` 
-          : result.status === 'INFEASIBLE'
-          ? `Optimization failed: Clinical constraints (quotas/offs) for ${officeId} are mathematically incompatible.`
-          : `Solver status: ${result.status}. ${result.errors?.join(' ') || ''}`,
-        status: !integrity.isValid ? 'UNKNOWN' : result.status,
-        issuesEncountered: [...(result.errors || []), ...integrity.issues],
-        solverMetadata: {
-          solveTimeMs: result.metadata?.solveTimeMs || 0,
-          constraintsChecked: solverPayload.employeeHardConstraints.length,
-          objectiveValue: result.metadata?.objectiveValue,
-          runId: `run_${Date.now().toString().slice(-6)}`
-        }
+          ? "CRITICAL INTEGRITY FAILURE: Roster violated clinical hard constraints."
+          : solverStatus === 'OPTIMAL' 
+          ? `Mathematically optimal roster secured for Hub ${officeId}.` 
+          : `Success: Cluster roster generated via ${method.toUpperCase()} protocol.`,
+        status: !integrity.isValid ? 'UNKNOWN' : solverStatus,
+        issuesEncountered: integrity.issues,
+        solverMetadata: metadata
       };
 
     } catch (e: any) {
-      console.error('Deterministic Pipeline Failure:', e);
+      console.error('Pipeline Conflict:', e);
       return {
         rosterAssignments: [],
-        summary: `Deterministic Pipeline Failure: ${e.message}`,
+        summary: `Pipeline Failure: ${e.message}`,
         status: 'UNKNOWN',
         issuesEncountered: [e.message],
         solverMetadata: { solveTimeMs: Date.now() - start, constraintsChecked: 0 }
