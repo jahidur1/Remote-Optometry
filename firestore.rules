@@ -104,8 +104,8 @@ service cloud.firestore {
     }
 
     match /published_rosters/{versionId} { 
-      // Employees are denied direct read of multi-employee roster docs.
-      // They MUST use secure Server Actions for their personal projection.
+      // Professionals are denied direct read of multi-employee roster docs.
+      // They MUST use secure Server Actions for their personal personal projection.
       allow read: if isAdmin() && matchesOffice(resource.data.office); 
       allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
@@ -160,7 +160,7 @@ service cloud.firestore {
     
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow create: if true; 
+      allow create: if true; // Unauthenticated code generation
       allow update, delete: if isSuperAdmin();
     }
 
