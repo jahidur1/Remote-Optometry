@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldCheck, Fingerprint, Phone, Building2, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldCheck, Fingerprint, Phone, Building2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { selfRegisterAction } from '@/services/identity-actions';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -19,6 +19,7 @@ import Link from 'next/link';
 export default function PublicRegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
@@ -219,16 +220,23 @@ export default function PublicRegistrationPage() {
                <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Institutional Password</Label>
                   <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-secondary transition-colors" />
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-secondary transition-colors" />
                       <Input 
-                        type="password" 
+                        type={showPassword ? "text" : "password"} 
                         placeholder="MIN 8 CHARACTERS" 
-                        className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-secondary text-black transition-all" 
+                        className="font-black h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-100 focus:border-secondary text-black transition-all" 
                         value={formData.password} 
                         onChange={e => setFormData({...formData, password: e.target.value})} 
                         required 
                         minLength={8} 
                       />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-secondary transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                      </button>
                   </div>
                </div>
             </div>
@@ -249,7 +257,7 @@ export default function PublicRegistrationPage() {
              <div className="size-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 shadow-inner">
                 <ShieldCheck className="size-8" />
              </div>
-             <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight max-w-sm">
+             <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight max-sm:text-center">
                 Enrollment initiates the email verification protocol. You must confirm your address before the clinical portal is authorized.
              </p>
            </div>
