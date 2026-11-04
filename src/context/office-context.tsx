@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useUser } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 
 type OfficeContextType = {
@@ -19,9 +20,9 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const [selectedOffice, setSelectedOfficeState] = useState<string | null>(null);
   
-  // Resilient Fetching (No Index Required): Fetch entire collection and filter client-side
-  const officesRef = useMemo(() => collection(db, 'offices'), [db]);
-  const { data: rawOffices, loading: officesLoading } = useCollection(officesRef);
+  // Resilient Fetching: Stable query reference to prevent infinite loops
+  const officesQuery = useMemo(() => query(collection(db, 'offices')), [db]);
+  const { data: rawOffices, loading: officesLoading } = useCollection(officesQuery);
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !rawOffices) return [];

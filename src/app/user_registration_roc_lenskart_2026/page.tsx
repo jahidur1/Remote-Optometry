@@ -35,7 +35,7 @@ export default function PublicRegistrationPage() {
     password: '',
   });
 
-  // Dynamic Office Registry Subscription - Resilient Fetching (No Index Required)
+  // Resilient Fetching: Stable query to avoid redundant re-subscriptions
   const officesRef = useMemo(() => collection(db, 'offices'), [db]);
   const { data: rawOffices, loading: registryLoading } = useCollection(officesRef);
 

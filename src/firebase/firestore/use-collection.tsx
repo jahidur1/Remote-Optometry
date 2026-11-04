@@ -11,6 +11,12 @@ import {
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 
+/**
+ * Institutional Data Hook: useCollection
+ * Fetches a real-time stream of a Firestore collection.
+ * 
+ * Performance: Requires a stable Query object (memoized in parent).
+ */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +29,10 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
       return;
     }
 
-    setLoading(true);
+    // Performance Optimization: Only set loading to true if we don't have data yet
+    // to avoid flickering on re-subscriptions to stable queries.
+    if (!data) setLoading(true);
+
     const unsubscribe = onSnapshot(
       query,
       (snapshot: QuerySnapshot<T>) => {
@@ -46,7 +55,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [query]);
+  }, [query]); // Identity-based dependency requires memoized query from parent
 
   return { data, loading, error };
 }

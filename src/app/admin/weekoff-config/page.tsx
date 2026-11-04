@@ -56,9 +56,8 @@ export default function WeekOffConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  const { data: registryOffices, loading: registryLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'))
-  );
+  const registryQuery = useMemo(() => query(collection(db, 'offices'), where('status', '==', 'Active')), [db]);
+  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !registryOffices) return [];
@@ -316,7 +315,7 @@ export default function WeekOffConfiguration() {
                 <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-3">
                     <Clock className="size-3 text-secondary" /> Pulse Termination (IST)
-                  </label>
+                  </Label>
                   <Input 
                     type="datetime-local" 
                     className="h-12 font-black border-2 border-slate-100 bg-slate-50 rounded-xl px-6 text-black focus:border-secondary transition-all shadow-inner" 

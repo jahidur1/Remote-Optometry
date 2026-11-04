@@ -22,11 +22,13 @@ export default function EmployeePreferences() {
   const [loading, setLoading] = useState(false);
   const [weekId] = useState('2024-52');
 
-  const { data: shifts } = useCollection(query(collection(db, 'shift_master')));
+  const shiftQuery = useMemo(() => query(collection(db, 'shift_master')), [db]);
+  const { data: shifts } = useCollection(shiftQuery);
+
   const prefQuery = useMemo(() => {
     if (!profile?.employeeId) return null;
     return query(collection(db, 'employee_preferences'), where('employeeId', '==', profile.employeeId), where('weekId', '==', weekId));
-  }, [profile, weekId]);
+  }, [db, profile, weekId]);
   
   const { data: preferences, loading: prefLoading } = useCollection(prefQuery);
 

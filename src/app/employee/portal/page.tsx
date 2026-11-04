@@ -158,8 +158,9 @@ export default function EmployeePortal() {
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);
   
-  const bookingId = profile?.employeeId ? `${currentWeekId}_${profile.employeeId}` : null;
-  const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
+  const bookingId = useMemo(() => profile?.employeeId ? `${currentWeekId}_${profile.employeeId}` : null, [currentWeekId, profile?.employeeId]);
+  const bookingRef = useMemo(() => bookingId ? doc(db, 'weekoff_bookings', bookingId) : null, [db, bookingId]);
+  const { data: userBooking } = useDoc(bookingRef);
 
   useEffect(() => {
     if (!db || userLoading || !profile?.office) return;

@@ -11,6 +11,12 @@ import {
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 
+/**
+ * Institutional Data Hook: useDoc
+ * Fetches a real-time stream of a single Firestore document.
+ * 
+ * Performance: Requires a stable DocumentReference (memoized in parent).
+ */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +29,8 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       return;
     }
 
-    setLoading(true);
+    if (!data) setLoading(true);
+
     const unsubscribe = onSnapshot(
       docRef,
       (snapshot: DocumentSnapshot<T>) => {

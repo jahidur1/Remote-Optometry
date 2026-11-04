@@ -33,9 +33,8 @@ export default function RosterSolver() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  const { data: registryOffices, loading: registryLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'))
-  );
+  const registryQuery = useMemo(() => query(collection(db, 'offices'), where('status', '==', 'Active')), [db]);
+  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !registryOffices) return [];

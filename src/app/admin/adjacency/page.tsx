@@ -49,8 +49,10 @@ export default function ShiftAdjacencyManager() {
       : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
   }, [db, profile, weekId]);
 
+  const shiftsQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
+
   const { data: employees, loading: empLoading } = useCollection(empQuery);
-  const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
+  const { data: shifts } = useCollection(shiftsQuery);
   const { data: rules } = useCollection(rulesQuery);
   const { data: bookings } = useCollection(bookingsQuery);
 

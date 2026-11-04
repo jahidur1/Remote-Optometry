@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -35,7 +36,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Resilient Fetching: Fetch all and sort/filter client-side to avoid index requirement
+  // Resilient Fetching: Stable query to avoid redundant loading states
   const officesRef = useMemo(() => collection(db, 'offices'), [db]);
   const { data: rawOffices, loading: registryLoading } = useCollection(officesRef);
 

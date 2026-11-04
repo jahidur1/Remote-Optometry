@@ -43,9 +43,8 @@ export default function QuotaConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  const { data: registryOffices, loading: registryLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'))
-  );
+  const officesQuery = useMemo(() => query(collection(db, 'offices'), where('status', '==', 'Active')), [db]);
+  const { data: registryOffices, loading: registryLoading } = useCollection(officesQuery);
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !registryOffices) return [];
