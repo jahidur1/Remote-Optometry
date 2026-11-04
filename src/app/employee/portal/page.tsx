@@ -36,6 +36,8 @@ import { getMyRosterAction } from "@/services/roster-actions"
 import { displayWeekRange, getDatesForWeek } from "@/lib/date-utils";
 import { format, startOfISOWeek, endOfISOWeek, subWeeks, addWeeks } from "date-fns";
 
+const DAYS_LIST = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, userBooking: any, weekId: string }) {
   const [now, setNow] = useState(new Date());
 
@@ -269,6 +271,7 @@ export default function EmployeePortal() {
               {weeks.map((week) => {
                 const weekData = rosterData[week] || { assignments: [], published: false };
                 const isCurrent = week === currentWeekId;
+                const weekDates = getDatesForWeek(week);
                 
                 return (
                   <CarouselItem key={week}>
@@ -290,30 +293,39 @@ export default function EmployeePortal() {
                             </Badge>
                          </CardTitle>
                       </CardHeader>
-                      <CardContent className="p-8 md:p-10 space-y-4">
-                         {weekData.published ? (
-                            weekData.assignments.sort((a,b) => {
-                              const d1 = getDatesForWeek(week).findIndex(d => format(d, 'EEEE') === a.dayOfWeek);
-                              const d2 = getDatesForWeek(week).findIndex(d => format(d, 'EEEE') === b.dayOfWeek);
-                              return d1 - d2;
-                            }).map((a, i) => {
-                              const shift = shifts?.find(s => s.id === a.shiftId);
-                              return (
-                                <div key={i} className="flex items-center justify-between p-6 rounded-2xl bg-white border-2 border-slate-50 hover:border-secondary/20 transition-all group">
-                                   <div className="flex flex-col">
-                                      <span className="font-black text-2xl uppercase tracking-tighter group-hover:translate-x-2 transition-transform">{a.dayOfWeek}</span>
-                                      <span className="text-[10px] font-black text-secondary uppercase tracking-widest mt-1">{shift?.name} ({shift?.startTime} - {shift?.endTime})</span>
-                                   </div>
-                                   <CheckCircle2 className="size-6 text-emerald-500 opacity-20 group-hover:opacity-100 transition-opacity" />
-                                </div>
-                              )
-                            })
-                         ) : (
-                            <div className="py-20 text-center bg-slate-50 rounded-[2rem] border-4 border-dashed border-slate-200">
-                               <Lock className="size-16 text-black/5 mx-auto mb-4" />
-                               <p className="text-xl font-black text-black/20 uppercase tracking-tight">Roster Pending Publication</p>
-                            </div>
-                         )}
+                      <CardContent className="p-8 md:p-10">
+                        <div className="grid grid-cols-1 gap-3">
+                          {DAYS_LIST.map((day, idx) => {
+                            const date = weekDates[idx];
+                            const dateStr = date ? format(date, 'MMM dd') : '-- --';
+                            const assignment = weekData.assignments.find(a => a.dayOfWeek === day);
+                            const shift = shifts?.find(s => s.id === assignment?.shiftId);
+
+                            return (
+                              <div key={day} className="flex items-center justify-between p-4 rounded-xl bg-white border border-slate-100 hover:border-secondary/20 transition-all group">
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-12 text-center border-r border-slate-100 pr-4">
+                                       <p className="text-[9px] font-black uppercase text-black/30 leading-none">{day.substring(0,3)}</p>
+                                       <p className="text-[11px] font-black text-black mt-1 tabular-nums">{dateStr.split(' ')[1]}</p>
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="text-[10px] font-black uppercase tracking-widest text-primary leading-tight">{day}</span>
+                                       {weekData.published ? (
+                                          shift ? (
+                                            <span className="text-[8px] font-bold text-secondary uppercase tracking-wider mt-0.5">{shift.name} ({shift.startTime} - {shift.endTime})</span>
+                                          ) : (
+                                            <span className="text-[8px] font-bold text-black/20 uppercase tracking-widest italic mt-0.5">No Duty Assigned</span>
+                                          )
+                                       ) : (
+                                          <span className="text-[8px] font-bold text-black/10 uppercase tracking-widest italic mt-0.5">Pending Publication</span>
+                                       )}
+                                    </div>
+                                 </div>
+                                 {weekData.published && shift && <CheckCircle2 className="size-4 text-emerald-500 opacity-20 group-hover:opacity-100 transition-opacity" />}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </CardContent>
                     </Card>
                   </CarouselItem>

@@ -97,7 +97,8 @@ service cloud.firestore {
     // --- OPERATIONS ---
 
     match /weekoff_configs/{configId} {
-      allow read: if isUserActive() && isMemberOf(resource.data.office);
+      // Handle non-existent doc gracefully for onSnapshot
+      allow read: if isUserActive() && (resource == null || isMemberOf(resource.data.office));
       allow create, update: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
       allow delete: if isSuperAdmin() || (isAdmin() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office));
     }
@@ -108,18 +109,19 @@ service cloud.firestore {
         return profile != null ? profile.employeeId : null;
       }
 
-      allow read: if isUserActive() && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
+      // Handle non-existent doc gracefully for onSnapshot
+      allow read: if isUserActive() && (resource == null || resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
       allow create: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
       allow delete, update: if isAdmin() && isMemberOf(resource.data.office);
     }
 
     match /published_rosters/{versionId} { 
-      allow read: if isUserActive() && (isAdmin() || isMemberOf(resource.data.office)); 
+      allow read: if isUserActive() && (isAdmin() || (resource != null && isMemberOf(resource.data.office))); 
       allow write: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive() && (isAdmin() || isMemberOf(resource.data.officeId));
+      allow read: if isUserActive() && (isAdmin() || (resource != null && isMemberOf(resource.data.officeId)));
       allow write: if isAdmin() && isMemberOf(request.resource.data.officeId) && isOfficeActive(request.resource.data.officeId);
     }
 
@@ -134,7 +136,7 @@ service cloud.firestore {
         return profile != null ? profile.employeeId : null;
       }
 
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
+      allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
       allow write: if isAdmin() && isMemberOf(request.resource.data.office);
     }
 
@@ -151,9 +153,11 @@ service cloud.firestore {
 
       allow read: if isUserActive() && (
         isSuperAdmin() || 
-        (isAdmin() && isMemberOf(resource.data.office)) || 
-        resource.data.requesterId == getEmployeeId() || 
-        resource.data.targetEmployeeId == getEmployeeId()
+        (resource != null && (
+          (isAdmin() && isMemberOf(resource.data.office)) || 
+          resource.data.requesterId == getEmployeeId() || 
+          resource.data.targetEmployeeId == getEmployeeId()
+        ))
       );
       allow create: if isUserActive() && request.resource.data.requesterId == getEmployeeId() && isMemberOf(request.resource.data.office);
       allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getEmployeeId() || (isAdmin() && isMemberOf(request.resource.data.office)));
@@ -165,7 +169,7 @@ service cloud.firestore {
         return profile != null ? profile.employeeId : null;
       }
 
-      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
+      allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
       allow write: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office);
     }
 
@@ -187,7 +191,7 @@ service cloud.firestore {
     }
 
     match /sessions/{sessionId} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && (isAdmin() || request.auth.uid == resource.data.uid);
     }

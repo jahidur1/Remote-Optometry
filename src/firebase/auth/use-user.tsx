@@ -70,6 +70,8 @@ export function useUser() {
       } satisfies SecurityRuleContext);
       errorEmitter.emit('permission-error', permissionError);
       setProfile(null);
+      // Ensure loading is set to false on error to prevent deadlocks
+      setLoading(false);
     });
 
     // 2. Session Integrity Subscription
