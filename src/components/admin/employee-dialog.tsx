@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from "@/toast-hooks";
+import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Zap, User, Fingerprint, Loader2 } from 'lucide-react';
 import { updateEmployeeRecordAction } from '@/services/identity-actions';

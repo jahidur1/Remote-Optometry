@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
 import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
 import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server, Clock, Zap, Cpu, Terminal, Database, Building2 } from "lucide-react";
-import { useToast } from "@/toast-hooks";
+import { useToast } from "@/hooks/use-toast";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

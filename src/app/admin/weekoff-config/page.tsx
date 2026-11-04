@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -27,7 +26,7 @@ import {
   Server,
   Terminal
 } from "lucide-react";
-import { useToast } from "@/toast-hooks";
+import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

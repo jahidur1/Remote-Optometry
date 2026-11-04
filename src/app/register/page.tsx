@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -11,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldAlert, Fingerprint, Eye, EyeOff, Phone, ShieldCheck } from 'lucide-react';
-import { useToast } from "@/toast-hooks";
+import { useToast } from "@/hooks/use-toast";
 import { RoleGuard } from '@/components/auth/role-guard';
 import { provisionIdentityAction } from '@/services/identity-actions';
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -46,7 +45,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/toast-hooks";
+import { useToast } from "@/hooks/use-toast";
 import { createOfficeAction, updateOfficeAction, setOfficeStatusAction } from '@/services/office-actions';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
