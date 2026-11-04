@@ -46,7 +46,6 @@ export default function RosterReviewWorkspace() {
   const weekId = draft?.weekId;
   const officeId = draft?.office;
 
-  // Localized Quota Fetch
   const quotaDocId = weekId && officeId ? `${weekId}_${officeId}` : null;
   const { data: quotaDoc, loading: quotaLoading } = useDoc(quotaDocId ? doc(db, 'roster_quotas', quotaDocId) : null);
   
@@ -194,90 +193,90 @@ export default function RosterReviewWorkspace() {
 
   if (draftLoading) return (
     <div className="flex h-screen flex-col items-center justify-center gap-6 bg-white">
-      <Loader2 className="size-16 animate-spin text-secondary opacity-30" />
-      <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Initializing Roster Workspace</p>
+      <Loader2 className="size-12 md:size-16 animate-spin text-secondary opacity-30" />
+      <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Initializing Roster Workspace</p>
     </div>
   );
 
   return (
-    <div className="space-y-10 pb-64 max-w-[1600px] mx-auto animate-in px-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 pt-6">
-        <div className="flex items-center gap-8">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-2xl border-2 hover:bg-slate-50 size-14 transition-all shadow-sm">
-            <ArrowLeft className="size-7 text-primary" />
+    <div className="space-y-6 md:space-y-10 pb-32 md:pb-64 max-w-[1600px] mx-auto animate-in px-2 sm:px-4">
+      {/* Workspace Header */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 pt-4 md:pt-6">
+        <div className="flex items-center gap-4 md:gap-8 w-full xl:w-auto">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-xl md:rounded-2xl border-2 hover:bg-slate-50 size-12 md:size-14 transition-all shadow-sm shrink-0">
+            <ArrowLeft className="size-6 md:size-7 text-primary" />
           </Button>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-black tracking-tight text-black font-headline uppercase leading-none">Review Workspace</h1>
-            <div className="flex items-center gap-5 mt-4">
-              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-4 py-1.5 rounded-xl shadow-inner">Cycle {weekId}</Badge>
-              <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.3em] flex items-center gap-2">
+          <div className="space-y-1 md:space-y-2">
+            <h1 className="text-2xl md:text-4xl font-black tracking-tight text-black font-headline uppercase leading-none">Review Workspace</h1>
+            <div className="flex flex-wrap items-center gap-3 md:gap-5 mt-2 md:mt-4">
+              <Badge variant="outline" className="text-[9px] md:text-[10px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-3 py-1 rounded-lg">Cycle {weekId}</Badge>
+              <p className="text-muted-foreground font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] flex items-center gap-2">
                  Status: <span className="text-primary">{draft?.status?.toUpperCase() || 'DRAFT'}</span> <Activity className="size-3 text-secondary animate-pulse" />
               </p>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
-           <div className="relative w-64 mr-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl w-full xl:w-auto">
+           <div className="relative flex-1 md:w-64 md:flex-none">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
               <Input 
-                placeholder="Search Professional..." 
-                className="pl-12 h-11 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-secondary transition-all shadow-none"
+                placeholder="Find Professional..." 
+                className="pl-12 h-11 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-secondary transition-all"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
            </div>
-           <Button variant="outline" onClick={handleSave} disabled={saving} className="h-11 px-8 font-black uppercase text-[10px] tracking-[0.2em] border-2 border-slate-100 rounded-xl hover:bg-slate-50 transition-all">
-             <Save className="mr-3 h-4 w-4" /> {saving ? 'Syncing...' : 'Save Draft'}
+           <Button variant="outline" onClick={handleSave} disabled={saving} className="flex-1 md:flex-none h-11 px-4 md:px-8 font-black uppercase text-[9px] md:text-[10px] tracking-[0.15em] border-2 border-slate-100 rounded-xl">
+             <Save className="mr-2 h-4 w-4" /> {saving ? '...' : 'Save Draft'}
            </Button>
-           <Button className="bg-secondary text-white shadow-xl shadow-secondary/20 h-11 px-10 font-black uppercase text-[10px] tracking-[0.2em] transition-all hover:scale-105 active:scale-95 rounded-xl" onClick={handlePublish} disabled={publishing}>
-             <Send className="mr-3 h-4 w-4" /> {publishing ? 'Deploying...' : 'Approve & Rollout'}
+           <Button className="flex-1 md:flex-none bg-secondary text-white shadow-xl h-11 px-4 md:px-10 font-black uppercase text-[9px] md:text-[10px] tracking-[0.15em] rounded-xl" onClick={handlePublish} disabled={publishing}>
+             <Send className="mr-2 h-4 w-4" /> {publishing ? '...' : 'Rollout'}
            </Button>
         </div>
       </div>
 
-      <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[3rem] bg-white">
-        <CardHeader className="bg-primary p-10 text-primary-foreground border-none relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-10 transform translate-x-10 -translate-y-10 opacity-5 group-hover:scale-110 transition-transform duration-[2s]">
+      <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[3rem] bg-white">
+        <CardHeader className="bg-primary p-6 md:p-10 text-primary-foreground border-none relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-10 transform translate-x-10 -translate-y-10 opacity-5 hidden md:block">
             <ShieldCheck size={280} />
           </div>
-          <div className="flex flex-row items-center justify-between relative z-10">
-            <div className="space-y-2">
-              <CardTitle className="text-2xl flex items-center gap-5 font-black uppercase tracking-tight leading-none">
-                <ShieldCheck className="size-10 text-secondary" /> Clinical Assignment Grid
+          <div className="flex flex-col md:flex-row items-center justify-between relative z-10 gap-6">
+            <div className="space-y-1 md:space-y-2 text-center md:text-left">
+              <CardTitle className="text-xl md:text-2xl flex items-center justify-center md:justify-start gap-3 md:gap-5 font-black uppercase tracking-tight leading-none">
+                <ShieldCheck className="size-8 md:size-10 text-secondary" /> Clinical Assignment Grid
               </CardTitle>
-              <CardDescription className="text-[11px] font-black uppercase text-white/40 tracking-[0.2em] mt-3">
-                Deterministic Model Output: NODE_{draft?.office?.substring(0,3)} • {draft?.solverStatus}
+              <CardDescription className="text-[9px] md:text-[11px] font-black uppercase text-white/40 tracking-[0.2em] mt-2 md:mt-3">
+                Deterministic Model Node: {draft?.office?.substring(0,3)} • {draft?.solverStatus}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-6">
-                {draft?.solverMetadata && (
-                   <div className="flex items-center gap-8 px-10 py-4 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-md">
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-black uppercase text-white/40 tracking-widest">Latency Pulse</span>
-                        <span className="text-[14px] font-black text-secondary tabular-nums">{draft.solverMetadata.solveTimeMs.toFixed(0)}ms</span>
-                      </div>
-                      <div className="w-px h-8 bg-white/10" />
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-black uppercase text-white/40 tracking-widest">Constraints</span>
-                        <span className="text-[14px] font-black tabular-nums">{draft.solverMetadata.constraintsChecked}</span>
-                      </div>
-                   </div>
-                )}
-            </div>
+            {draft?.solverMetadata && (
+                <div className="flex items-center gap-4 md:gap-8 px-6 md:px-10 py-3 md:py-4 bg-white/5 rounded-2xl md:rounded-3xl border border-white/10 backdrop-blur-md">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] md:text-[8px] font-black uppercase text-white/40 tracking-widest">Latency Pulse</span>
+                    <span className="text-[12px] md:text-[14px] font-black text-secondary tabular-nums">{draft.solverMetadata.solveTimeMs.toFixed(0)}ms</span>
+                  </div>
+                  <div className="w-px h-6 md:h-8 bg-white/10" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] md:text-[8px] font-black uppercase text-white/40 tracking-widest">Constraints</span>
+                    <span className="text-[12px] md:text-[14px] font-black tabular-nums">{draft.solverMetadata.constraintsChecked}</span>
+                  </div>
+                </div>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto no-scrollbar relative">
+        
+        {/* Responsive Grid with Sticky Header/Column */}
+        <CardContent className="p-0 relative">
           {!quotaDoc && !quotaLoading && (
-            <div className="absolute inset-0 bg-white/60 backdrop-blur-md z-30 flex items-center justify-center p-10 text-center">
-               <div className="p-16 rounded-[3rem] bg-destructive text-white shadow-2xl border-none max-w-xl animate-in zoom-in-95">
-                  <AlertTriangle className="size-20 mx-auto mb-8 animate-bounce" />
-                  <h3 className="text-4xl font-black uppercase tracking-tight leading-none mb-4">Quota Pulse Missing</h3>
-                  <p className="text-[14px] font-bold uppercase tracking-widest text-white/60 leading-relaxed mb-10">
-                    Clinical requirements for ROC {draft?.office} in Week {weekId} are not configured. 
-                    Assignments cannot be validated against institutional standards.
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-md z-30 flex items-center justify-center p-6 md:p-10 text-center">
+               <div className="p-10 md:p-16 rounded-[2rem] md:rounded-[3rem] bg-destructive text-white shadow-2xl border-none max-w-xl animate-in zoom-in-95">
+                  <AlertTriangle className="size-12 md:size-20 mx-auto mb-6 md:mb-8 animate-bounce" />
+                  <h3 className="text-2xl md:text-4xl font-black uppercase tracking-tight leading-none mb-3 md:mb-4">Quota Pulse Missing</h3>
+                  <p className="text-[11px] md:text-[14px] font-bold uppercase tracking-widest text-white/60 leading-relaxed mb-8 md:mb-10">
+                    Clinical requirements for ROC {draft?.office} in Week {weekId} are not configured.
                   </p>
                   <Link href="/admin/quotas">
-                    <Button className="h-16 px-14 bg-white text-destructive font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-100 transition-all">
+                    <Button className="h-12 md:h-16 px-10 md:px-14 bg-white text-destructive font-black uppercase tracking-[0.2em] rounded-xl md:rounded-2xl transition-all">
                        Configure Quotas
                     </Button>
                   </Link>
@@ -285,114 +284,109 @@ export default function RosterReviewWorkspace() {
             </div>
           )}
 
-          <Table className="border-collapse">
-            <TableHeader className="bg-slate-50/50 border-b border-slate-100">
-              <TableRow>
-                <TableHead className="w-[320px] border-r border-slate-100 py-10 pl-10 bg-white/80 backdrop-blur-md sticky left-0 z-20 shadow-[8px_0_20px_rgba(0,0,0,0.03)]">
-                    <span className="text-[11px] font-black uppercase tracking-[0.3em] text-primary/60">Professional Identity</span>
-                </TableHead>
-                {DAYS.map(day => (
-                  <TableHead key={day} className="text-center w-[240px] min-w-[240px] border-r border-slate-100 last:border-0 uppercase text-[11px] font-black tracking-[0.3em] py-10 text-primary/30">
-                    {day}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEmployees.map(emp => (
-                <TableRow key={emp.id} className="hover:bg-slate-50 group transition-all duration-300 border-b border-slate-100 last:border-0">
-                  <TableCell className="border-r border-slate-100 py-10 pl-10 bg-white/60 backdrop-blur-sm sticky left-0 z-10 group-hover:bg-slate-100 transition-colors shadow-[8px_0_20px_rgba(0,0,0,0.02)]">
-                    <div className="flex flex-col gap-2">
-                      <span className="font-black text-[16px] text-black tracking-tight leading-none group-hover:translate-x-2 transition-transform uppercase">{emp.fullName}</span>
-                      <code className="text-[10px] font-black text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit uppercase tracking-widest border border-secondary/10 shadow-inner">ID: {emp.id}</code>
-                    </div>
-                  </TableCell>
-                  {DAYS.map((day, idx) => {
-                    const status = getConstraintStatus(emp.id, day, idx);
-                    const assignment = assignments.find(a => a.employeeId === emp.id && a.dayOfWeek === day);
-                    
-                    return (
-                      <TableCell key={day} className={cn(
-                        "border-r border-slate-100 last:border-0 p-6 transition-colors",
-                        status ? 'bg-slate-50/50' : 'group-hover:bg-slate-50/30'
-                      )}>
-                        <div className="space-y-4">
-                            {status && (
-                                <div className="flex items-center justify-center gap-2.5 px-4 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm">
-                                    <Lock className="size-3 text-slate-400" />
-                                    <span className={cn("text-[9px] font-black uppercase tracking-widest", status.color)}>
-                                        {status.label}
-                                    </span>
-                                </div>
-                            )}
-                            <Select 
-                                value={assignment?.shiftId || 'none'}
-                                onValueChange={(val) => handleAssignmentChange(emp.id, day, val)}
-                            >
-                                <SelectTrigger className={cn(
-                                    "h-12 text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all",
-                                    assignment 
-                                      ? 'border-secondary/40 bg-secondary/5 text-secondary shadow-lg' 
-                                      : 'border-dashed border-2 border-slate-200 text-slate-400 bg-slate-50/50 hover:bg-white hover:border-secondary/30 hover:text-black'
-                                )}>
-                                    <SelectValue placeholder="UNSET" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl shadow-2xl border-none bg-white/95 backdrop-blur-xl p-2">
-                                    <SelectItem value="none" className="text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-100">Unassigned</SelectItem>
-                                    <div className="h-px bg-slate-100 my-2" />
-                                    {shifts?.map(s => (
-                                        <SelectItem key={s.id} value={s.id} className="text-[11px] font-black uppercase tracking-widest rounded-xl py-3.5 hover:bg-secondary/5 hover:text-secondary">
-                                            {s.id} <span className="opacity-30 ml-3 text-[10px] font-bold tracking-tight">[{s.startTime} — {s.endTime}]</span>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-              {filteredEmployees.length === 0 && (
+          <div className="overflow-x-auto no-scrollbar scroll-smooth">
+            <Table className="border-collapse min-w-max">
+              <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                 <TableRow>
-                   <TableCell colSpan={8} className="py-40 text-center opacity-20 italic font-black uppercase text-xs tracking-[0.5em] text-slate-400">
-                      No matching records found in cluster node.
-                   </TableCell>
+                  <TableHead className="w-[180px] md:w-[320px] border-r border-slate-100 py-6 md:py-10 pl-6 md:pl-10 bg-white/95 backdrop-blur-md sticky left-0 z-20 shadow-[4px_0_15px_rgba(0,0,0,0.03)] md:shadow-[8px_0_20px_rgba(0,0,0,0.03)]">
+                      <span className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-primary/60">Professional Identity</span>
+                  </TableHead>
+                  {DAYS.map(day => (
+                    <TableHead key={day} className="text-center w-[160px] md:w-[240px] border-r border-slate-100 last:border-0 uppercase text-[9px] md:text-[11px] font-black tracking-[0.2em] md:tracking-[0.3em] py-6 md:py-10 text-primary/30">
+                      {day.substring(0,3)}
+                    </TableHead>
+                  ))}
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredEmployees.map(emp => (
+                  <TableRow key={emp.id} className="hover:bg-slate-50 group transition-all border-b border-slate-100 last:border-0">
+                    <TableCell className="border-r border-slate-100 py-6 md:py-10 pl-6 md:pl-10 bg-white/80 backdrop-blur-sm sticky left-0 z-10 group-hover:bg-slate-100 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.02)] md:shadow-[8px_0_20px_rgba(0,0,0,0.02)]">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="font-black text-[14px] md:text-[16px] text-black tracking-tight leading-none group-hover:translate-x-1 md:group-hover:translate-x-2 transition-transform uppercase truncate max-w-[140px] md:max-w-none">{emp.fullName}</span>
+                        <code className="text-[8px] md:text-[10px] font-black text-secondary bg-secondary/5 px-1.5 md:px-2 py-0.5 rounded-md w-fit uppercase tracking-widest border border-secondary/10 shadow-inner">ID: {emp.id.slice(-6)}</code>
+                      </div>
+                    </TableCell>
+                    {DAYS.map((day, idx) => {
+                      const status = getConstraintStatus(emp.id, day, idx);
+                      const assignment = assignments.find(a => a.employeeId === emp.id && a.dayOfWeek === day);
+                      
+                      return (
+                        <TableCell key={day} className={cn(
+                          "border-r border-slate-100 last:border-0 p-4 md:p-6 transition-colors",
+                          status ? 'bg-slate-50/30' : 'group-hover:bg-slate-50/20'
+                        )}>
+                          <div className="space-y-2 md:space-y-4">
+                              {status && (
+                                  <div className="flex items-center justify-center gap-1.5 md:gap-2.5 px-2 md:px-4 py-1 md:py-1.5 rounded-full bg-white border border-slate-200 shadow-sm">
+                                      <Lock className="size-2.5 md:size-3 text-slate-300" />
+                                      <span className={cn("text-[7px] md:text-[9px] font-black uppercase tracking-widest truncate", status.color)}>
+                                          {status.label}
+                                      </span>
+                                  </div>
+                              )}
+                              <Select 
+                                  value={assignment?.shiftId || 'none'}
+                                  onValueChange={(val) => handleAssignmentChange(emp.id, day, val)}
+                              >
+                                  <SelectTrigger className={cn(
+                                      "h-10 md:h-12 text-[9px] md:text-[11px] font-black uppercase tracking-[0.1em] md:tracking-[0.2em] rounded-xl md:rounded-2xl transition-all",
+                                      assignment 
+                                        ? 'border-secondary/30 bg-secondary/5 text-secondary shadow-md' 
+                                        : 'border-dashed border-2 border-slate-200 text-slate-300 bg-slate-50/30'
+                                  )}>
+                                      <SelectValue placeholder="-" />
+                                  </SelectTrigger>
+                                  <SelectContent className="rounded-xl md:rounded-2xl shadow-2xl border-none bg-white/95 backdrop-blur-xl p-2">
+                                      <SelectItem value="none" className="text-[10px] font-black uppercase tracking-widest rounded-lg">Unassigned</SelectItem>
+                                      <div className="h-px bg-slate-100 my-2" />
+                                      {shifts?.map(s => (
+                                          <SelectItem key={s.id} value={s.id} className="text-[10px] md:text-[11px] font-black uppercase tracking-widest rounded-lg py-3 hover:bg-secondary/5 hover:text-secondary">
+                                              {s.id} <span className="opacity-30 ml-2 md:ml-3 text-[8px] md:text-[10px] font-bold tracking-tight">[{s.startTime.split(' ')[0]}]</span>
+                                          </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Validation HUD Footer */}
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[calc(100%-8rem)] max-w-7xl bg-primary/95 backdrop-blur-3xl border border-white/10 z-50 p-10 shadow-[0_60px_120px_-20px_rgba(0,0,0,0.6)] rounded-[3.5rem] border-t-4 border-t-secondary animate-in slide-in-from-bottom-12 duration-700">
-        <div className="flex items-center justify-between gap-16">
-           <div className="flex items-center gap-8 shrink-0">
-              <div className="size-20 rounded-[1.75rem] bg-secondary/20 flex items-center justify-center shadow-2xl border border-secondary/20">
-                 <Target className="size-12 text-secondary" />
+      {/* Responsive Validation HUD Footer */}
+      <div className="fixed bottom-4 md:bottom-10 left-4 right-4 md:left-1/2 md:-translate-x-1/2 w-auto md:w-[calc(100%-8rem)] max-w-7xl bg-primary/95 backdrop-blur-3xl border border-white/10 z-50 p-6 md:p-10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.6)] rounded-[2.5rem] md:rounded-[3.5rem] border-t-4 border-t-secondary animate-in slide-in-from-bottom-12 duration-700">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-8 md:gap-16">
+           <div className="flex items-center gap-5 md:gap-8 shrink-0 w-full lg:w-auto">
+              <div className="size-14 md:size-20 rounded-2xl md:rounded-[1.75rem] bg-secondary/20 flex items-center justify-center shadow-2xl border border-secondary/20">
+                 <Target className="size-8 md:size-12 text-secondary" />
               </div>
               <div className="space-y-1">
-                 <p className="text-[11px] font-black uppercase text-white/40 tracking-[0.5em]">Integrity Guard</p>
-                 <p className="text-2xl font-black uppercase tracking-tight text-white leading-none">Quota Pulse</p>
+                 <p className="text-[9px] md:text-[11px] font-black uppercase text-white/40 tracking-[0.3em] md:tracking-[0.5em]">Integrity Guard</p>
+                 <p className="text-xl md:text-2xl font-black uppercase tracking-tight text-white leading-none">Quota Pulse</p>
               </div>
            </div>
            
-           <div className="flex-1 overflow-x-auto no-scrollbar">
-              <div className="flex gap-6 pb-2 pr-8">
+           <div className="flex-1 overflow-x-auto no-scrollbar w-full">
+              <div className="flex gap-4 md:gap-6 pb-1">
                  {DAYS.map(day => {
                     const dayShifts = shifts?.map(s => quotaValidation[`${day}_${s.id}`]).filter(Boolean);
                     const allOk = quotaDoc && dayShifts?.every(v => v.ok);
                     return (
                       <div key={day} className={cn(
-                          "px-10 py-5 rounded-[2rem] border-2 flex flex-col items-center min-w-[170px] transition-all duration-700",
-                          allOk ? "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]" : "bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.2)]"
+                          "px-6 md:px-10 py-3 md:py-5 rounded-[1.5rem] md:rounded-[2rem] border-2 flex flex-col items-center min-w-[130px] md:min-w-[170px] transition-all duration-700",
+                          allOk ? "bg-emerald-500/10 border-emerald-500/30" : "bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.2)]"
                       )}>
-                         <span className="text-[11px] font-black uppercase mb-3 tracking-[0.3em] text-white/50">{day.substring(0,3)}</span>
-                         <div className="flex items-center gap-4">
-                            {allOk ? <CheckCircle2 className="size-5 text-emerald-400" /> : <AlertTriangle className="size-5 text-destructive" />}
+                         <span className="text-[9px] md:text-[11px] font-black uppercase mb-2 md:mb-3 tracking-[0.2em] md:tracking-[0.3em] text-white/50">{day.substring(0,3)}</span>
+                         <div className="flex items-center gap-2 md:gap-4">
+                            {allOk ? <CheckCircle2 className="size-4 md:size-5 text-emerald-400" /> : <AlertTriangle className="size-4 md:size-5 text-destructive" />}
                             <span className={cn(
-                                "text-[15px] font-black tracking-[0.15em]",
+                                "text-[12px] md:text-[15px] font-black tracking-[0.1em] md:tracking-[0.15em]",
                                 allOk ? "text-emerald-400" : "text-destructive"
                             )}>
                                {allOk ? 'MATCHED' : 'CONFLICT'}
@@ -404,7 +398,7 @@ export default function RosterReviewWorkspace() {
               </div>
            </div>
            
-           <div className="hidden lg:flex flex-col justify-center bg-white/5 p-8 rounded-3xl border border-white/10 text-right shrink-0">
+           <div className="hidden xl:flex flex-col justify-center bg-white/5 p-8 rounded-3xl border border-white/10 text-right shrink-0">
               <div className="flex items-center justify-end gap-4 text-[13px] font-black text-secondary uppercase tracking-[0.3em]">
                  <Server className="size-5" /> NODE_SYNC
               </div>
@@ -416,32 +410,32 @@ export default function RosterReviewWorkspace() {
       </div>
 
       <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
-        <DialogContent className="rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden sm:max-w-[600px] bg-white">
-          <div className="bg-primary p-12 text-white space-y-3">
-             <DialogTitle className="text-4xl font-black uppercase tracking-tight leading-none">FCFS Override Pulse</DialogTitle>
-             <DialogDescription className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/40">Initiating manual bypass of a clinical weekly-off registry entry.</DialogDescription>
+        <DialogContent className="rounded-[2.5rem] md:rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden w-[95vw] sm:max-w-[600px] bg-white">
+          <div className="bg-primary p-8 md:p-12 text-white space-y-2 md:space-y-3">
+             <DialogTitle className="text-2xl md:text-4xl font-black uppercase tracking-tight leading-none">FCFS Override Pulse</DialogTitle>
+             <DialogDescription className="text-[9px] md:text-[11px] font-bold uppercase tracking-[0.3em] text-white/40">Initiating manual bypass of a clinical weekly-off registry entry.</DialogDescription>
           </div>
-          <div className="p-12 space-y-10">
-             <div className="p-8 rounded-3xl bg-secondary/5 border-2 border-secondary/10 flex items-center gap-8 shadow-inner">
-                <ShieldCheck className="size-12 text-secondary" />
+          <div className="p-8 md:p-12 space-y-8 md:space-y-10">
+             <div className="p-6 md:p-8 rounded-2xl md:rounded-3xl bg-secondary/5 border-2 border-secondary/10 flex items-center gap-6 md:gap-8 shadow-inner">
+                <ShieldCheck className="size-10 md:size-12 text-secondary" />
                 <div className="space-y-1">
-                    <p className="text-[12px] font-black uppercase text-primary tracking-widest">Privileged Transaction</p>
-                    <p className="text-base font-bold text-slate-500 uppercase tracking-tight leading-tight">Manual Assignment on Protected FCFS Slot</p>
+                    <p className="text-[10px] md:text-[12px] font-black uppercase text-primary tracking-widest">Privileged Transaction</p>
+                    <p className="text-sm md:text-base font-bold text-slate-500 uppercase tracking-tight leading-tight">Manual Assignment on Protected FCFS Slot</p>
                 </div>
              </div>
-             <div className="space-y-4">
-                <Label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] px-4 block">Mandatory Governance Justification</Label>
+             <div className="space-y-3 md:space-y-4">
+                <Label className="text-[9px] md:text-[11px] font-black uppercase text-slate-400 tracking-[0.3em] md:tracking-[0.4em] px-4 block">Mandatory Governance Justification</Label>
                 <Textarea 
                   placeholder="Explain why this override is necessary for clinical pod-balance..." 
-                  className="min-h-[180px] rounded-3xl font-medium border-2 border-slate-100 bg-slate-50/50 focus:border-secondary transition-all text-sm leading-relaxed p-8 shadow-inner shadow-none"
+                  className="min-h-[140px] md:min-h-[180px] rounded-2xl md:rounded-3xl font-medium border-2 border-slate-100 bg-slate-50/50 focus:border-secondary text-sm leading-relaxed p-6 md:p-8 shadow-none"
                   value={overrideReason}
                   onChange={e => setOverrideReason(e.target.value)}
                 />
              </div>
           </div>
-          <DialogFooter className="p-12 bg-slate-50 border-t border-slate-100 flex flex-row gap-6 sm:justify-center">
-            <Button variant="ghost" onClick={() => setOverrideDialogOpen(false)} className="h-16 flex-1 font-black uppercase text-[11px] tracking-[0.3em] rounded-2xl hover:bg-white hover:text-black transition-all">Abort Action</Button>
-            <Button className="h-16 flex-1 font-black uppercase text-[11px] tracking-[0.3em] bg-primary text-white rounded-2xl shadow-2xl hover:bg-secondary transition-all" onClick={handleProcessOverride} disabled={!overrideReason.trim()}>Confirm Bypass</Button>
+          <DialogFooter className="p-8 md:p-12 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-4 md:gap-6">
+            <Button variant="ghost" onClick={() => setOverrideDialogOpen(false)} className="h-14 md:h-16 flex-1 font-black uppercase text-[10px] md:text-[11px] tracking-[0.3em] rounded-xl md:rounded-2xl transition-all order-2 sm:order-1">Abort Action</Button>
+            <Button className="h-14 md:h-16 flex-1 font-black uppercase text-[10px] md:text-[11px] tracking-[0.3em] bg-primary text-white rounded-xl md:rounded-2xl shadow-2xl hover:bg-secondary transition-all order-1 sm:order-2" onClick={handleProcessOverride} disabled={!overrideReason.trim()}>Confirm Bypass</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
