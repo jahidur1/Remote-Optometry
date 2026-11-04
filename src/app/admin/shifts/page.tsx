@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -24,12 +25,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { cn } from '@/lib/utils';
 
-/**
- * INSTITUTIONAL SHIFT MASTER REGISTRY
- * 
- * Standardized shift nodes utilized by the deterministic optimization engine.
- * 'Closing' and 'Closing 2' are distinct clinical slots.
- */
 const DEFAULT_SHIFTS = [
   { id: "SO", name: "Super Opening", startTime: "09:30 AM", endTime: "06:30 PM", displayOrder: 1 },
   { id: "OP", name: "Opening", startTime: "10:00 AM", endTime: "07:00 PM", displayOrder: 2 },
@@ -91,7 +86,7 @@ export default function ShiftMaster() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Shift Master</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Permanent Registry Node <Activity className="size-3 text-secondary animate-pulse" />
+                  Permanent Registry <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -101,14 +96,14 @@ export default function ShiftMaster() {
 
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Node Status</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Registry Status</label>
               <div className="flex items-center gap-2">
                  <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">SYSTEM LOCKED</span>
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
@@ -128,7 +123,7 @@ export default function ShiftMaster() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Shift Nodes', value: stats.count, sub: 'Authorized Slots', icon: Server, color: 'text-primary' },
+          { label: 'Shift Slots', value: stats.count, sub: 'Authorized Slots', icon: Server, color: 'text-primary' },
           { label: 'Service Initiation', value: stats.firstStart, sub: 'Daily Opening', icon: Clock, color: 'text-secondary' },
           { label: 'Service Terminus', value: stats.lastEnd, sub: 'Daily Closure', icon: Zap, color: 'text-secondary' },
           { label: 'Solver Alignment', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
@@ -172,7 +167,7 @@ export default function ShiftMaster() {
               <div className="size-24 rounded-[2.5rem] bg-secondary/5 flex items-center justify-center mx-auto mb-10 border-2 border-dashed border-secondary/20">
                  <Server className="size-10 text-secondary/20" />
               </div>
-              <p className="text-black/20 font-black uppercase text-xs tracking-[0.4em] mb-10 italic">No authorized shift records detected in node.</p>
+              <p className="text-black/20 font-black uppercase text-xs tracking-[0.4em] mb-10 italic">No authorized shift records detected.</p>
               <Button onClick={handleInitialize} className="bg-secondary text-white shadow-2xl shadow-secondary/20 h-16 px-14 font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-105 active:scale-95 transition-all">
                  <Zap className="size-5 mr-3 fill-white" /> PROVISION STANDARDS
               </Button>
@@ -184,7 +179,7 @@ export default function ShiftMaster() {
                   <TableHead className="w-[280px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Identity Key</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Category</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Execution Pulse (IST)</TableHead>
-                  <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
+                  <TableHead className="text-right pr-12 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -212,7 +207,7 @@ export default function ShiftMaster() {
                     </TableCell>
                     <TableCell className="text-right pr-12 py-8">
                       <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-emerald-500/20 text-emerald-600 bg-emerald-500/5 px-6 py-2 rounded-full shadow-inner">
-                        <ShieldCheck className="size-4 mr-2" /> VERIFIED NODE
+                        <ShieldCheck className="size-4 mr-2" /> VERIFIED
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -229,7 +224,7 @@ export default function ShiftMaster() {
               <div className="space-y-1">
                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-black/40">Clinical Standard Pulse</p>
                 <p className="text-[13px] font-medium text-black/80 uppercase leading-relaxed tracking-tight max-w-4xl">
-                  Shift Master nodes are immutable entities during active roster cycles. Modifying these records will invalidate 
+                  Shift Master entries are immutable entities during active roster cycles. Modifying these records will invalidate 
                   existing localized quotas and trigger a mathematical re-sync of all draft rosters for the affected week.
                 </p>
               </div>

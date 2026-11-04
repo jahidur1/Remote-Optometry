@@ -62,7 +62,6 @@ export default function ClusterManager() {
   const [editingOffice, setEditingOffice] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
 
-  // Form State
   const [formData, setFormData] = useState({
     officeId: '',
     officeName: '',
@@ -72,7 +71,6 @@ export default function ClusterManager() {
     country: 'India'
   });
 
-  // Memoized Query for stable performance
   const officesQuery = useMemo(() => query(collection(db, 'offices'), orderBy('officeName', 'asc')), [db]);
   const { data: offices, loading } = useCollection(officesQuery);
 
@@ -168,7 +166,6 @@ export default function ClusterManager() {
   return (
     <RoleGuard allowedRoles={['super_admin']}>
       <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-        {/* Dynamic Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
           <div className="space-y-2">
             <div className="flex items-center gap-4">
@@ -205,7 +202,6 @@ export default function ClusterManager() {
           </div>
         </div>
 
-        {/* Overview Matrix */}
         <div className="grid gap-6 md:grid-cols-3">
           {[
             { label: 'Total Registry', value: stats.total, sub: 'Cluster Centers', icon: Globe, color: 'text-primary' },
@@ -225,7 +221,6 @@ export default function ClusterManager() {
           ))}
         </div>
 
-        {/* Registry Ledger */}
         <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
           <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
@@ -257,10 +252,10 @@ export default function ClusterManager() {
             <Table className="border-collapse">
               <TableHeader className="bg-slate-50/30">
                 <TableRow className="border-b border-slate-100">
-                  <TableHead className="w-[120px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Pulse ID</TableHead>
+                  <TableHead className="w-[120px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ID</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ROC Cluster Hub</TableHead>
                   <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Geo Metadata</TableHead>
-                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status Hub</TableHead>
+                  <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status</TableHead>
                   <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
                 </TableRow>
               </TableHeader>
@@ -343,7 +338,6 @@ export default function ClusterManager() {
           </CardFooter>
         </Card>
 
-        {/* Creation/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[600px] rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden bg-white">
             <div className="bg-primary p-12 text-white relative">
@@ -359,7 +353,7 @@ export default function ClusterManager() {
             <form onSubmit={handleSubmit} className="p-12 space-y-8">
                <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Office ID (Immutable)</Label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Office ID (Immutable)</label>
                     <Input 
                       className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-slate-50 uppercase disabled:opacity-50" 
                       value={formData.officeId} 
@@ -370,7 +364,7 @@ export default function ClusterManager() {
                     />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Short Code (Unique)</Label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Short Code (Unique)</label>
                     <Input 
                       className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-slate-50 uppercase disabled:opacity-50" 
                       value={formData.shortCode} 
@@ -384,7 +378,7 @@ export default function ClusterManager() {
                </div>
 
                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Center Name</Label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Center Name</label>
                   <Input 
                     className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 focus:border-secondary transition-all" 
                     value={formData.officeName} 
@@ -397,11 +391,11 @@ export default function ClusterManager() {
 
                <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">City</Label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">City</label>
                     <Input className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} required disabled={processing} />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">State</Label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">State</label>
                     <Input className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} required disabled={processing} />
                   </div>
                </div>

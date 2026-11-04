@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser } from '@/firebase';
@@ -22,32 +23,26 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
   useEffect(() => {
     if (loading) return;
 
-    // 1. Authentication Check
     if (!user) {
       if (pathname !== '/login') router.push('/login');
       return;
     }
 
-    // 2. Account Status Check (Deactivation)
     if (profile?.status === 'Suspended') {
       router.push('/account-disabled');
       return;
     }
 
-    // 3. Mandatory Email Verification Gate
-    // This gate blocks all roles until the email pulse is verified.
     const isEmailUser = user.providerData.some(p => p.providerId === 'password' || p.providerId === 'google.com');
     if (isEmailUser && !emailVerified) {
        if (pathname !== '/verify-email') {
-          // Automatic Pulse Trigger on first landing
           sendEmailVerification(user).catch(err => console.warn("Verification Pulse Throttled"));
           router.push('/verify-email');
           return;
        }
-       return; // Stay on verify-email
+       return; 
     }
 
-    // 4. Authorization Check (Roles)
     if (profile && !allowedRoles.includes(profile.role)) {
       router.push('/unauthorized');
       return;
@@ -63,7 +58,6 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
-  // 5. Session Integrity Check (Server Revocation or 365-day Expired)
   if (user && !sessionValid && pathname !== '/login' && pathname !== '/verify-email') {
     return (
       <div className="flex h-screen items-center justify-center bg-primary p-4">
@@ -84,9 +78,8 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
-  // Special case: If user is on verify-email but is actually verified, let them pass
   if (pathname === '/verify-email' && emailVerified) {
-     return null; // The useEffect will handle redirection
+     return null; 
   }
 
   const isAuthorized = user && profile && sessionValid && allowedRoles.includes(profile.role) && (emailVerified || !user.providerData.some(p => p.providerId === 'password'));

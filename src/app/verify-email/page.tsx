@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser } from '@/firebase';
@@ -25,10 +26,8 @@ export default function VerifyEmailPage() {
     }
   }, [user, loading, emailVerified, router]);
 
-  // Automatically trigger verification on mount if not yet sent
   useEffect(() => {
     if (user && !emailVerified && !loading) {
-       // Firebase handles throttling this call automatically
        sendEmailVerification(user).catch(err => {
          console.warn("Verification already sent or throttled:", err.message);
        });
@@ -86,7 +85,7 @@ export default function VerifyEmailPage() {
         </CardHeader>
         <CardContent className="space-y-6 text-center px-12">
           <p className="text-sm font-medium text-muted-foreground leading-relaxed uppercase tracking-tight">
-            Please check your official ROC email and click the verification node to activate your clinical profile.
+            Please check your official ROC email and click the verification pulse to activate your clinical profile.
           </p>
           <div className="flex justify-center">
             <div className="flex items-center gap-3 px-6 py-2 bg-slate-50 border border-slate-100 rounded-full text-[9px] font-black uppercase tracking-widest text-muted-foreground">

@@ -50,7 +50,7 @@ service cloud.firestore {
     // --- REGISTRY & SHIFTS ---
 
     match /offices/{officeId} {
-      allow read: if isSignedIn();
+      allow read: if true; // Publicly readable for enrollment hubs
       allow create: if isSuperAdmin() && officeId == request.resource.data.officeId;
       allow update: if isSuperAdmin() && 
         request.resource.data.officeId == resource.data.officeId &&
@@ -114,7 +114,6 @@ service cloud.firestore {
     }
     
     match /roster_quotas/{quotaId} { 
-      // Handle IDs like weekId_officeId
       allow read: if isUserActive() && (isAdmin() || matchesOffice(resource.data.officeId));
       allow write: if isAdmin() && matchesOffice(request.resource.data.officeId) && isOfficeActive(request.resource.data.officeId);
     }
@@ -134,7 +133,7 @@ service cloud.firestore {
     }
 
     match /shift_adjacency_rules/{ruleId} {
-      allow read: if isAdmin() && matchesOffice(resource.data.office);
+      allow read: if isAdmin() && matchesOffice(request.resource.data.office);
       allow write: if isAdmin() && matchesOffice(request.resource.data.office);
     }
 
@@ -176,7 +175,7 @@ service cloud.firestore {
     
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow write: if true; // Publicly accessible for login pulses
+      allow write: if true; 
     }
 
     match /sessions/{sessionId} {

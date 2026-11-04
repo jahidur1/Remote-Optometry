@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -38,7 +39,6 @@ export default function AdminSwapsManager() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Stable Authoritative Fetch
   const swapsQuery = useMemo(() => query(
     collection(db, 'shift_swaps'), 
     orderBy('createdAt', 'desc')
@@ -113,7 +113,7 @@ export default function AdminSwapsManager() {
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">IMMUTABLE LEDGER</span>
@@ -155,7 +155,7 @@ export default function AdminSwapsManager() {
             <div className="space-y-1">
               <CardTitle className="text-2xl font-black uppercase tracking-tight text-black leading-none">Exchange Ledger</CardTitle>
               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                 Verified bilateral shift exchange tracing for clinical ROC nodes.
+                 Verified bilateral shift exchange tracing for clinical ROC centers.
               </CardDescription>
             </div>
           </div>
@@ -163,7 +163,7 @@ export default function AdminSwapsManager() {
             <div className="relative w-full group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-secondary transition-colors" />
               <Input 
-                placeholder="Search Requester or Target Node..." 
+                placeholder="Search Requester or Target..." 
                 className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:border-secondary transition-all text-black placeholder:text-slate-300"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -175,7 +175,7 @@ export default function AdminSwapsManager() {
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-b border-slate-100">
-                <TableHead className="w-[300px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Requester Node</TableHead>
+                <TableHead className="w-[300px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Requester</TableHead>
                 <TableHead className="w-[300px] py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Target Colleague</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Exchange Window</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status Pulse</TableHead>
@@ -190,7 +190,7 @@ export default function AdminSwapsManager() {
               ) : filteredSwaps?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-40 text-center">
-                    <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mb-4 italic">No authorized exchange requests found in cluster.</p>
+                    <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mb-4 italic">No authorized exchange requests found.</p>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -290,7 +290,7 @@ export default function AdminSwapsManager() {
                <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Operational Protocol</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
                   "Exchanges represent bilateral clinical agreements. Once authorized, the shift registry is modified within the cycle context. 
-                  Approving an exchange does not automatically re-publish the roster node; manual validation of staffing quotas is mandatory."
+                  Approving an exchange does not automatically re-publish the roster; manual validation of staffing quotas is mandatory."
                </p>
             </div>
          </div>

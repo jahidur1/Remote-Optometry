@@ -45,14 +45,14 @@ export default function EmployeePortal() {
   const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
   const [rosterLoading, setRosterLoading] = useState(true);
 
-  // Cycle Configuration: 4-week analytical window
   const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
   const prev1Week = '2024-51';
   const prev2Weeks = '2024-50';
   const weeks = [upcomingWeek, currentWeek, prev1Week, prev2Weeks];
 
-  const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
+  const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
+  const { data: shifts } = useCollection(shiftQuery);
   
   const bookingId = profile?.employeeId ? `${currentWeek}_${profile.employeeId}` : null;
   const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
@@ -97,7 +97,6 @@ export default function EmployeePortal() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8 md:space-y-12 pb-32 md:pb-40 px-2 sm:px-6 pt-4 md:pt-6 animate-in">
-      {/* Responsive Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 md:gap-8">
         <div className="flex flex-col gap-4 w-full md:w-auto">
           <div className="flex items-center gap-3 md:gap-4">
@@ -136,7 +135,6 @@ export default function EmployeePortal() {
 
       <div className="grid gap-8 md:gap-10 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-8 md:space-y-10">
-          {/* Today's Pulse Card */}
           <Card className="border-none bg-[#0F172A] text-white shadow-2xl rounded-[2rem] md:rounded-[3rem] overflow-hidden relative group">
              <div className="absolute top-0 right-0 p-12 opacity-10 transform group-hover:scale-110 transition-transform duration-1000 hidden md:block"><Zap size={260} /></div>
              <CardContent className="p-8 md:p-14 relative z-10">
@@ -164,7 +162,6 @@ export default function EmployeePortal() {
              </CardContent>
           </Card>
 
-          {/* Swipeable History Carousel */}
           <div className="space-y-4 md:space-y-6">
             <div className="flex items-center justify-between px-1 md:px-2">
                <div className="flex items-center gap-3 md:gap-4">
@@ -262,7 +259,6 @@ export default function EmployeePortal() {
           </div>
         </div>
 
-        {/* Adaptive Governance Sidebar */}
         <div className="lg:col-span-4 space-y-8 md:space-y-10">
           <Card className="bg-[#0F172A] text-white shadow-2xl border-none overflow-hidden rounded-[2rem] md:rounded-[3rem] relative group">
             <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000 hidden md:block"><Activity size={240} /></div>

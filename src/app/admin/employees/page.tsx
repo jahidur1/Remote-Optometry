@@ -109,7 +109,7 @@ export default function EmployeeManagement() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Directory</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Node Professionals <Activity className="size-3 text-secondary animate-pulse" />
+                  Institutional Professionals <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -148,7 +148,7 @@ export default function EmployeeManagement() {
           <Table className="border-collapse">
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-b border-slate-100">
-                <TableHead className="w-[200px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ID Node</TableHead>
+                <TableHead className="w-[200px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">ID Trace</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Clinical Identity</TableHead>
                 <TableHead className="py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Status Pulse</TableHead>
                 <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
@@ -218,7 +218,7 @@ export default function EmployeeManagement() {
                             onClick={() => toggleStatus(employee)}
                           >
                             {employee.status === 'Active' ? (
-                              <><ShieldAlert className="mr-3 h-4 w-4" /> Suspend Node</>
+                              <><ShieldAlert className="mr-3 h-4 w-4" /> Suspend Account</>
                             ) : (
                               <><CheckCircle2 className="mr-3 h-4 w-4" /> Reactivate</>
                             )}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -119,7 +120,7 @@ export default function BookOffPage() {
   if (loading || bookingLoading) return (
     <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
       <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
-      <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Syncing Clinical Grid</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Syncing Clinical Registry</p>
     </div>
   );
 
@@ -129,7 +130,7 @@ export default function BookOffPage() {
       <div className="space-y-4">
          <h2 className="text-3xl font-black text-black uppercase tracking-tight">Window Inactive</h2>
          <p className="text-sm text-black/40 leading-relaxed px-12 font-medium uppercase tracking-widest">
-            There are no active FCFS reservation cycles scheduled for your clinical node at this time.
+            There are no active FCFS reservation cycles scheduled for your clinical ROC center at this time.
          </p>
       </div>
       <Link href="/employee/portal">
@@ -184,7 +185,7 @@ export default function BookOffPage() {
               </div>
               <div className="flex flex-col items-center gap-5">
                  <Badge className="bg-white text-emerald-600 px-12 py-4 text-[14px] font-black uppercase tracking-[0.4em] shadow-2xl rounded-2xl">Verified</Badge>
-                 <p className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em]">Institutional Pulse Node 01</p>
+                 <p className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em]">Institutional Pulse Hub</p>
               </div>
             </div>
           </CardContent>
@@ -223,7 +224,7 @@ export default function BookOffPage() {
               <div className="size-5 rounded-full bg-secondary animate-ping shadow-[0_0_20px_hsl(var(--secondary))]" />
               <div className="space-y-1">
                  <span className="text-sm font-black text-white tracking-[0.5em] uppercase">FCFS Pulse: Active</span>
-                 <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Server Synchronized Node (IST)</p>
+                 <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Server Synchronized (IST)</p>
               </div>
             </div>
             <div className="flex items-center gap-5 text-[13px] font-black text-white uppercase tracking-[0.3em] bg-white/10 px-10 py-4 rounded-[1.75rem] border border-white/10 backdrop-blur-md">

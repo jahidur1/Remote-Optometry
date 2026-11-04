@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -43,7 +44,6 @@ export default function AdminSessionManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [revokingAll, setRevokingAll] = useState(false);
 
-  // Stable Authoritative Fetch
   const sessionsQuery = useMemo(() => query(
     collection(db, 'sessions'), 
     orderBy('deadlineAt', 'desc'), 
@@ -72,7 +72,7 @@ export default function AdminSessionManager() {
       });
       
       logAudit(db, adminProfile?.uid || 'system', 'ADMIN_REVOKE_SESSION', employeeId, { sessionId, uid });
-      toast({ title: "Session Terminated", description: "Node access has been immediately locked." });
+      toast({ title: "Session Terminated", description: "Identity access has been immediately locked." });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
@@ -122,7 +122,7 @@ export default function AdminSessionManager() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Session Audit</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Governance Node Pulse <Activity className="size-3 text-secondary animate-pulse" />
+                  Governance Pulse <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -139,7 +139,7 @@ export default function AdminSessionManager() {
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Node</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
@@ -216,7 +216,7 @@ export default function AdminSessionManager() {
               ) : filteredSessions?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-40 text-center">
-                    <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mb-4 italic">No active session traces found in node.</p>
+                    <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mb-4 italic">No active session traces found.</p>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -328,9 +328,9 @@ export default function AdminSessionManager() {
                <ShieldCheck className="size-8 text-white" />
             </div>
             <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Governance Protocol node</p>
+               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Governance Protocol</p>
                <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "Device sessions are immutably linked to the clinical registry. Revocation is immediate across all cluster nodes. 
+                  "Device sessions are immutably linked to the clinical registry. Revocation is immediate across all cluster hubs. 
                   Mandatory 365-day security deadlines ensure that dormant or compromised sessions are automatically neutralized within the solar cycle."
                </p>
             </div>
