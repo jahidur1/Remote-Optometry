@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, useCollection, useFirestore } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -35,10 +35,14 @@ export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Dynamic Office Subscription (Only Active)
-  const { data: registryOffices, loading: registryLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'))
-  );
+  // Dynamic Office Subscription - Stable Memoized Query
+  const registryQuery = useMemo(() => query(
+    collection(db, 'offices'), 
+    where('status', '==', 'Active'),
+    orderBy('officeName', 'asc')
+  ), [db]);
+
+  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
 
   const handleProvisionIdentity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +51,7 @@ export default function RegisterPage() {
       return;
     }
     if (!formData.office) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Target ROC Cluster node is required." });
+      toast({ variant: "destructive", title: "Validation Error", description: "Target ROC Cluster center is required." });
       return;
     }
 
@@ -93,7 +97,7 @@ export default function RegisterPage() {
           <CardHeader className="p-12 bg-primary text-white relative">
              <div className="flex items-center justify-between mb-8 relative z-10">
                 <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 rounded-xl px-6">
-                   <ArrowLeft className="mr-3 size-4" /> Exit Node
+                   <ArrowLeft className="mr-3 size-4" /> Exit Hub
                 </Button>
                 <div className="size-14 rounded-2xl bg-white/10 flex items-center justify-center text-white backdrop-blur-md border border-white/10">
                     <UserPlus className="size-7" />
@@ -109,7 +113,7 @@ export default function RegisterPage() {
               <div className="p-6 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex gap-6 items-start">
                   <ShieldAlert className="size-6 text-secondary shrink-0 mt-1" />
                   <div className="space-y-1">
-                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Trusted Node Authentication</p>
+                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Trusted System Authentication</p>
                     <p className="text-[12px] font-bold text-black/60 uppercase leading-relaxed tracking-tight">
                         Enrollment creates a Firebase Auth account and mirrors metadata to the 'users' collection keyed by UID.
                     </p>
@@ -125,7 +129,7 @@ export default function RegisterPage() {
                     </div>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Target ID Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Target ID</Label>
                     <div className="relative group">
                         <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
                         <Input className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all bg-slate-50 uppercase" value={formData.employeeId} onChange={e => setFormData({...formData, employeeId: e.target.value.toUpperCase()})} required placeholder="EMP-0000" />
@@ -183,10 +187,10 @@ export default function RegisterPage() {
                     </div>
                  </div>
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Center</Label>
                     <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                        <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select Active Node"} />
+                        <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select Active Center"} />
                       </SelectTrigger>
                       <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
                         {registryOffices?.map(o => (
@@ -201,7 +205,7 @@ export default function RegisterPage() {
 
               <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender</Label>
                     <Select value={formData.gender} onValueChange={v => setFormData({...formData, gender: v})}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />
@@ -230,7 +234,7 @@ export default function RegisterPage() {
 
               <Button className="w-full bg-primary text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group" type="submit" disabled={loading || !formData.office}>
                 {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform" />}
-                Authorize & Deploy Identity
+                Authorize & Enroll Profile
               </Button>
             </form>
           </CardContent>

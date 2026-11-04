@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth, useCollection, useFirestore } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import {
   Dialog,
   DialogContent,
@@ -39,10 +39,14 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Dynamic Office Registry (Active Nodes Only)
-  const { data: registryOffices, loading: registryLoading } = useCollection(
-    query(collection(db, 'offices'), where('status', '==', 'Active'))
-  );
+  // Dynamic Office Registry - Stable Memoized Query
+  const registryQuery = useMemo(() => query(
+    collection(db, 'offices'), 
+    where('status', '==', 'Active'),
+    orderBy('officeName', 'asc')
+  ), [db]);
+
+  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -94,7 +98,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       if (result.success) {
         toast({
           title: 'Registry Synchronized',
-          description: `Institutional record for ${formData.fullName} secured via Trusted Node.`,
+          description: `Institutional record for ${formData.fullName} secured via Trusted System.`,
         });
         onOpenChange(false);
       } else {
@@ -113,7 +117,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         <div className="bg-primary p-12 text-white relative">
           <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><User size={200} /></div>
           <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10 text-white">
-            {employee ? 'Edit Identity Node' : 'Registry Alert'}
+            {employee ? 'Edit Identity Profile' : 'Registry Alert'}
           </DialogTitle>
           <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">
             Trusted Backend Identity Protocol — Dynamic Registry Sync
@@ -169,10 +173,10 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
               <div className="grid grid-cols-2 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Center</Label>
                     <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                        <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Node"} />
+                        <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Center"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
                         {registryOffices?.map(o => (
@@ -200,7 +204,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
               <div className="grid grid-cols-3 gap-8">
                  <div className="space-y-3">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender Node</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender</Label>
                     <Select value={formData.gender} onValueChange={(val) => setFormData({ ...formData, gender: val })}>
                       <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                         <SelectValue />
@@ -228,7 +232,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
-                        <SelectItem value="Active" className="font-bold text-[11px] uppercase py-3 text-emerald-600">Active Node</SelectItem>
+                        <SelectItem value="Active" className="font-bold text-[11px] uppercase py-3 text-emerald-600">Active Center</SelectItem>
                         <SelectItem value="Suspended" className="font-bold text-[11px] uppercase py-3 text-destructive">Suspended</SelectItem>
                       </SelectContent>
                     </Select>
@@ -248,7 +252,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                </div>
                <Link href="/register" onClick={() => onOpenChange(false)}>
                   <Button className="h-16 px-14 bg-primary text-white font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:bg-black transition-all">
-                    Launch Provisioning Hub
+                    Launch Enrollment Hub
                   </Button>
                </Link>
             </div>

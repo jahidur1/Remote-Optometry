@@ -234,7 +234,7 @@ export default function PublicRegistrationPage() {
               disabled={loading || registryLoading}
             >
               {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform text-secondary fill-secondary" />}
-              Authorize & Enroll Identity
+              Authorize & Enroll Profile
             </Button>
           </form>
         </CardContent>
