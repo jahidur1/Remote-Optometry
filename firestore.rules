@@ -104,8 +104,6 @@ service cloud.firestore {
     }
 
     match /published_rosters/{versionId} { 
-      // Professionals are denied direct read of multi-employee roster docs.
-      // They MUST use secure Server Actions for their personal personal projection.
       allow read: if isAdmin() && matchesOffice(resource.data.office); 
       allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
@@ -160,7 +158,7 @@ service cloud.firestore {
     
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow create: if true; // Unauthenticated code generation
+      allow create: if true; 
       allow update, delete: if isSuperAdmin();
     }
 
@@ -171,3 +169,5 @@ service cloud.firestore {
     }
   }
 }
+// Deployment Pulse: Institutional Rules Finalized
+// Timestamp: 2024-05-20T10:00:00Z

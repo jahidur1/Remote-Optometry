@@ -1,4 +1,3 @@
-
 {
   "indexes": [
     {
@@ -36,6 +35,14 @@
       ]
     },
     {
+      "collectionGroup": "weekoff_bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "office", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "whatsapp_logs",
       "queryScope": "COLLECTION",
       "fields": [
@@ -43,6 +50,35 @@
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "rosterVersion", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employee_preferences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "weekId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "audit_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "deadlineAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "otp_registry",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
   ],
