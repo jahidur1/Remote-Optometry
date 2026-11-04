@@ -59,7 +59,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
   if (!config) {
     return (
       <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
-        <p className="text-[9px] font-black uppercase text-black/30 tracking-[0.25em]">No live weekly-off preference pool available</p>
+        <p className="text-[10px] font-black uppercase text-black/30 tracking-[0.2em] leading-relaxed">No live week-off preference pool available</p>
       </div>
     );
   }
@@ -72,7 +72,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
   if (now > closeTime) {
     return (
       <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
-        <p className="text-[9px] font-black uppercase text-black/30 tracking-[0.25em]">Matrix Cycle Closed</p>
+        <p className="text-[10px] font-black uppercase text-black/30 tracking-[0.2em]">Matrix Cycle Closed</p>
       </div>
     );
   }
@@ -84,7 +84,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
           <Zap className="size-3 fill-secondary" /> Pulse Live
         </p>
         <div className="space-y-2">
-           <p className="text-[11px] font-bold text-black uppercase tracking-tight">Open for Cycle {config.weekId}.</p>
+           <p className="text-[11px] font-bold text-black uppercase tracking-tight">Window Open for Cycle {config.weekId}.</p>
            <Link href="/employee/book-off" className="block">
               <Button className="w-full bg-secondary text-white font-black uppercase text-[10px] tracking-[0.15em] rounded-lg md:rounded-xl h-12 shadow-[0_10px_30px_-10px_rgba(59,130,246,0.5)] hover:scale-[1.02] active:scale-95 transition-all">
                 Enter Matrix Hub
@@ -95,7 +95,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
     );
   }
 
-  if (diffMins <= 3) {
+  if (diffMins > 0 && diffMins <= 3) {
     const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -105,7 +105,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
         <p className="text-4xl font-black text-amber-600 tabular-nums tracking-tighter leading-none">
           {mins}:{secs.toString().padStart(2, '0')}
         </p>
-        <p className="text-[8px] font-black text-amber-500/40 uppercase tracking-widest">Prepare for Pulse</p>
+        <p className="text-[8px] font-black text-amber-500/40 uppercase tracking-widest">Fast-Finger Sync Active</p>
       </div>
     );
   }
@@ -119,12 +119,12 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
 
   return (
     <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center space-y-3">
-       <p className="text-[8px] md:text-[10px] font-black uppercase text-black/30 tracking-[0.3em]">Weekly-Off Matrix</p>
+       <p className="text-[9px] font-black uppercase text-black/30 tracking-[0.3em]">Institutional Pulse</p>
        <p className="text-[12px] font-bold text-black uppercase tracking-tight leading-relaxed">
           Live pool available at <br />
           <span className="text-xl text-secondary mt-1 inline-block">{istTime} IST</span>
        </p>
-       <p className="text-[9px] text-black/20 uppercase font-black tracking-widest mt-1">Status: Scheduled Pulse</p>
+       <p className="text-[8px] text-black/20 uppercase font-black tracking-widest mt-1">Status: Scheduled Cycle {config.weekId}</p>
     </div>
   );
 }

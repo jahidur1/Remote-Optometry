@@ -152,8 +152,8 @@ export default function BookOffPage() {
       <CalendarDays className="size-24 mx-auto text-black/5" />
       <div className="space-y-4">
          <h2 className="text-3xl font-black text-black uppercase tracking-tight">Window Inactive</h2>
-         <p className="text-sm text-black/40 leading-relaxed px-12 font-medium uppercase tracking-widest">
-            There are no active FCFS reservation cycles scheduled for your clinical ROC center at this time.
+         <p className="text-[11px] text-black/40 leading-relaxed px-12 font-medium uppercase tracking-widest">
+            No live week-off preference pool available for your ROC Center at this time.
          </p>
       </div>
       <Link href="/employee/portal">
@@ -230,7 +230,7 @@ export default function BookOffPage() {
                  <div className="space-y-4">
                    <CardTitle className="text-5xl font-black text-black uppercase tracking-tight leading-none">Pulse Scheduled</CardTitle>
                    <p className="text-xl font-bold text-secondary uppercase tracking-widest">
-                     Available at {openTime?.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} IST
+                     Live pool available at {openTime?.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} IST
                    </p>
                  </div>
                )}
