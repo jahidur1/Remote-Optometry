@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, orderBy, doc, setDoc, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, doc, setDoc, where, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,9 @@ import {
   Lock,
   Server,
   Terminal,
-  CalendarDays
+  CalendarDays,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
@@ -146,6 +148,35 @@ export default function WeekOffConfiguration() {
     }
   };
 
+  const handleDelete = async (targetConfigId?: string) => {
+    const idToDelete = targetConfigId || `${weekId}_${office}`;
+    if (!idToDelete) return;
+
+    const confirmMessage = targetConfigId 
+      ? `DECOMMISSION ALERT: This will permanently remove the configuration for cycle ${idToDelete}. Proceed?`
+      : `DECOMMISSION ALERT: Remove the live configuration for ${office} in Cycle ${weekId}? Professionals will immediately lose access to this preference pool.`;
+
+    if (!confirm(confirmMessage)) return;
+
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'weekoff_configs', idToDelete));
+      logAudit(db, profile?.uid || 'system', 'DELETE_WEEKOFF_CONFIG', idToDelete, { office, weekId });
+      toast({ title: "Registry Decommissioned", description: "The clinical cycle has been removed from the operational registry." });
+      
+      if (!targetConfigId) {
+        setOpenTime('');
+        setCloseTime('');
+        setQuotas(DAYS.reduce((acc, day) => ({ ...acc, [day]: 15 }), {}));
+        setExists(false);
+      }
+    } catch (e: any) {
+      toast({ title: "Operation Failed", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
@@ -200,14 +231,27 @@ export default function WeekOffConfiguration() {
                 </PopoverContent>
               </Popover>
            </div>
-           <Button 
-             className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
-             onClick={handleSave} 
-             disabled={loading || !office}
-           >
-            {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
-            {loading ? 'SYNCING...' : exists ? 'UPDATE MATRIX' : 'PUBLISH WINDOW'}
-           </Button>
+           <div className="flex gap-2">
+              {exists && (
+                <Button 
+                  variant="outline"
+                  className="bg-white border-2 border-destructive/20 text-destructive h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-destructive hover:text-white"
+                  onClick={() => handleDelete()}
+                  disabled={loading || !office}
+                >
+                  <Trash2 className="size-4 mr-2" />
+                  DECOMMISSION
+                </Button>
+              )}
+              <Button 
+                className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 
+                onClick={handleSave} 
+                disabled={loading || !office}
+              >
+                {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
+                {loading ? 'SYNCING...' : exists ? 'UPDATE MATRIX' : 'PUBLISH WINDOW'}
+              </Button>
+           </div>
         </div>
       </div>
 
@@ -325,7 +369,7 @@ export default function WeekOffConfiguration() {
                     <TableHead className="py-6 px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">ROC Cluster</TableHead>
                     <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Cycle</TableHead>
                     <TableHead className="px-10 text-left border-r border-slate-100 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Execution Window (IST)</TableHead>
-                    <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Hub Status</TableHead>
+                    <TableHead className="px-10 text-right pr-12 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60">Registry Control</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -360,7 +404,14 @@ export default function WeekOffConfiguration() {
                       </TableCell>
                       <TableCell className="text-right pr-12">
                          <div className="flex items-center justify-end gap-3">
-                            <span className="text-[9px] font-black text-secondary uppercase tracking-widest">ACTIVE_SYNC</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="size-10 rounded-xl text-slate-300 hover:text-destructive hover:bg-destructive/5 transition-all"
+                              onClick={() => handleDelete(c.id)}
+                            >
+                               <Trash2 className="size-4" />
+                            </Button>
                             <div className="size-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 shadow-inner">
                                <Server className="size-4 text-black/20" />
                             </div>
