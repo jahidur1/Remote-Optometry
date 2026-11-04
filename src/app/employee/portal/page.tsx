@@ -13,7 +13,6 @@ import {
   CheckCircle2, 
   Loader2, 
   Building2, 
-  MapPin, 
   Settings, 
   Activity, 
   Zap, 
@@ -21,8 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
-  ArrowRightLeft,
-  Lock
+  Lock,
+  RotateCcw
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -134,12 +133,13 @@ export default function EmployeePortal() {
   const auth = useAuth();
   const { profile, loading: userLoading } = useUser();
   const [api, setApi] = useState<CarouselApi>();
+  const [currentIndex, setCurrentIndex] = useState(2);
   
   const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
 
-  // Dynamic Institutional Range Calculation
+  // Dynamic Institutional Range Calculation (Previous 2, Current, Next)
   const weeks = useMemo(() => {
     const now = new Date();
     const currentStart = startOfISOWeek(now);
@@ -151,10 +151,10 @@ export default function EmployeePortal() {
     };
 
     return [
-      getWeekId(subWeeks(currentStart, 2)), // Previous 2
-      getWeekId(subWeeks(currentStart, 1)), // Previous 1
-      getWeekId(currentStart),              // Current
-      getWeekId(addWeeks(currentStart, 1))   // Upcoming
+      getWeekId(subWeeks(currentStart, 2)), // Index 0: Prev 2
+      getWeekId(subWeeks(currentStart, 1)), // Index 1: Prev 1
+      getWeekId(currentStart),              // Index 2: Current
+      getWeekId(addWeeks(currentStart, 1))   // Index 3: Next
     ];
   }, []);
 
@@ -177,6 +177,7 @@ export default function EmployeePortal() {
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) setActiveConfig(snapshot.docs[0].data());
+      else setActiveConfig(null);
     });
     return () => unsubscribe();
   }, [db, profile?.office, userLoading]);
@@ -206,10 +207,13 @@ export default function EmployeePortal() {
     syncRosters();
   }, [auth.currentUser, weeks]);
 
-  // Centering Carousel on Current Week
+  // Handle Carousel Focus
   useEffect(() => {
     if (api && weeks.length > 0) {
       api.scrollTo(2);
+      api.on("select", () => {
+        setCurrentIndex(api.selectedScrollSnap());
+      });
     }
   }, [api, weeks]);
 
@@ -266,73 +270,113 @@ export default function EmployeePortal() {
              </CardContent>
           </Card>
 
-          <Carousel setApi={setApi} className="w-full">
-            <CarouselContent>
-              {weeks.map((week) => {
-                const weekData = rosterData[week] || { assignments: [], published: false };
-                const isCurrent = week === currentWeekId;
-                const weekDates = getDatesForWeek(week);
+          <div className="space-y-6">
+             {/* Navigation Hub */}
+             <div className="flex items-center justify-between bg-white p-2 rounded-2xl border-2 border-slate-50 shadow-lg">
+                <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="size-12 rounded-xl hover:bg-slate-100" 
+                   onClick={() => api?.scrollPrev()}
+                   disabled={currentIndex === 0}
+                >
+                   <ChevronLeft className="size-6" />
+                </Button>
                 
-                return (
-                  <CarouselItem key={week}>
-                    <Card className={cn(
-                      "border-none shadow-2xl overflow-hidden rounded-[2rem] md:rounded-[3rem] bg-white transition-all",
-                      isCurrent ? "ring-2 ring-secondary/20" : ""
-                    )}>
-                      <CardHeader className="p-8 md:p-10 bg-slate-50 border-b">
-                         <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight flex items-center justify-between">
-                            <span className="flex items-center gap-3">
-                              {isCurrent && <div className="size-2 rounded-full bg-secondary animate-pulse" />}
-                              Clinical Cycle
-                            </span>
-                            <Badge variant="outline" className={cn(
-                              "text-[10px] font-black uppercase px-4 py-1.5 rounded-lg border-secondary/20",
-                              isCurrent ? "bg-secondary text-white border-none" : "text-secondary bg-secondary/5"
-                            )}>
-                              {displayWeekRange(week)}
-                            </Badge>
-                         </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-8 md:p-10">
-                        <div className="grid grid-cols-1 gap-3">
-                          {DAYS_LIST.map((day, idx) => {
-                            const date = weekDates[idx];
-                            const dateStr = date ? format(date, 'MMM dd') : '-- --';
-                            const assignment = weekData.assignments.find(a => a.dayOfWeek === day);
-                            const shift = shifts?.find(s => s.id === assignment?.shiftId);
+                <div className="flex items-center gap-4">
+                   <div className="text-center">
+                      <p className="text-[9px] font-black uppercase text-secondary tracking-widest">
+                         {currentIndex < 2 ? "History Cycle" : currentIndex === 2 ? "Current Hub Cycle" : "Upcoming Cycle"}
+                      </p>
+                      <p className="text-[13px] font-black uppercase text-black tracking-tighter">
+                         {displayWeekRange(weeks[currentIndex])}
+                      </p>
+                   </div>
+                   {currentIndex !== 2 && (
+                      <Button 
+                         variant="outline" 
+                         size="sm" 
+                         onClick={() => api?.scrollTo(2)}
+                         className="h-8 border-2 border-secondary/20 text-secondary font-black text-[9px] uppercase tracking-widest rounded-lg"
+                      >
+                         <RotateCcw className="size-3 mr-1.5" /> Reset
+                      </Button>
+                   )}
+                </div>
 
-                            return (
-                              <div key={day} className="flex items-center justify-between p-4 rounded-xl bg-white border border-slate-100 hover:border-secondary/20 transition-all group">
-                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 text-center border-r border-slate-100 pr-4">
-                                       <p className="text-[9px] font-black uppercase text-black/30 leading-none">{day.substring(0,3)}</p>
-                                       <p className="text-[11px] font-black text-black mt-1 tabular-nums">{dateStr.split(' ')[1]}</p>
-                                    </div>
-                                    <div className="flex flex-col">
-                                       <span className="text-[10px] font-black uppercase tracking-widest text-primary leading-tight">{day}</span>
-                                       {weekData.published ? (
-                                          shift ? (
-                                            <span className="text-[8px] font-bold text-secondary uppercase tracking-wider mt-0.5">{shift.name} ({shift.startTime} - {shift.endTime})</span>
-                                          ) : (
-                                            <span className="text-[8px] font-bold text-black/20 uppercase tracking-widest italic mt-0.5">No Duty Assigned</span>
-                                          )
-                                       ) : (
-                                          <span className="text-[8px] font-bold text-black/10 uppercase tracking-widest italic mt-0.5">Pending Publication</span>
-                                       )}
-                                    </div>
-                                 </div>
-                                 {weekData.published && shift && <CheckCircle2 className="size-4 text-emerald-500 opacity-20 group-hover:opacity-100 transition-opacity" />}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </CarouselItem>
-                )
-              })}
-            </CarouselContent>
-          </Carousel>
+                <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="size-12 rounded-xl hover:bg-slate-100" 
+                   onClick={() => api?.scrollNext()}
+                   disabled={currentIndex === weeks.length - 1}
+                >
+                   <ChevronRight className="size-6" />
+                </Button>
+             </div>
+
+             <Carousel setApi={setApi} className="w-full">
+               <CarouselContent>
+                 {weeks.map((week) => {
+                   const weekData = rosterData[week] || { assignments: [], published: false };
+                   const isCurrent = week === currentWeekId;
+                   const weekDates = getDatesForWeek(week);
+                   
+                   return (
+                     <CarouselItem key={week}>
+                       <div className="grid grid-cols-1 gap-3 px-1">
+                         {DAYS_LIST.map((day, idx) => {
+                           const date = weekDates[idx];
+                           const dateStr = date ? format(date, 'MMM dd') : '-- --';
+                           const assignment = weekData.assignments.find(a => a.dayOfWeek === day);
+                           const shift = shifts?.find(s => s.id === assignment?.shiftId);
+
+                           return (
+                             <Card key={day} className={cn(
+                               "border-none shadow-md overflow-hidden rounded-2xl bg-white transition-all group hover:scale-[1.01] hover:shadow-xl",
+                               isCurrent ? "border-l-4 border-l-secondary" : ""
+                             )}>
+                               <CardContent className="p-5 flex items-center justify-between">
+                                  <div className="flex items-center gap-5">
+                                     <div className="w-14 text-center border-r-2 border-slate-50 pr-4">
+                                        <p className="text-[10px] font-black uppercase text-black/30 leading-none">{day.substring(0,3)}</p>
+                                        <p className="text-[14px] font-black text-black mt-1.5 tabular-nums">{dateStr.split(' ')[1]}</p>
+                                     </div>
+                                     <div className="flex flex-col">
+                                        <span className="text-[11px] font-black uppercase tracking-widest text-primary leading-tight">{day}</span>
+                                        {weekData.published ? (
+                                           shift ? (
+                                             <div className="flex items-center gap-2 mt-1">
+                                                <Badge className="bg-secondary/10 text-secondary text-[8px] font-black uppercase px-2 py-0.5 rounded-md border-none">{shift.id}</Badge>
+                                                <span className="text-[9px] font-bold text-black/40 uppercase tracking-widest">{shift.startTime} - {shift.endTime}</span>
+                                             </div>
+                                           ) : (
+                                             <span className="text-[9px] font-bold text-black/20 uppercase tracking-widest italic mt-1">No Duty Assigned</span>
+                                           )
+                                        ) : (
+                                           <div className="flex items-center gap-2 mt-1 text-black/10">
+                                              <Lock className="size-3" />
+                                              <span className="text-[9px] font-bold uppercase tracking-widest italic">Pending Publication</span>
+                                           </div>
+                                        )}
+                                     </div>
+                                  </div>
+                                  {weekData.published && shift && (
+                                     <div className="size-8 rounded-full bg-emerald-50 flex items-center justify-center">
+                                        <CheckCircle2 className="size-4 text-emerald-500" />
+                                     </div>
+                                  )}
+                               </CardContent>
+                             </Card>
+                           );
+                         })}
+                       </div>
+                     </CarouselItem>
+                   )
+                 })}
+               </CarouselContent>
+             </Carousel>
+          </div>
         </div>
 
         <div className="lg:col-span-4 space-y-10">

@@ -60,7 +60,7 @@ export default function BookOffPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Stable Config Query
+  // Stable Config Query - Using instrumented hook
   const configQuery = useMemo(() => {
     if (!profile?.office) return null;
     return query(
@@ -123,14 +123,14 @@ export default function BookOffPage() {
     return (openTime.getTime() - now.getTime()) / (1000 * 60);
   }, [openTime, now]);
 
-  if (profileLoading || configLoading || bookingLoading) return (
+  if (profileLoading || (configLoading && !configs)) return (
     <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
       <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
       <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Syncing Clinical Registry</p>
     </div>
   );
 
-  if (!activeConfig) return (
+  if (!configLoading && !activeConfig) return (
     <div className="max-w-xl mx-auto mt-24 text-center space-y-10 p-16 rounded-[3rem] bg-white shadow-2xl border-2 border-dashed border-slate-200 relative overflow-hidden">
       <CalendarDays className="size-24 mx-auto text-black/5" />
       <div className="space-y-4">
@@ -161,7 +161,7 @@ export default function BookOffPage() {
               <h1 className="text-5xl font-black tracking-tighter text-black uppercase leading-none">Slot Reservation</h1>
             </div>
             <div className="flex items-center gap-5 mt-4">
-               <Badge className="bg-secondary text-white font-black text-[10px] uppercase px-5 py-1.5 rounded-full shadow-lg shadow-secondary/20">Cycle: {activeConfig.weekId}</Badge>
+               <Badge className="bg-secondary text-white font-black text-[10px] uppercase px-5 py-1.5 rounded-full shadow-lg shadow-secondary/20">Cycle: {activeConfig?.weekId}</Badge>
                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-black/40">ROC Cluster: {profile?.office?.replace('_', ' ')}</p>
             </div>
           </div>
@@ -208,7 +208,7 @@ export default function BookOffPage() {
             </div>
             <div className="space-y-8 relative z-10">
                {diffMins > 0 && diffMins <= 3 ? (
-                 <CountdownTimer targetDate={activeConfig.bookingOpen} label="Clinical Window Initiates In" />
+                 <CountdownTimer targetDate={activeConfig?.bookingOpen} label="Clinical Window Initiates In" />
                ) : (
                  <div className="space-y-4">
                    <CardTitle className="text-5xl font-black text-black uppercase tracking-tight leading-none">Pulse Scheduled</CardTitle>
@@ -217,7 +217,7 @@ export default function BookOffPage() {
                    </p>
                  </div>
                )}
-               <p className="text-[11px] text-black/40 uppercase font-black tracking-[0.4em] mt-6 leading-relaxed max-w-sm mx-auto">
+               <p className="text-[11px] text-black/40 uppercase font-black tracking-[0.4em] mt-6 leading-relaxed max-sm:px-4 max-w-sm mx-auto">
                  Atomic FCFS synchronization begins at precisely the opening second. Secure your preferences early.
                </p>
             </div>
