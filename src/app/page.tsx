@@ -10,11 +10,8 @@ import {
   ArrowRight, 
   Loader2, 
   Sparkles, 
-  Terminal, 
-  Activity,
-  Zap,
-  Cpu,
-  Globe
+  Globe,
+  Cpu
 } from "lucide-react";
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
@@ -61,19 +58,19 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#FFFFFF] p-4 sm:p-6 text-black relative overflow-hidden font-body">
-      {/* High-Intensity mesh gradient background */}
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white p-4 sm:p-6 text-black relative overflow-hidden font-body">
+      {/* Dynamic Background Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[120px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-blue-50/40 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-slate-50/50 rounded-full blur-[120px]" />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #000 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #000 1px, transparent 0)', backgroundSize: '40px 40px' }} />
       </div>
 
-      <div className="max-w-4xl w-full space-y-16 sm:space-y-24 text-center relative z-10 py-10">
-        <div className="space-y-8 sm:space-y-12 animate-slide-up">
-          {/* Identity Mark - Logo Integration */}
-          <div className="relative mx-auto size-24 sm:size-32 md:size-40 group">
-            <div className="relative h-full w-full transform transition-all duration-700 group-hover:rotate-6 group-hover:scale-110 active:scale-95 cursor-default">
+      <div className="max-w-4xl w-full space-y-12 sm:space-y-16 text-center relative z-10 py-10">
+        <div className="space-y-10 animate-slide-up">
+          {/* Identity Mark */}
+          <div className="relative mx-auto size-24 sm:size-32 group">
+            <div className="relative h-full w-full transform transition-all duration-700 group-hover:scale-105 cursor-default">
               {logo && (
                 <Image 
                   src={logo.imageUrl} 
@@ -85,66 +82,71 @@ export default function Home() {
                 />
               )}
             </div>
-            <div className="absolute -inset-8 bg-primary/5 rounded-full blur-3xl -z-10 animate-pulse" />
           </div>
 
-          <div className="space-y-6 sm:space-y-8 px-2">
-             <div className="space-y-2 sm:space-y-4">
-                <h1 className="text-5xl font-black tracking-tighter font-headline sm:text-7xl md:text-8xl lg:text-[10rem] uppercase leading-[0.95] sm:leading-[0.8] text-black break-words">
-                  Remote <br /> <span className="text-primary italic">Optometry</span>
+          {/* Main Cinematic Heading */}
+          <div className="space-y-4 px-2">
+             <div className="space-y-2">
+                <h1 className="text-4xl font-black tracking-tighter font-headline sm:text-6xl md:text-7xl uppercase leading-[0.9] text-black">
+                  Remote <br /> <span className="text-[#0F172A] italic">Optometry</span>
                 </h1>
-                <p className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.6em] sm:tracking-[1.2em] text-primary/30 mt-4 sm:mt-6">Intelligent Optimization Node</p>
+                <p className="text-[10px] sm:text-[12px] font-black uppercase tracking-[0.4em] text-black/30 mt-4">
+                  Intelligent Optimization Node
+                </p>
              </div>
           </div>
 
-          <p className="mx-auto max-w-[660px] text-lg sm:text-xl text-slate-600 leading-relaxed font-medium px-4">
+          {/* Value Proposition */}
+          <p className="mx-auto max-w-[580px] text-base sm:text-lg text-slate-500 leading-relaxed font-medium px-4">
             Precision clinical orchestration for Remote Optometry Centres. 
             Powered by deterministic CP-SAT optimization and Zero-Trust identity architecture.
           </p>
         </div>
 
-        <div className="flex flex-col items-center gap-10 sm:gap-14 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-           <Link href="/login" className="w-full max-w-sm group px-4">
-             <Button className="w-full bg-primary text-white hover:bg-black h-16 sm:h-20 text-lg sm:text-xl font-black uppercase tracking-[0.2em] rounded-2xl sm:rounded-[2rem] shadow-2xl transition-all duration-500 hover:scale-[1.02] active:scale-95 border-none relative overflow-hidden group">
+        {/* CTA Section */}
+        <div className="flex flex-col items-center gap-12 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+           <Link href="/login" className="w-full max-w-[320px] group px-4">
+             <Button className="w-full bg-[#0F172A] text-white hover:bg-black h-16 sm:h-18 text-lg font-black uppercase tracking-[0.15em] rounded-2xl shadow-[0_20px_40px_-10px_rgba(15,23,42,0.3)] transition-all duration-500 hover:scale-[1.02] active:scale-95 border-none relative overflow-hidden group">
                <span className="relative z-10 flex items-center justify-center">
                  Authentication
-                 <ArrowRight className="ml-3 sm:ml-4 size-5 sm:size-7 group-hover:translate-x-4 transition-transform" />
+                 <ArrowRight className="ml-3 size-5 group-hover:translate-x-2 transition-transform" />
                </span>
-               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
              </Button>
            </Link>
            
-           <div className="flex items-center gap-4 sm:gap-8 text-black/10 px-6 w-full">
-              <div className="h-[1px] flex-1 bg-slate-200" />
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.3em] sm:tracking-[0.5em] whitespace-nowrap text-black/40">Institutional Credentials Required</span>
-              <div className="h-[1px] flex-1 bg-slate-200" />
+           {/* Visual Divider */}
+           <div className="flex items-center gap-6 text-black/10 px-6 w-full max-w-lg mx-auto">
+              <div className="h-[1px] flex-1 bg-slate-100" />
+              <span className="text-[9px] font-black uppercase tracking-[0.3em] whitespace-nowrap text-black/20">Institutional Credentials Required</span>
+              <div className="h-[1px] flex-1 bg-slate-100" />
            </div>
         </div>
 
-        {/* Protocol Matrix */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 px-4 sm:pt-20 border-t border-slate-100 animate-slide-up" style={{ animationDelay: '0.4s' }}>
+        {/* Protocol Matrix - 2x2 Grid Like the Reference */}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-12 sm:gap-x-16 sm:gap-y-16 max-w-2xl mx-auto pt-12 animate-slide-up" style={{ animationDelay: '0.4s' }}>
            {[
-             { icon: ShieldCheck, label: "Zero-Trust", color: "text-primary", sub: "Auth Guard" },
-             { icon: Sparkles, label: "CP-SAT Logic", color: "text-primary", sub: "Deterministic" },
-             { icon: Globe, label: "Cluster Sync", color: "text-primary", sub: "Cloud Native" },
-             { icon: Cpu, label: "Optimization", color: "text-primary", sub: "Proof Node" }
+             { icon: ShieldCheck, label: "Zero-Trust", sub: "Auth Guard" },
+             { icon: Sparkles, label: "CP-SAT Logic", sub: "Deterministic" },
+             { icon: Globe, label: "Cluster Sync", sub: "Cloud Native" },
+             { icon: Cpu, label: "Optimization", sub: "Proof Node" }
            ].map((item, i) => (
-             <div key={i} className="flex flex-col items-center gap-3 sm:gap-5 group opacity-70 hover:opacity-100 transition-all duration-500 cursor-default">
-                <div className="size-12 sm:size-16 rounded-xl sm:rounded-[1.75rem] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center justify-center border border-slate-50 transition-all group-hover:bg-primary group-hover:text-white group-hover:rotate-12 group-hover:scale-110">
-                   <item.icon className="size-6 sm:size-8" />
+             <div key={i} className="flex flex-col items-center gap-4 group cursor-default">
+                <div className="size-12 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110">
+                   <item.icon className="size-6 text-black/60 group-hover:text-black transition-colors" strokeWidth={1.5} />
                 </div>
-                <div className="space-y-1 sm:space-y-1.5 text-center">
-                   <p className="text-[9px] sm:text-[11px] font-black uppercase tracking-widest text-black leading-none">{item.label}</p>
-                   <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">{item.sub}</p>
+                <div className="space-y-1 text-center">
+                   <p className="text-[11px] font-black uppercase tracking-widest text-black leading-none">{item.label}</p>
+                   <p className="text-[9px] font-bold uppercase tracking-widest text-black/30 group-hover:text-black/40 transition-colors">{item.sub}</p>
                 </div>
              </div>
            ))}
         </div>
       </div>
 
-      {/* Institutional Footer Trace */}
-      <div className="fixed bottom-6 sm:bottom-10 left-0 right-0 flex justify-center pointer-events-none opacity-[0.05] overflow-hidden">
-         <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[1em] sm:tracking-[2em] text-black whitespace-nowrap">REMOTE OPTOMETRY GRID</p>
+      {/* Footer Branding Trace */}
+      <div className="fixed bottom-10 left-0 right-0 flex justify-center pointer-events-none opacity-[0.04] overflow-hidden">
+         <p className="text-[10px] font-black uppercase tracking-[1.5em] text-black whitespace-nowrap">REMOTE OPTOMETRY GRID</p>
       </div>
     </div>
   );
