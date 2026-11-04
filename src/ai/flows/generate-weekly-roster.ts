@@ -1,8 +1,9 @@
+
 'use server';
 
 /**
- * @fileOverview Trusted Coordinator Flow for Clinical Roster Generation.
- * Migrated to Firebase Admin SDK for server-side security and institutional authorization.
+ * Trusted Coordinator Flow for Clinical Roster Generation.
+ * Refactored: Uses dynamic Office Registry for node validation.
  */
 
 import { ai } from '@/ai/genkit';
@@ -11,6 +12,7 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { callSolver } from '@/lib/solver-client';
 import { isDateInRange, getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
+import { assertOfficeActive } from '@/lib/office-utils';
 
 export const GenerateWeeklyRosterInputSchema = z.object({
   weekId: z.string(),
@@ -58,29 +60,28 @@ const generateWeeklyRosterFlow = ai.defineFlow(
     const weekDates = getDatesForWeek(weekId);
 
     try {
-      // 1. Institutional Permission Gate (Server-Side Authorization)
+      // 1. Institutional Permission Gate
       if (!idToken) throw new Error("Access Denied: Authentication token missing.");
       
-      // Verify token and check revocation for high-security operation
       const decoded = await adminAuth.verifyIdToken(idToken, true);
       const adminSnap = await adminDb.collection('users').doc(decoded.uid).get();
       
-      if (!adminSnap.exists) {
-        throw new Error("Access Denied: Administrative profile not found.");
-      }
-      
+      if (!adminSnap.exists) throw new Error("Access Denied: Administrative profile not found.");
       const adminData = adminSnap.data()!;
+      
       if (adminData.status !== 'Active' || !['ADMIN', 'SUPER_ADMIN'].includes(adminData.role)) {
         throw new Error("Access Denied: Unauthorized administrative identity.");
       }
       
-      // Multi-Office Scoping Check
+      // 2. Dynamic Registry & Scoping Check
+      await assertOfficeActive(officeId);
+      
       const authorizedOffices = adminData.officeIds || (adminData.office ? [adminData.office] : []);
       if (adminData.role === 'ADMIN' && !authorizedOffices.includes(officeId)) {
         throw new Error(`Access Denied: You are not authorized to manage rosters for cluster ${officeId}.`);
       }
 
-      // 2. Data Synchronization (Authoritative Fetch via Admin SDK)
+      // 3. Data Synchronization (Scoped to Office)
       const quotaId = `${weekId}_${officeId}`;
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
@@ -112,7 +113,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
 
-      // 3. Model Construction (PII-Stripped)
       const employeeHardConstraints = [
         ...bookingsSnap.docs.map(d => ({ 
           employeeId: d.data().employeeId, 
@@ -154,7 +154,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         weight: 1.0
       }));
 
-      // 4. CP-SAT Execution
       const solverPayload = {
         weekId,
         officeId,
@@ -167,8 +166,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       };
 
       const result = await callSolver(solverPayload);
-
-      // 5. Independent Output Validation Gate
       const integrity = verifyRosterIntegrity(
         result.assignments || [],
         bookingsSnap.docs.map(d => d.data()),
@@ -196,7 +193,6 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       };
 
     } catch (e: any) {
-      console.error('Institutional Pipeline Failure:', e);
       return {
         rosterAssignments: [],
         summary: `Deterministic Node Failure: ${e.message}`,

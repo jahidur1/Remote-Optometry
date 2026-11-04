@@ -12,10 +12,10 @@
         "displayName": { "type": "string" },
         "employeeId": { "type": "string" },
         "phoneNumber": { "type": "string" },
-        "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
+        "office": { "type": "string", "description": "Primary office ID from the /offices registry." },
         "officeIds": { 
           "type": "array", 
-          "items": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
+          "items": { "type": "string" },
           "description": "List of authorized ROC units for Admins."
         },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
@@ -32,7 +32,7 @@
         "email": { "type": "string", "format": "email" },
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
         "age": { "type": "number" },
-        "office": { "type": "string", "enum": ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"] },
+        "office": { "type": "string", "description": "Assigned office ID from the /offices registry." },
         "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
         "whatsappNumber": { "type": "string" },
@@ -42,22 +42,33 @@
       },
       "required": ["id", "fullName", "whatsappNumber", "office", "role", "status", "gender"]
     },
-    "OtpPulse": {
-      "title": "OTP Pulse",
-      "description": "Temporary 12-hour backup OTP for administrative support.",
+    "Office": {
+      "title": "Office",
+      "description": "ROC Cluster Node within the institutional registry.",
       "type": "object",
       "properties": {
-        "phone": { "type": "string" },
-        "otp": { "type": "string" },
-        "expiresAt": { "type": "string", "format": "date-time" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
+        "officeId": { "type": "string" },
+        "officeName": { "type": "string" },
+        "shortCode": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "country": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["officeId", "officeName", "shortCode", "status"]
     }
   },
   "auth": {
     "providers": ["phone", "google.com", "password"]
   },
   "firestore": {
+    "/offices/{officeId}": {
+      "schema": "Office",
+      "description": "Master ROC cluster registry."
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile with role and multi-office access."
@@ -70,9 +81,9 @@
       "schema": "WeekOffConfig",
       "description": "Office-specific booking window settings."
     },
-    "/otp_registry/{phone}": {
+    "/roster_quotas/{quotaId}": {
       "schema": "OtpPulse",
-      "description": "12-hour temporary backup OTP pulses."
+      "description": "Localized staffing requirements (weekId_officeId)."
     }
   }
 }

@@ -1,7 +1,9 @@
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { logAuditServer } from './audit-service';
+import { assertOfficeActive } from '@/lib/office-utils';
 
 /**
  * Verifies the caller's identity and administrative role on the server.
@@ -25,7 +27,6 @@ async function getAuthorizedCaller(idToken: string) {
       officeIds: profile.officeIds || (profile.office ? [profile.office] : [])
     };
   } catch (e) {
-    console.error('Quota Handshake Failure:', e);
     return null;
   }
 }
@@ -39,7 +40,7 @@ export type SaveQuotaInput = {
 
 /**
  * saveQuotaAction
- * Orchestrates secure office-specific quota configuration.
+ * Refactored: Uses dynamic Office Registry.
  */
 export async function saveQuotaAction(idToken: string, payload: SaveQuotaInput) {
   const caller = await getAuthorizedCaller(idToken);
@@ -47,15 +48,12 @@ export async function saveQuotaAction(idToken: string, payload: SaveQuotaInput) 
 
   const { weekId, officeId, quotas, genderTargets } = payload;
 
-  // 1. Validation
   if (!weekId || !officeId) {
     throw new Error("Validation Error: weekId and officeId are required.");
   }
 
-  const VALID_OFFICES = ["KOLKATA_ROC", "GURGAON_ROC", "LUCKNOW_ROC"];
-  if (!VALID_OFFICES.includes(officeId)) {
-    throw new Error(`Validation Error: ${officeId} is not a registered ROC unit.`);
-  }
+  // 1. Dynamic Registry Validation
+  await assertOfficeActive(officeId);
 
   // 2. Authorization Scoping
   if (caller.role === 'ADMIN' && !caller.officeIds.includes(officeId)) {
@@ -82,7 +80,6 @@ export async function saveQuotaAction(idToken: string, payload: SaveQuotaInput) 
 
     return { success: true };
   } catch (e: any) {
-    console.error('Quota Persistence Failure:', e);
     return { success: false, error: e.message };
   }
 }
