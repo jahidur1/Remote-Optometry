@@ -1,7 +1,6 @@
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 import { logAuditServer } from './audit-service';
 import { assertOfficeActive } from '@/lib/office-utils';
 
@@ -85,7 +84,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
     batch.set(userRef, {
       uid: user.uid,
       email: employee.email || user.email || null,
-      role: employee.role, // Authoritative role: super_admin, admin, or user
+      role: employee.role, // strictly 'super_admin', 'admin', or 'user'
       displayName: employee.fullName,
       employeeId: employee.id,
       phoneNumber: user.phoneNumber || employee.whatsappNumber,
@@ -113,6 +112,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
 /**
  * provisionIdentityAction
  * Authorized Super Admins or Admins can enroll new professionals.
+ * Creates Firebase Auth account and mirrors data to 'employees' and 'users' collections.
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken, formData.office);
@@ -134,7 +134,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     if (!emailSnap.empty) throw new Error("Identity Lock: Email already bound.");
     if (!phoneSnap.empty) throw new Error("Identity Lock: Mobile already bound.");
 
-    // Create the Auth User
+    // 1. Create the Firebase Auth Account
     const authUser = await adminAuth.createUser({
       email,
       password,
@@ -147,16 +147,16 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       fullName: formData.fullName,
       email,
       whatsappNumber: phoneFormatted,
-      role: formData.role, // strictly super_admin, admin, or user
+      role: formData.role, // strictly 'super_admin', 'admin', or 'user'
       office: formData.office,
-      officeIds: formData.officeIds || [formData.office],
+      officeIds: formData.role === 'admin' ? [formData.office] : [],
       status: 'Active',
       updatedAt: new Date().toISOString()
     };
 
     const batch = adminDb.batch();
     
-    // Register in master Employee record
+    // 2. Register in master 'employees' record (Clinical Identity)
     batch.set(adminDb.collection('employees').doc(employeeId), {
       ...commonData,
       id: employeeId,
@@ -168,21 +168,23 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       authUid: authUser.uid
     });
 
-    // Mirror to active 'users' profile
+    // 3. Register in 'users' collection (Authentication Identity)
+    // KEY: doc ID must be the Auth UID for Security Rules compatibility
     batch.set(adminDb.collection('users').doc(authUser.uid), {
       ...commonData,
       uid: authUser.uid,
       displayName: formData.fullName,
       employeeId,
       phoneNumber: phoneFormatted,
-      lastLogin: new Date().toISOString()
+      lastLogin: null
     });
 
     await batch.commit();
-    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { office: formData.office });
+    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { office: formData.office, role: formData.role });
 
     return { success: true, uid: authUser.uid };
   } catch (e: any) {
+    console.error('Provisioning Pulse Failure:', e.message);
     return { success: false, error: e.message };
   }
 }

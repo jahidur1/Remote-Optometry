@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, useCollection, useFirestore } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
@@ -62,7 +61,7 @@ export default function RegisterPage() {
       if (result.success) {
         toast({ 
           title: "Enrollment Successful", 
-          description: `Identity [${formData.employeeId}] provisioned in cluster registry.` 
+          description: `Identity [${formData.employeeId}] provisioned in cluster registry and users collection.` 
         });
         
         setFormData({
@@ -112,7 +111,7 @@ export default function RegisterPage() {
                   <div className="space-y-1">
                     <p className="text-[11px] font-black text-primary uppercase tracking-widest">Trusted Node Authentication</p>
                     <p className="text-[12px] font-bold text-black/60 uppercase leading-relaxed tracking-tight">
-                        Enrollment uses a server-side atomic pulse. Direct client-side writes are restricted to maintain institutional registry integrity.
+                        Enrollment creates a Firebase Auth account and mirrors metadata to the 'users' collection keyed by UID.
                     </p>
                   </div>
               </div>
@@ -241,7 +240,7 @@ export default function RegisterPage() {
                 <ShieldCheck className="size-8" />
              </div>
              <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight">
-                Institutional protocol: Enrollment utilizes the Trusted Server Action `provisionIdentityAction`. Every operation is ledgered for institutional compliance.
+                Institutional protocol: Enrollment creates an authentication pulse and ledger entry in both 'employees' and 'users' sections for Zero-Trust compliance.
              </p>
           </CardFooter>
         </Card>
