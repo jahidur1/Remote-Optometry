@@ -52,12 +52,32 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
     });
   });
 
-  // --- 1. AUTHENTICATION & AUTHORIZATION REGRESSIONS ---
+  // --- 1. AUTHENTICATION & TOKEN SCENARIOS ---
+
+  it('Authentication: Rejects missing ID tokens', async () => {
+    await expect(provisionIdentityAction('', {}, 'password')).rejects.toThrow();
+  });
 
   it('Authentication: Rejects invalid ID tokens', async () => {
     (require('@/lib/firebase-admin').adminAuth.verifyIdToken as any).mockRejectedValue(new Error('Invalid token'));
     await expect(provisionIdentityAction('invalid', {}, 'password')).rejects.toThrow();
   });
+
+  it('Authentication: Rejects expired ID tokens', async () => {
+    const err = new Error('Token expired');
+    (err as any).code = 'auth/id-token-expired';
+    (require('@/lib/firebase-admin').adminAuth.verifyIdToken as any).mockRejectedValue(err);
+    await expect(provisionIdentityAction('expired', {}, 'password')).rejects.toThrow();
+  });
+
+  it('Authentication: Rejects revoked ID tokens', async () => {
+    const err = new Error('Token revoked');
+    (err as any).code = 'auth/id-token-revoked';
+    (require('@/lib/firebase-admin').adminAuth.verifyIdToken as any).mockRejectedValue(err);
+    await expect(provisionIdentityAction('revoked', {}, 'password')).rejects.toThrow();
+  });
+
+  // --- 2. AUTHORIZATION REGRESSIONS ---
 
   it('Authorization: Inactive Admin is denied administrative access', async () => {
     mockGet.mockResolvedValueOnce({
@@ -78,20 +98,16 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
     expect(result.error).toContain('Privilege Block');
   });
 
-  // --- 2. PROVISIONING RECOVERY ---
+  // --- 3. PROVISIONING RECOVERY ---
 
   it('Provisioning: Handles orphaned Auth account on DB failure', async () => {
     const formData = { employeeId: 'EMP-NEW', email: 'new@roc.internal', office: 'KOLKATA_ROC', fullName: 'New User', whatsappNumber: '9999900000' };
     
-    // Caller is Super Admin for full scope
     mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) });
-    // Duplicate check: record doesn't exist
     mockDoc().get.mockResolvedValueOnce({ exists: false }); 
     mockWhereGet.mockResolvedValueOnce({ empty: true });
 
-    // Simulate Auth success
     (require('@/lib/firebase-admin').adminAuth.createUser as any).mockResolvedValue({ uid: 'new_uid' });
-    // Simulate DB failure
     mockBatchCommit.mockRejectedValueOnce(new Error('Database Timeout'));
 
     const result = await provisionIdentityAction(mockIdToken, formData, 'password');
@@ -106,7 +122,6 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
     mockDoc().get.mockResolvedValueOnce({ exists: false }); 
     mockWhereGet.mockResolvedValueOnce({ empty: true });
 
-    // Simulate Firebase Auth reporting email already exists on retry
     (require('@/lib/firebase-admin').adminAuth.createUser as any).mockRejectedValueOnce({ 
       code: 'auth/email-already-use', 
       message: 'Email in use' 
@@ -117,7 +132,7 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
     expect(result.error).toBe('Email in use');
   });
 
-  // --- 3. STATUS & RECORD RECOVERY ---
+  // --- 4. STATUS & RECORD RECOVERY ---
 
   it('Status Update: Reports partial failure if DB fails', async () => {
     mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) });
@@ -134,13 +149,33 @@ describe('ROC Workforce: Trusted Server Actions - Resilience & Security', () => 
     mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'SUPER_ADMIN', status: 'Active' }) });
     mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'EMPLOYEE', email: 'old@roc.internal', authUid: 'target_uid' }) });
 
-    // Simulate Auth success
     (require('@/lib/firebase-admin').adminAuth.updateUser as any).mockResolvedValue({});
-    // Simulate DB failure
     mockBatchCommit.mockRejectedValueOnce(new Error('Atomic DB Commit Failed'));
 
     const result = await updateEmployeeRecordAction(mockIdToken, 'target_id', { email: 'new@roc.internal' });
     expect(result.success).toBe(false);
     expect(result.error).toBe('Atomic DB Commit Failed');
+  });
+
+  // --- 5. FIELD-LEVEL AUTHORIZATION ---
+
+  it('provisionIdentityAction: Rejects unauthorized caller role', async () => {
+    mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'EMPLOYEE', status: 'Active' }) });
+    await expect(provisionIdentityAction(mockIdToken, {}, 'password')).rejects.toThrow('Unauthorized');
+  });
+
+  it('provisionIdentityAction: Enforces office scoping for ordinary Admins', async () => {
+    mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'ADMIN', status: 'Active', office: 'GURGAON_ROC' }) });
+    const formData = { office: 'KOLKATA_ROC' };
+    await expect(provisionIdentityAction(mockIdToken, formData, 'password')).rejects.toThrow('cannot provision staff for cluster KOLKATA_ROC');
+  });
+
+  it('updateEmployeeRecordAction: Approved professional-field updates succeed', async () => {
+    mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'ADMIN', status: 'Active', office: 'KOLKATA_ROC' }) });
+    mockGet.mockResolvedValueOnce({ exists: true, data: () => ({ id: 'EMP1', fullName: 'Old Name' }) });
+    
+    mockBatchCommit.mockResolvedValueOnce({});
+    const result = await updateEmployeeRecordAction(mockIdToken, 'EMP1', { fullName: 'New Name' });
+    expect(result.success).toBe(true);
   });
 });

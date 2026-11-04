@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -7,10 +6,12 @@ import { logAuditServer } from './audit-service';
 
 /**
  * Verifies the caller's identity and administrative role on the server.
+ * USES checkRevocation=true for high-security administrative pulses.
  */
 async function getAuthorizedCaller(idToken: string) {
+  if (!idToken) return null;
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await adminAuth.verifyIdToken(idToken, true);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     
     if (!userSnap.exists) return null;
@@ -22,6 +23,7 @@ async function getAuthorizedCaller(idToken: string) {
     
     return { uid: decoded.uid, ...profile };
   } catch (e) {
+    console.error('Handshake Failure:', e);
     return null;
   }
 }
@@ -138,6 +140,17 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
     }
 
     await batch.commit();
+
+    // Secondary Perimeter: Sync Firebase Auth status
+    // Failure here is logged but not thrown, as Firestore status blocks the app.
+    if (empData.authUid) {
+      try {
+        await adminAuth.updateUser(empData.authUid, { disabled: newStatus === 'Suspended' });
+      } catch (authErr) {
+        console.warn('Auth status sync failure (Traceable):', authErr);
+      }
+    }
+
     await logAuditServer(caller.uid, `ADMIN_${newStatus.toUpperCase()}_IDENTITY`, employeeId);
 
     return { success: true };
