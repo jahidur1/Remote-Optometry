@@ -10,7 +10,7 @@ import { getLocalSessionId } from '@/lib/session-utils';
 export type UserProfile = {
   uid: string;
   email: string | null;
-  role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE';
+  role: 'super_admin' | 'admin' | 'user';
   displayName: string | null;
   status?: 'Active' | 'Inactive' | 'Suspended';
   employeeId?: string;

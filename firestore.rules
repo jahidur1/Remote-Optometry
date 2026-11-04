@@ -19,11 +19,11 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isUserActive() && getUserData().role in ['ADMIN', 'SUPER_ADMIN'];
+      return isUserActive() && getUserData().role in ['admin', 'super_admin'];
     }
 
     function isSuperAdmin() {
-      return isUserActive() && getUserData().role == 'SUPER_ADMIN';
+      return isUserActive() && getUserData().role == 'super_admin';
     }
 
     function isOwner(userId) {
@@ -38,12 +38,12 @@ service cloud.firestore {
     function matchesOffice(officeId) {
       let user = getUserData();
       return isUserActive() && (
-        user.role == 'SUPER_ADMIN' ||
-        (user.role == 'ADMIN' && (
+        user.role == 'super_admin' ||
+        (user.role == 'admin' && (
           (user.keys().hasAny(['officeIds']) && officeId in user.officeIds) ||
           (!user.keys().hasAny(['officeIds']) && user.office == officeId)
         )) ||
-        (user.role == 'EMPLOYEE' && user.office == officeId)
+        (user.role == 'user' && user.office == officeId)
       );
     }
 

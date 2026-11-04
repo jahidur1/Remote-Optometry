@@ -58,35 +58,35 @@ const navGroups = [
   {
     label: "Intelligence",
     items: [
-      { title: "Command Center", url: "/admin", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Regional Hub", url: "/admin/regional", icon: Globe, roles: ["SUPER_ADMIN"] },
-      { title: "Analytics Hub", url: "/admin/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Command Center", url: "/admin", icon: LayoutDashboard, roles: ["super_admin", "admin"] },
+      { title: "Regional Hub", url: "/admin/regional", icon: Globe, roles: ["super_admin"] },
+      { title: "Analytics Hub", url: "/admin/reports", icon: BarChart3, roles: ["super_admin", "admin"] },
     ]
   },
   {
     label: "Operations",
     items: [
-      { title: "Roster Solver", url: "/admin/roster", icon: Calendar, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Shift Quotas", url: "/admin/quotas", icon: Target, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Weekly-Off Matrix", url: "/admin/weekoff-config", icon: CalendarRange, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Shift Master", url: "/admin/shifts", icon: Clock, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Roster Solver", url: "/admin/roster", icon: Calendar, roles: ["super_admin", "admin"] },
+      { title: "Shift Quotas", url: "/admin/quotas", icon: Target, roles: ["super_admin", "admin"] },
+      { title: "Weekly-Off Matrix", url: "/admin/weekoff-config", icon: CalendarRange, roles: ["super_admin", "admin"] },
+      { title: "Shift Master", url: "/admin/shifts", icon: Clock, roles: ["super_admin", "admin"] },
     ]
   },
   {
     label: "Workforce",
     items: [
-      { title: "Directory", url: "/admin/employees", icon: Users, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["SUPER_ADMIN", "ADMIN"] },
-      { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["SUPER_ADMIN", "ADMIN"] },
+      { title: "Directory", url: "/admin/employees", icon: Users, roles: ["super_admin", "admin"] },
+      { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["super_admin", "admin"] },
+      { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["super_admin", "admin"] },
     ]
   },
   {
     label: "Governance",
     items: [
-      { title: "Cluster Registry", url: "/admin/offices", icon: Network, roles: ["SUPER_ADMIN"] },
-      { title: "OTP Monitor", url: "/admin/otp-monitor", icon: Key, roles: ["SUPER_ADMIN"] },
-      { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["SUPER_ADMIN"] },
-      { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
+      { title: "Cluster Registry", url: "/admin/offices", icon: Network, roles: ["super_admin"] },
+      { title: "OTP Monitor", url: "/admin/otp-monitor", icon: Key, roles: ["super_admin"] },
+      { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["super_admin"] },
+      { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["super_admin"] },
     ]
   }
 ]
@@ -111,8 +111,8 @@ export function AdminSidebar() {
 
   const currentOffice = authorizedOffices.find(o => o.officeId === selectedOffice);
 
-  // SUPER_ADMIN skips office selector for some views but needs it for ADMIN views
-  const showOfficeSelector = profile?.role === 'ADMIN' || (profile?.role === 'SUPER_ADMIN' && authorizedOffices.length > 0);
+  // super_admin skips office selector for some views but needs it for admin views
+  const showOfficeSelector = profile?.role === 'admin' || (profile?.role === 'super_admin' && authorizedOffices.length > 0);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-[#0F172A] text-white">

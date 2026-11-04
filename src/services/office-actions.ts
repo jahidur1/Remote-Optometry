@@ -6,7 +6,7 @@ import { logAuditServer } from './audit-service';
 
 /**
  * Institutional Office Registry Actions.
- * Exclusively available to active SUPER_ADMINS.
+ * Exclusively available to active super_admins.
  */
 
 async function getAuthorizedSuperAdmin(idToken: string) {
@@ -16,7 +16,7 @@ async function getAuthorizedSuperAdmin(idToken: string) {
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!userSnap.exists) return null;
     const profile = userSnap.data()!;
-    if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') return null;
+    if (profile.status !== 'Active' || profile.role !== 'super_admin') return null;
     return { uid: decoded.uid, ...profile };
   } catch (e) {
     return null;

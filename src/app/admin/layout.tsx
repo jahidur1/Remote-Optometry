@@ -1,3 +1,4 @@
+
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { RoleGuard } from "@/components/auth/role-guard"
@@ -10,7 +11,7 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   return (
-    <RoleGuard allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+    <RoleGuard allowedRoles={['super_admin', 'admin']}>
       <OfficeProvider>
         <SidebarProvider>
           <AdminSidebar />

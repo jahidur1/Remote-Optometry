@@ -12,7 +12,7 @@ export default function EmployeeLayout({
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
   return (
-    <RoleGuard allowedRoles={['EMPLOYEE', 'ADMIN', 'SUPER_ADMIN']}>
+    <RoleGuard allowedRoles={['user', 'admin', 'super_admin']}>
       <div className="min-h-screen bg-[#FFFFFF] flex flex-col">
         <header className="sticky top-0 z-40 w-full border-b border-slate-100 bg-white/80 backdrop-blur-3xl supports-[backdrop-filter]:bg-white/60">
           <div className="container flex h-20 items-center px-6 md:px-10">

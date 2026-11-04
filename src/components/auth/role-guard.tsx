@@ -11,7 +11,7 @@ import { useAuth } from '@/firebase';
 
 interface RoleGuardProps {
   children: React.ReactNode;
-  allowedRoles: ('SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE')[];
+  allowedRoles: ('super_admin' | 'admin' | 'user')[];
 }
 
 export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {

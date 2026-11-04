@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -23,7 +24,7 @@ async function getAuthorizedProfile(idToken: string) {
  */
 export async function getRegionalStatsAction(idToken: string) {
   const profile = await getAuthorizedProfile(idToken);
-  if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') {
+  if (profile.status !== 'Active' || profile.role !== 'super_admin') {
     throw new Error("Unauthorized: Super Admin access only.");
   }
 
@@ -76,7 +77,7 @@ export async function getOfficeDashboardStatsAction(idToken: string, officeId: s
   const profile = await getAuthorizedProfile(idToken);
   const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
   
-  if (profile.status !== 'Active' || (profile.role !== 'SUPER_ADMIN' && !authorizedOffices.includes(officeId))) {
+  if (profile.status !== 'Active' || (profile.role !== 'super_admin' && !authorizedOffices.includes(officeId))) {
     throw new Error("Unauthorized: Office access denied.");
   }
 
@@ -114,7 +115,7 @@ export async function getOfficeDashboardStatsAction(idToken: string, officeId: s
 
 export async function getOfficeComparisonAction(idToken: string, weekId: string) {
   const profile = await getAuthorizedProfile(idToken);
-  if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') {
+  if (profile.status !== 'Active' || profile.role !== 'super_admin') {
     throw new Error("Unauthorized.");
   }
 
@@ -162,7 +163,7 @@ export async function getOfficeComparisonAction(idToken: string, weekId: string)
 
 export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: string) {
   const profile = await getAuthorizedProfile(idToken);
-  if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') throw new Error("Unauthorized.");
+  if (profile.status !== 'Active' || profile.role !== 'super_admin') throw new Error("Unauthorized.");
 
   try {
     const [rosterSnap, quotaSnap] = await Promise.all([
@@ -198,7 +199,7 @@ export async function getRegionalRosterAnalyticsAction(idToken: string, weekId: 
 
 export async function getRegionalLeaveAnalyticsAction(idToken: string) {
   const profile = await getAuthorizedProfile(idToken);
-  if (profile.status !== 'Active' || profile.role !== 'SUPER_ADMIN') throw new Error("Unauthorized.");
+  if (profile.status !== 'Active' || profile.role !== 'super_admin') throw new Error("Unauthorized.");
 
   try {
     const leaveSnap = await adminDb.collection('employee_leaves').get();

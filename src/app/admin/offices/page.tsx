@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -166,7 +167,7 @@ export default function ClusterNodeManager() {
   };
 
   return (
-    <RoleGuard allowedRoles={['SUPER_ADMIN']}>
+    <RoleGuard allowedRoles={['super_admin']}>
       <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
         {/* Dynamic Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
@@ -287,7 +288,7 @@ export default function ClusterNodeManager() {
                     </TableCell>
                     <TableCell className="py-8 border-r border-slate-100">
                       <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 group-hover:bg-secondary/10 transition-all">
+                        <div className="size-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 shadow-inner group-hover:bg-secondary/10 transition-all">
                           <MapPin className="size-4 text-secondary" />
                         </div>
                         <div className="flex flex-col">

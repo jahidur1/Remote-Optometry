@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -40,7 +41,7 @@ export default function AdminDashboard() {
         const health = await getSolverHealthAction();
         setSolverHealth({ status: health.status });
 
-        if (profile?.role === 'SUPER_ADMIN') {
+        if (profile?.role === 'super_admin') {
           const res = await getRegionalStatsAction(idToken);
           if (res.success) setStats(res.data);
         } else if (selectedOffice) {
@@ -56,7 +57,7 @@ export default function AdminDashboard() {
     fetchData();
   }, [profile?.role, selectedOffice, auth.currentUser]);
 
-  const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = profile?.role === 'super_admin';
   const officeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || "---";
 
   const kpis = useMemo(() => {

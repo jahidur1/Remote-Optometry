@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -87,7 +88,7 @@ export default function RegionalAnalytics() {
   };
 
   useEffect(() => {
-    if (profile?.role === 'SUPER_ADMIN') {
+    if (profile?.role === 'super_admin') {
       fetchRegionalPulse();
     }
   }, [weekId, profile]);
@@ -112,7 +113,7 @@ export default function RegionalAnalytics() {
     toast({ title: "Ledger Dispatched", description: "Consolidated regional data exported for institutional review." });
   };
 
-  if (profile?.role !== 'SUPER_ADMIN') {
+  if (profile?.role !== 'super_admin') {
     return (
       <div className="flex h-[80vh] items-center justify-center p-10">
          <Card className="max-w-md border-destructive/20 bg-destructive/5 p-10 text-center space-y-6 rounded-[2rem]">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -39,7 +40,7 @@ export default function AvailabilitySummary() {
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
-    return profile.role === 'SUPER_ADMIN' 
+    return profile.role === 'super_admin' 
       ? query(q, where('status', '==', 'Active'))
       : query(q, where('office', '==', profile.office), where('status', '==', 'Active'));
   }, [db, profile]);
@@ -47,7 +48,7 @@ export default function AvailabilitySummary() {
   const bookQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'weekoff_bookings');
-    return profile.role === 'SUPER_ADMIN'
+    return profile.role === 'super_admin'
       ? query(q, where('weekId', '==', selectedWeek))
       : query(q, where('weekId', '==', selectedWeek), where('office', '==', profile.office));
   }, [db, selectedWeek, profile]);

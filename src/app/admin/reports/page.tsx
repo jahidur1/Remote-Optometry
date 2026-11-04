@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -38,7 +39,7 @@ export default function ReportsPage() {
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
-    return profile.role === 'SUPER_ADMIN'
+    return profile.role === 'super_admin'
       ? query(q, where('status', '==', 'Active'))
       : query(q, where('office', '==', profile.office), where('status', '==', 'Active'));
   }, [db, profile]);
@@ -46,7 +47,7 @@ export default function ReportsPage() {
   const rosterQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'published_rosters');
-    const base = profile.role === 'SUPER_ADMIN'
+    const base = profile.role === 'super_admin'
       ? query(q, where('weekId', '==', weekId))
       : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
     return query(base, orderBy('publishedAt', 'desc'));
@@ -55,7 +56,7 @@ export default function ReportsPage() {
   const bookQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'weekoff_bookings');
-    return profile.role === 'SUPER_ADMIN'
+    return profile.role === 'super_admin'
       ? query(q, where('weekId', '==', weekId))
       : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
   }, [db, weekId, profile]);
@@ -81,7 +82,7 @@ export default function ReportsPage() {
     };
   }, [employees, bookings, activeRoster]);
 
-  const COLORS = ['hsl(var(--secondary))', 'hsl(var(--accent))', '#3B82F6', '#14B8A6'];
+  const COLORS = ['#0F172A', '#3B82F6', '#14B8A6', '#F59E0B'];
 
   const handleExportRoster = async () => {
     if (!activeRoster || !employees || !shifts || !bookings) {

@@ -18,7 +18,7 @@ async function getAuthorizedCaller(idToken: string) {
     if (!userSnap.exists) return null;
     const profile = userSnap.data()!;
     
-    if (profile.status !== 'Active' || !['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) {
+    if (profile.status !== 'Active' || !['admin', 'super_admin'].includes(profile.role)) {
       return null;
     }
     
@@ -57,7 +57,7 @@ export async function saveQuotaAction(idToken: string, payload: SaveQuotaInput) 
   await assertOfficeActive(officeId);
 
   // 2. Authorization Scoping
-  if (caller.role === 'ADMIN' && !caller.officeIds.includes(officeId)) {
+  if (caller.role === 'admin' && !caller.officeIds.includes(officeId)) {
     throw new Error(`Access Denied: You are not authorized to configure quotas for ${officeId}.`);
   }
 

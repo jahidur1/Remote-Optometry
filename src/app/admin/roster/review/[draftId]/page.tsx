@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -83,12 +84,12 @@ export default function RosterReviewWorkspace() {
   const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
     const constraint = getConstraintStatus(employeeId, day, DAYS.indexOf(day));
     
-    if (constraint?.type === 'WEEKLY_OFF' && profile?.role !== 'SUPER_ADMIN') {
+    if (constraint?.type === 'WEEKLY_OFF' && profile?.role !== 'super_admin') {
       toast({ title: "FCFS Lock Active", description: "Only Super Admins can override clinical weekly-offs.", variant: "destructive" });
       return;
     }
 
-    if (constraint?.type === 'WEEKLY_OFF' && profile?.role === 'SUPER_ADMIN') {
+    if (constraint?.type === 'WEEKLY_OFF' && profile?.role === 'super_admin') {
       setOverrideData({ employeeId, day, shiftId });
       setOverrideDialogOpen(true);
       return;

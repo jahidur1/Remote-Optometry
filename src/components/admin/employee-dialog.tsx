@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -47,7 +48,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    role: 'EMPLOYEE',
+    role: 'user',
     status: 'Active',
     gender: 'Male',
     age: '',
@@ -62,7 +63,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       setFormData({
         fullName: employee.fullName || '',
         email: employee.email || '',
-        role: employee.role || 'EMPLOYEE',
+        role: employee.role || 'user',
         status: employee.status || 'Active',
         gender: employee.gender || 'Male',
         age: employee.age?.toString() || '',
@@ -190,9 +191,9 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
-                        <SelectItem value="EMPLOYEE" className="font-bold text-[11px] uppercase py-3">Staff Professional</SelectItem>
-                        <SelectItem value="ADMIN" className="font-bold text-[11px] uppercase py-3">Cluster Admin</SelectItem>
-                        <SelectItem value="SUPER_ADMIN" className="font-bold text-[11px] uppercase py-3">System Super Admin</SelectItem>
+                        <SelectItem value="user" className="font-bold text-[11px] uppercase py-3">Staff Professional</SelectItem>
+                        <SelectItem value="admin" className="font-bold text-[11px] uppercase py-3">Cluster Admin</SelectItem>
+                        <SelectItem value="super_admin" className="font-bold text-[11px] uppercase py-3">System Super Admin</SelectItem>
                       </SelectContent>
                     </Select>
                  </div>

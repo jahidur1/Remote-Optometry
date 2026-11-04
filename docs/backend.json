@@ -8,7 +8,7 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "user"] },
         "displayName": { "type": "string" },
         "employeeId": { "type": "string" },
         "phoneNumber": { "type": "string" },
@@ -33,7 +33,7 @@
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
         "age": { "type": "number" },
         "office": { "type": "string", "description": "Assigned office ID from the /offices registry." },
-        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "user"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
         "whatsappNumber": { "type": "string" },
         "joinedAt": { "type": "string", "format": "date" },

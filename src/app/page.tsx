@@ -26,7 +26,7 @@ export default function Home() {
   useEffect(() => {
     if (!loading && user && profile) {
       setIsRedirecting(true);
-      if (profile.role === 'ADMIN' || profile.role === 'SUPER_ADMIN') {
+      if (profile.role === 'admin' || profile.role === 'super_admin') {
         router.push('/admin');
       } else {
         router.push('/employee/portal');

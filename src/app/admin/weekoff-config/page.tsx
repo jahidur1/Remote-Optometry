@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -56,7 +57,7 @@ export default function WeekOffConfiguration() {
 
   const authorizedOffices = useMemo(() => {
     if (!profile || !registryOffices) return [];
-    if (profile.role === 'SUPER_ADMIN') return registryOffices;
+    if (profile.role === 'super_admin') return registryOffices;
     
     const allowedIds = profile.officeIds || (profile.office ? [profile.office] : []);
     return registryOffices.filter(o => allowedIds.includes(o.officeId));
@@ -196,7 +197,7 @@ export default function WeekOffConfiguration() {
             <CardContent className="p-10 space-y-8">
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-3">
                     <Clock className="size-3 text-secondary" /> Pulse Initiation (IST)
                   </Label>
                   <Input 
@@ -207,7 +208,7 @@ export default function WeekOffConfiguration() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1 flex items-center gap-3">
                     <Clock className="size-3 text-secondary" /> Pulse Termination (IST)
                   </Label>
                   <Input 
@@ -241,7 +242,7 @@ export default function WeekOffConfiguration() {
           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
             <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between">
               <div className="flex items-center gap-6">
-                <div className="size-16 rounded-[1.75rem] flex items-center justify-center shadow-inner bg-primary border border-slate-100">
+                <div className="size-16 rounded-[1.75rem] flex items-center justify-center shadow-inner bg-primary border border-slate-200">
                   <Terminal className="size-8 text-secondary" />
                 </div>
                 <div className="space-y-1">

@@ -27,7 +27,7 @@ export default function ShiftAdjacencyManager() {
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
-    return profile.role === 'SUPER_ADMIN' 
+    return profile.role === 'super_admin' 
       ? query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'))
       : query(q, where('office', '==', profile.office), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
   }, [db, profile]);
@@ -35,7 +35,7 @@ export default function ShiftAdjacencyManager() {
   const rulesQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'shift_adjacency_rules');
-    const base = profile.role === 'SUPER_ADMIN'
+    const base = profile.role === 'super_admin'
       ? query(q, where('weekId', '==', weekId))
       : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
     return base;
@@ -44,7 +44,7 @@ export default function ShiftAdjacencyManager() {
   const bookingsQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'weekoff_bookings');
-    return profile.role === 'SUPER_ADMIN'
+    return profile.role === 'super_admin'
       ? query(q, where('weekId', '==', weekId))
       : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
   }, [db, profile, weekId]);
@@ -160,7 +160,7 @@ export default function ShiftAdjacencyManager() {
                     </Badge>
                 </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
+            <CardContent className="p-0 overflow-x-auto no-scrollbar">
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow className="text-[10px] font-black uppercase tracking-widest">

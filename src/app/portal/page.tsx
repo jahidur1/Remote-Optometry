@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 /**
- * Unified Portal Redirector
+ * Unified Portal Dispatcher
  * This page serves as a generic entry point that dispatches users to the 
  * correct dashboard based on their role in the database.
  */
@@ -27,7 +27,7 @@ export default function PortalDispatcher() {
     }
 
     if (profile) {
-      if (profile.role === 'ADMIN' || profile.role === 'SUPER_ADMIN') {
+      if (profile.role === 'admin' || profile.role === 'super_admin') {
         router.push('/admin');
       } else {
         router.push('/employee/portal');

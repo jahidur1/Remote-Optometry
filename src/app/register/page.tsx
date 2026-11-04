@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -23,7 +24,7 @@ export default function RegisterPage() {
     email: '',
     employeeId: '',
     whatsappNumber: '',
-    role: 'EMPLOYEE',
+    role: 'user',
     gender: 'Male',
     department: 'Remote Optometry',
     designation: 'Staff Professional',
@@ -69,7 +70,7 @@ export default function RegisterPage() {
           email: '',
           employeeId: '',
           whatsappNumber: '',
-          role: 'EMPLOYEE',
+          role: 'user',
           gender: 'Male',
           department: 'Remote Optometry',
           designation: 'Staff Professional',
@@ -87,7 +88,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <RoleGuard allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+    <RoleGuard allowedRoles={['super_admin', 'admin']}>
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6 font-body text-black">
         <Card className="w-full max-w-3xl shadow-3xl bg-white border-none rounded-[3.5rem] overflow-hidden border-4 border-white shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)]">
           <CardHeader className="p-12 bg-primary text-white relative">
@@ -220,9 +221,9 @@ export default function RegisterPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
-                        <SelectItem value="EMPLOYEE" className="font-bold py-3 uppercase text-[11px]">Staff Professional</SelectItem>
-                        <SelectItem value="ADMIN" className="font-bold py-3 uppercase text-[11px]">Cluster Admin</SelectItem>
-                        <SelectItem value="SUPER_ADMIN" className="font-bold py-3 uppercase text-[11px]">System Super Admin</SelectItem>
+                        <SelectItem value="user" className="font-bold py-3 uppercase text-[11px]">Staff Professional</SelectItem>
+                        <SelectItem value="admin" className="font-bold py-3 uppercase text-[11px]">Cluster Admin</SelectItem>
+                        <SelectItem value="super_admin" className="font-bold py-3 uppercase text-[11px]">System Super Admin</SelectItem>
                       </SelectContent>
                     </Select>
                  </div>

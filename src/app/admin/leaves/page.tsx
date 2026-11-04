@@ -35,13 +35,13 @@ export default function LeaveManagement() {
 
   const leavesQuery = query(
     collection(db, 'employee_leaves'), 
-    profile?.role === 'SUPER_ADMIN' ? orderBy('startDate', 'desc') : where('office', '==', profile?.office || '')
+    profile?.role === 'super_admin' ? orderBy('startDate', 'desc') : where('office', '==', profile?.office || '')
   );
   const { data: leaves, loading: leavesLoading } = useCollection(leavesQuery);
   
   const employeesQuery = query(
     collection(db, 'employees'), 
-    profile?.role === 'SUPER_ADMIN' ? orderBy('fullName', 'asc') : where('office', '==', profile?.office || '')
+    profile?.role === 'super_admin' ? orderBy('fullName', 'asc') : where('office', '==', profile?.office || '')
   );
   const { data: employees } = useCollection(employeesQuery);
 
@@ -221,7 +221,7 @@ export default function LeaveManagement() {
                 <Input placeholder="Search Identity..." className="pl-12 h-12 rounded-xl" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
+            <CardContent className="p-0 overflow-x-auto no-scrollbar">
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>

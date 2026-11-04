@@ -21,11 +21,11 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
     const profile = userSnap.data()!;
     
     if (profile.status !== 'Active') throw new Error("Unauthorized: Account suspended.");
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) throw new Error("Unauthorized: Elevated pulse required.");
+    if (!['admin', 'super_admin'].includes(profile.role)) throw new Error("Unauthorized: Elevated pulse required.");
 
     const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
 
-    if (requestedOfficeId && profile.role !== 'SUPER_ADMIN') {
+    if (requestedOfficeId && profile.role !== 'super_admin') {
       if (!authorizedOffices.includes(requestedOfficeId)) {
         throw new Error(`Forbidden: You are not authorized for cluster ${requestedOfficeId}.`);
       }
@@ -188,7 +188,7 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
 
     const caller = await getAuthorizedCaller(idToken, empData.office);
 
-    if (empData.role === 'SUPER_ADMIN' && caller.role !== 'SUPER_ADMIN') {
+    if (empData.role === 'super_admin' && caller.role !== 'super_admin') {
       throw new Error("Privilege Block: Super Admin only.");
     }
 
@@ -229,7 +229,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     const filtered: any = {};
     allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
 
-    if (caller.role !== 'SUPER_ADMIN') {
+    if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.status;
       delete filtered.office;
