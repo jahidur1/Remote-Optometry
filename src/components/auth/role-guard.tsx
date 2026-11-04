@@ -34,14 +34,17 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
       return;
     }
 
-    // 3. Email Verification Gate
-    // Skip if login is strictly via Phone (which doesn't have an email verification link flow)
+    // 3. Mandatory Email Verification Gate
+    // This gate blocks all roles until the email pulse is verified.
     const isEmailUser = user.providerData.some(p => p.providerId === 'password' || p.providerId === 'google.com');
-    if (isEmailUser && !emailVerified && pathname !== '/verify-email' && pathname !== '/login') {
-      // Trigger verification on first access
-      sendEmailVerification(user).catch(console.error);
-      router.push('/verify-email');
-      return;
+    if (isEmailUser && !emailVerified) {
+       if (pathname !== '/verify-email') {
+          // Automatic Pulse Trigger on first landing
+          sendEmailVerification(user).catch(err => console.warn("Verification Pulse Throttled"));
+          router.push('/verify-email');
+          return;
+       }
+       return; // Stay on verify-email
     }
 
     // 4. Authorization Check (Roles)
@@ -81,7 +84,12 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
-  const isAuthorized = user && profile && sessionValid && allowedRoles.includes(profile.role) && profile.status !== 'Suspended';
+  // Special case: If user is on verify-email but is actually verified, let them pass
+  if (pathname === '/verify-email' && emailVerified) {
+     return null; // The useEffect will handle redirection
+  }
+
+  const isAuthorized = user && profile && sessionValid && allowedRoles.includes(profile.role) && (emailVerified || !user.providerData.some(p => p.providerId === 'password'));
 
   if (!isAuthorized && pathname !== '/login' && pathname !== '/account-disabled' && pathname !== '/unauthorized' && pathname !== '/verify-email') {
     return null;

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldCheck, Fingerprint, Phone, Building2 } from 'lucide-react';
+import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldCheck, Fingerprint, Phone, Building2, CheckCircle2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { selfRegisterAction } from '@/services/identity-actions';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -16,6 +16,7 @@ import Link from 'next/link';
 
 export default function PublicRegistrationPage() {
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
@@ -41,11 +42,11 @@ export default function PublicRegistrationPage() {
       const result = await selfRegisterAction(formData, formData.password);
       
       if (result.success) {
+        setSuccess(true);
         toast({ 
           title: "Enrollment Complete", 
-          description: "Your identity has been provisioned. Please check your email for a verification pulse." 
+          description: "Your identity has been provisioned. Verification is required." 
         });
-        router.push('/login');
       } else {
         throw new Error(result.error);
       }
@@ -56,9 +57,42 @@ export default function PublicRegistrationPage() {
     }
   };
 
+  if (success) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6 font-body text-black relative overflow-hidden">
+        <Card className="w-full max-w-md shadow-3xl bg-white border-none rounded-[3.5rem] overflow-hidden border-4 border-white shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] relative z-10">
+           <CardContent className="p-16 text-center space-y-8">
+              <div className="mx-auto size-24 rounded-[2rem] bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-inner">
+                 <CheckCircle2 className="size-12" />
+              </div>
+              <div className="space-y-3">
+                 <h2 className="text-3xl font-black uppercase tracking-tight text-primary leading-none">Identity Provisioned</h2>
+                 <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed tracking-tight">
+                    Your clinical account for **{formData.fullName}** has been created. 
+                 </p>
+              </div>
+              <div className="p-6 rounded-2xl bg-slate-50 border-2 border-slate-100 text-left space-y-4">
+                 <div className="flex items-center gap-3">
+                    <div className="size-2 rounded-full bg-secondary shadow-[0_0_10px_blue]" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Mandatory Next Step</span>
+                 </div>
+                 <p className="text-[11px] font-bold text-slate-500 uppercase leading-relaxed">
+                    Please log in using your official email. The system will automatically trigger a verification pulse to your inbox. Access remains restricted until the email link is clicked.
+                 </p>
+              </div>
+              <Link href="/login" className="block pt-4">
+                 <Button className="w-full h-16 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl">
+                    Proceed to Login Node
+                 </Button>
+              </Link>
+           </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6 font-body text-black relative overflow-hidden">
-      {/* Decorative Grid Trace */}
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, black 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 
@@ -87,7 +121,7 @@ export default function PublicRegistrationPage() {
                <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
                   <div className="relative group">
-                      <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-secondary transition-colors" />
+                      <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/20 group-focus-within:text-secondary transition-colors" />
                       <Input 
                         className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 focus:border-secondary text-black transition-all bg-white shadow-inner" 
                         value={formData.fullName} 
@@ -199,7 +233,7 @@ export default function PublicRegistrationPage() {
                 <ShieldCheck className="size-8" />
              </div>
              <p className="text-[11px] text-black/60 uppercase leading-relaxed font-black tracking-tight max-w-sm">
-                This node creates a high-integrity identity pulse. Verification is mandatory before clinical portal access is authorized.
+                Enrollment initiates the email verification protocol. You must confirm your address before the clinical portal is authorized.
              </p>
            </div>
            <Link href="/login">
@@ -209,11 +243,6 @@ export default function PublicRegistrationPage() {
            </Link>
         </CardFooter>
       </Card>
-      
-      {/* Visual Branding Trace */}
-      <div className="fixed bottom-10 left-0 right-0 flex justify-center pointer-events-none opacity-[0.03]">
-         <p className="text-[10px] font-black uppercase tracking-[1.5em] text-black">REMOTE OPTOMETRY REGISTRY</p>
-      </div>
     </div>
   );
 }
