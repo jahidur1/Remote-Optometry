@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -12,12 +12,15 @@ import { UserPlus, Mail, Lock, Loader2, ArrowLeft, Zap, ShieldCheck, Fingerprint
 import { useToast } from "@/hooks/use-toast";
 import { selfRegisterAction } from '@/services/identity-actions';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useFirestore, useCollection } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 
 export default function PublicRegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const db = useFirestore();
   const { toast } = useToast();
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
@@ -30,10 +33,23 @@ export default function PublicRegistrationPage() {
     password: '',
   });
 
+  // Dynamic Office Registry Subscription - Active Centers only
+  const officesQuery = useMemo(() => query(
+    collection(db, 'offices'),
+    where('status', '==', 'Active'),
+    orderBy('officeName', 'asc')
+  ), [db]);
+
+  const { data: registryOffices, loading: registryLoading } = useCollection(officesQuery);
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password.length < 8) {
       toast({ variant: "destructive", title: "Security Alert", description: "Password must be at least 8 characters." });
+      return;
+    }
+    if (!formData.office) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Please select your assigned ROC Cluster Center." });
       return;
     }
 
@@ -82,7 +98,7 @@ export default function PublicRegistrationPage() {
               </div>
               <Link href="/login" className="block pt-4">
                  <Button className="w-full h-16 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl">
-                    Proceed to Login Node
+                    Proceed to Login
                  </Button>
               </Link>
            </CardContent>
@@ -148,7 +164,7 @@ export default function PublicRegistrationPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email Node</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email</Label>
                   <div className="relative group">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-secondary transition-colors" />
                       <Input 
@@ -181,19 +197,15 @@ export default function PublicRegistrationPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Target Cluster Node</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Target Cluster Center</Label>
                   <Select value={formData.office} onValueChange={v => setFormData({...formData, office: v})}>
                     <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black shadow-inner">
-                      <SelectValue placeholder="Select ROC Unit" />
+                      <SelectValue placeholder={registryLoading ? "Syncing Registry..." : "Select ROC Unit"} />
                     </SelectTrigger>
                     <SelectContent className="bg-white rounded-2xl border-none shadow-2xl p-2">
-                      {[
-                        { id: 'KOLKATA_ROC', label: 'KOLKATA ROC' },
-                        { id: 'GURGAON_ROC', label: 'GURGAON ROC' },
-                        { id: 'LUCKNOW_ROC', label: 'LUCKNOW ROC' }
-                      ].map(o => (
-                        <SelectItem key={o.id} value={o.id} className="font-bold py-3 uppercase text-[11px] rounded-xl">
-                          {o.label}
+                      {registryOffices?.map(o => (
+                        <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-3 uppercase text-[11px] rounded-xl">
+                          {o.officeName} [{o.shortCode}]
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -219,7 +231,7 @@ export default function PublicRegistrationPage() {
             <Button 
               className="w-full bg-[#0F172A] text-white h-20 text-base font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all group mt-6" 
               type="submit" 
-              disabled={loading}
+              disabled={loading || registryLoading}
             >
               {loading ? <Loader2 className="animate-spin size-6 mr-3" /> : <Zap className="size-6 mr-3 group-hover:rotate-12 transition-transform text-secondary fill-secondary" />}
               Authorize & Enroll Identity
@@ -238,7 +250,7 @@ export default function PublicRegistrationPage() {
            </div>
            <Link href="/login">
               <Button variant="link" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:text-primary transition-colors">
-                 Existing Node? Authenticate
+                 Existing Account? Authenticate
               </Button>
            </Link>
         </CardFooter>
