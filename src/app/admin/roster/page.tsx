@@ -73,6 +73,7 @@ export default function RosterSolver() {
     setStatus("running");
     setProgress(20);
     setSolverResult(null);
+    setLastDraftId(null);
 
     try {
       const idToken = await auth.currentUser?.getIdToken(true);
@@ -88,6 +89,11 @@ export default function RosterSolver() {
       setProgress(100);
 
       if (result.status === 'INFEASIBLE') {
+        setStatus("conflict");
+        return;
+      }
+
+      if (result.status === 'UNKNOWN') {
         setStatus("conflict");
         return;
       }
@@ -111,7 +117,8 @@ export default function RosterSolver() {
       setStatus("success");
     } catch (e: any) {
       setStatus("conflict");
-      toast({ variant: "destructive", title: "Pipeline Failure", description: e.message });
+      console.error('Solver UI Hub Failure:', e);
+      toast({ variant: "destructive", title: "Pipeline Failure", description: "The server encountered an unexpected pulse conflict. Check audit logs." });
     }
   };
 
@@ -177,14 +184,21 @@ export default function RosterSolver() {
                 </div>
 
                 {solverResult && (
-                  <div className={cn("p-8 rounded-[2rem] border-2 animate-in zoom-in-95", solverResult.status === 'INFEASIBLE' ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20')}>
+                  <div className={cn("p-8 rounded-[2rem] border-2 animate-in zoom-in-95", (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20')}>
                     <div className="flex gap-8 items-start">
-                      <div className={cn("size-14 rounded-2xl flex items-center justify-center shrink-0", solverResult.status === 'INFEASIBLE' ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600')}>
-                         {solverResult.status === 'INFEASIBLE' ? <AlertTriangle className="size-7" /> : <Sparkles className="size-7" />}
+                      <div className={cn("size-14 rounded-2xl flex items-center justify-center shrink-0", (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/10 text-destructive' : 'bg-emerald-500/10 text-emerald-600')}>
+                         {(solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? <AlertTriangle className="size-7" /> : <Sparkles className="size-7" />}
                       </div>
                       <div className="space-y-4 flex-1">
                          <p className="text-lg font-black leading-snug">{solverResult.summary}</p>
-                         {lastDraftId && solverResult.status !== 'INFEASIBLE' && (
+                         
+                         {solverResult.status === 'UNKNOWN' && solverResult.issuesEncountered?.some((i: string) => i.includes('MISSING_QUOTA')) && (
+                           <Link href="/admin/quotas">
+                              <Button variant="destructive" className="w-full h-14 font-black uppercase tracking-[0.2em] rounded-xl shadow-xl">Configure Quotas Hub <ChevronRight className="ml-2 size-5" /></Button>
+                           </Link>
+                         )}
+
+                         {lastDraftId && solverResult.status !== 'INFEASIBLE' && solverResult.status !== 'UNKNOWN' && (
                            <Link href={`/admin/roster/review/${lastDraftId}`}>
                               <Button className="w-full h-14 bg-emerald-600 text-white font-black uppercase tracking-[0.2em] rounded-xl shadow-xl">Review Workspace <ChevronRight className="ml-2 size-5" /></Button>
                            </Link>

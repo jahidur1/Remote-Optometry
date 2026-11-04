@@ -3,7 +3,7 @@
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Refactored: Uses dynamic Office Registry for center validation.
+ * Refactored: Uses dynamic Office Registry and ensures serializable output.
  */
 
 import { ai } from '@/ai/genkit';
@@ -103,32 +103,42 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         };
       }
 
-      const quotaData = quotaSnap.data()!;
-      const employees = empSnap.docs.map(d => ({ 
-        id: d.id, 
-        gender: (d.data().gender || 'Other').toLowerCase(),
-        historicalSO: d.data().historicalSO || 0, 
-        historicalOP: d.data().historicalOP || 0 
-      }));
+      // STRICT SERIALIZATION: Map all snapshots to plain data objects immediately
+      const employees = empSnap.docs.map(d => {
+        const data = d.data();
+        return { 
+          id: d.id, 
+          gender: (data.gender || 'Other').toLowerCase(),
+          historicalSO: Number(data.historicalSO || 0), 
+          historicalOP: Number(data.historicalOP || 0) 
+        };
+      });
 
-      const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
+      const shifts = shiftsSnap.docs.map(d => {
+        const data = d.data();
+        return { id: d.id, name: String(data.name) };
+      });
+
+      const quotaData = quotaSnap.data()!;
+      const bookings = bookingsSnap.docs.map(d => d.data());
+      const leaves = leavesSnap.docs.map(d => d.data());
+      const rules = rulesSnap.docs.map(d => d.data());
+      const prefs = prefsSnap.docs.map(d => d.data());
 
       const employeeHardConstraints = [
-        ...bookingsSnap.docs.map(d => ({ 
-          employeeId: d.data().employeeId, 
+        ...bookings.map(b => ({ 
+          employeeId: b.employeeId, 
           type: 'weeklyOff', 
-          dayOfWeek: d.data().dayOfWeek 
+          dayOfWeek: b.dayOfWeek 
         })),
-        ...leavesSnap.docs.flatMap(d => {
-          const leaf = d.data();
+        ...leaves.flatMap(leaf => {
           const emp = employees.find(e => e.id === leaf.employeeId);
           if (!emp) return [];
-          return DAYS.filter((day, idx) => isDateInRange(weekDates[idx], leaf.startDate, leaf.endDate))
+          return DAYS.filter((day, idx) => idx < weekDates.length && isDateInRange(weekDates[idx], leaf.startDate, leaf.endDate))
             .map(day => ({ employeeId: leaf.employeeId, type: 'unavailable', dayOfWeek: day }));
         }),
-        ...bookingsSnap.docs.flatMap(d => {
-          const booking = d.data();
-          const rule = rulesSnap.docs.find(r => r.data().employeeId === booking.employeeId)?.data();
+        ...bookings.flatMap(booking => {
+          const rule = rules.find(r => r.employeeId === booking.employeeId);
           if (!rule) return [];
           const res: any[] = [];
           const idx = DAYS.indexOf(booking.dayOfWeek);
@@ -144,13 +154,13 @@ const generateWeeklyRosterFlow = ai.defineFlow(
 
       const weeklyQuotas = Object.entries(quotaData.quotas || {}).map(([key, val]) => {
         const [day, shiftId] = key.split('_');
-        return { dayOfWeek: day, shiftId, requiredStaff: val as number };
+        return { dayOfWeek: day, shiftId, requiredStaff: Number(val) };
       });
 
-      const employeeSoftPreferences = prefsSnap.docs.map(d => ({
-        employeeId: d.data().employeeId,
-        dayOfWeek: d.data().dayOfWeek,
-        shiftId: d.data().shiftId,
+      const employeeSoftPreferences = prefs.map(p => ({
+        employeeId: p.employeeId,
+        dayOfWeek: p.dayOfWeek,
+        shiftId: p.shiftId,
         weight: 1.0
       }));
 
@@ -166,10 +176,12 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       };
 
       const result = await callSolver(solverPayload);
+      
+      // Deterministic Integrity Re-Check
       const integrity = verifyRosterIntegrity(
         result.assignments || [],
-        bookingsSnap.docs.map(d => d.data()),
-        leavesSnap.docs.map(d => d.data()),
+        bookings,
+        leaves,
         weekDates
       );
 
@@ -185,14 +197,15 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         status: !integrity.isValid ? 'UNKNOWN' : result.status,
         issuesEncountered: [...(result.errors || []), ...integrity.issues],
         solverMetadata: {
-          solveTimeMs: result.metadata.solveTimeMs,
+          solveTimeMs: result.metadata?.solveTimeMs || 0,
           constraintsChecked: solverPayload.employeeHardConstraints.length,
-          objectiveValue: result.metadata.objectiveValue,
+          objectiveValue: result.metadata?.objectiveValue,
           runId: `run_${Date.now().toString().slice(-6)}`
         }
       };
 
     } catch (e: any) {
+      console.error('Deterministic Pipeline Failure:', e);
       return {
         rosterAssignments: [],
         summary: `Deterministic Pipeline Failure: ${e.message}`,

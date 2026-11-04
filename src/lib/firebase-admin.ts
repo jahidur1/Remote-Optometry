@@ -12,11 +12,16 @@ import { firebaseConfig } from '@/firebase/config';
  * Optimized for Next.js Server Components and Actions.
  */
 
-const app: App = getApps().length === 0 
-  ? initializeApp({
-      projectId: firebaseConfig.projectId,
-    })
-  : getApp();
+function getAdminApp(): App {
+  if (getApps().length > 0) {
+    return getApp();
+  }
+  return initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
+}
+
+const app = getAdminApp();
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
