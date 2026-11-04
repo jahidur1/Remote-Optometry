@@ -1,9 +1,9 @@
-
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { RoleGuard } from "@/components/auth/role-guard"
 import { Separator } from "@/components/ui/separator"
 import { OfficeProvider } from "@/context/office-context"
+import { LogoutButton } from "@/components/auth/logout-button"
 
 export default function AdminLayout({
   children,
@@ -23,6 +23,7 @@ export default function AdminLayout({
                 <span className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.4em] text-black/30 truncate max-w-[120px] md:max-w-none">Institutional Control</span>
               </div>
               <div className="ml-auto flex items-center gap-3 md:gap-6">
+                 <LogoutButton />
                  <div className="size-8 md:size-10 rounded-full bg-slate-50 border-2 border-slate-100 flex items-center justify-center animate-pulse">
                     <div className="size-1.5 md:size-2 rounded-full bg-emerald-500" />
                  </div>
