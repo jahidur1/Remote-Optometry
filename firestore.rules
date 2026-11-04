@@ -105,7 +105,9 @@ service cloud.firestore {
     }
 
     match /published_rosters/{versionId} { 
-      allow read: if isUserActive() && matchesOffice(resource.data.office); 
+      // SECURITY HARDEN: Employees must use Server Actions for secure projection.
+      // Direct client reads are restricted to Admins for cluster monitoring.
+      allow read: if isAdmin() && matchesOffice(resource.data.office); 
       allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
     

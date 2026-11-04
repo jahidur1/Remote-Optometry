@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
 import { collection, query, orderBy, limit, onSnapshot, doc, where } from "firebase/firestore"
-import { useFirestore, useUser, useDoc, useCollection } from "@/firebase"
+import { useFirestore, useUser, useDoc, useAuth, useCollection } from "@/firebase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +23,8 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
-  TrendingUp
+  TrendingUp,
+  ArrowRightLeft
 } from "lucide-react"
 import Link from "next/link"
 import { DemoBadge } from "@/components/ui/demo-badge"
@@ -33,6 +35,7 @@ import {
   CarouselItem,
   type CarouselApi
 } from "@/components/ui/carousel"
+import { getMyRosterAction } from "@/services/roster-actions"
 
 function Countdown({ targetDate, onComplete, label }: { targetDate: string, onComplete?: () => void, label: string }) {
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -69,34 +72,52 @@ function Countdown({ targetDate, onComplete, label }: { targetDate: string, onCo
 
 export default function EmployeePortal() {
   const db = useFirestore();
+  const auth = useAuth();
   const { profile, loading: userLoading } = useUser();
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [api, setApi] = useState<CarouselApi>();
+  
+  // High-fidelity roster data state (Projected server-side)
+  const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
+  const [rosterLoading, setRosterLoading] = useState(true);
 
   const upcomingWeek = '2025-01';
   const currentWeek = '2024-52'; 
-  const previousWeek = '2024-51';
-  const weeks = [upcomingWeek, currentWeek, previousWeek];
+  const prev1Week = '2024-51';
+  const prev2Weeks = '2024-50';
+  const weeks = [upcomingWeek, currentWeek, prev1Week, prev2Weeks];
 
-  // Published Rosters for History/Upcoming Swipe
-  // CRITICAL: Filter by office to satisfy Cluster Isolation security rules
-  const rosterQuery = useMemo(() => {
-    if (!profile?.office) return null;
-    return query(
-      collection(db, 'published_rosters'),
-      where('office', '==', profile.office),
-      where('weekId', 'in', weeks),
-      where('status', '==', 'active'),
-      orderBy('publishedAt', 'desc')
-    );
-  }, [db, profile?.office]);
-
-  const { data: publishedRosters, loading: rosterLoading } = useCollection(rosterQuery);
   const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
   
   const bookingId = profile?.employeeId ? `${currentWeek}_${profile.employeeId}` : null;
   const { data: userBooking } = useDoc(bookingId ? doc(db, 'weekoff_bookings', bookingId) : null);
+
+  // SECURE PULSE: Fetch assignments via server-side projection
+  useEffect(() => {
+    async function syncRosters() {
+      if (!auth.currentUser) return;
+      setRosterLoading(true);
+      try {
+        const idToken = await auth.currentUser.getIdToken(true);
+        const results: any = {};
+        
+        await Promise.all(weeks.map(async (week) => {
+          const res = await getMyRosterAction(idToken, week);
+          if (res.success) {
+            results[week] = { assignments: res.assignments || [], published: res.published };
+          }
+        }));
+        
+        setRosterData(results);
+      } catch (e) {
+        console.error("Roster Sync Pulse Failed:", e);
+      } finally {
+        setRosterLoading(false);
+      }
+    }
+    syncRosters();
+  }, [auth.currentUser]);
 
   useEffect(() => {
     if (!profile?.office || !db) return;
@@ -113,12 +134,6 @@ export default function EmployeePortal() {
     return () => unsubscribe();
   }, [db, profile]);
 
-  const getAssignmentsForWeek = (weekId: string) => {
-    const roster = publishedRosters?.find(r => r.weekId === weekId);
-    if (!roster || !profile?.employeeId) return [];
-    return roster.assignments.filter((a: any) => a.employeeId === profile.employeeId);
-  };
-
   const now = new Date();
   const isWindowOpen = activeConfig && now >= new Date(activeConfig.bookingOpen) && now <= new Date(activeConfig.bookingClose);
   const isWindowUpcoming = activeConfig && now < new Date(activeConfig.bookingOpen);
@@ -127,7 +142,7 @@ export default function EmployeePortal() {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
-        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Establishing Node Connection</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Establishing Secure Node Link</p>
       </div>
     );
   }
@@ -157,11 +172,18 @@ export default function EmployeePortal() {
             <DemoBadge />
           </div>
         </div>
-        <Link href="/employee/profile">
-            <Button variant="outline" className="rounded-2xl h-14 px-8 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest bg-white hover:bg-slate-50 shadow-sm transition-all group text-black">
-                <Settings className="size-4 mr-3 group-hover:rotate-90 transition-transform duration-500 text-secondary" /> Account Settings
-            </Button>
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/employee/swaps">
+              <Button variant="outline" className="rounded-2xl h-14 px-8 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest bg-white hover:bg-slate-50 shadow-sm transition-all group text-black">
+                  <ArrowRightLeft className="size-4 mr-3 group-hover:rotate-12 transition-transform duration-500 text-secondary" /> Shift Swaps
+              </Button>
+          </Link>
+          <Link href="/employee/profile">
+              <Button variant="outline" className="rounded-2xl h-14 px-8 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest bg-white hover:bg-slate-50 shadow-sm transition-all group text-black">
+                  <Settings className="size-4 mr-3 group-hover:rotate-90 transition-transform duration-500 text-secondary" /> Account Settings
+              </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-10 lg:grid-cols-12">
@@ -201,6 +223,7 @@ export default function EmployeePortal() {
                         <div className="flex flex-wrap gap-8 justify-center md:justify-start bg-slate-50 p-8 rounded-[2rem] shadow-inner border-2 border-slate-100">
                           {isWindowUpcoming && <Countdown targetDate={activeConfig.bookingOpen} label="Pulse Initiates In" />}
                           {isWindowOpen && <Countdown targetDate={activeConfig.bookingClose} label="Pulse Terminates In" />}
+                          {!isWindowOpen && !isWindowUpcoming && <p className="text-[14px] font-black uppercase tracking-widest text-black/40">Reservation Window Terminated</p>}
                         </div>
                         {isWindowOpen && (
                           <Link href="/employee/book-off" className="block">
@@ -222,7 +245,7 @@ export default function EmployeePortal() {
                   <div className="size-10 rounded-xl bg-secondary/10 flex items-center justify-center">
                     <History className="size-5 text-secondary" />
                   </div>
-                  <h3 className="text-xl font-black uppercase tracking-tight text-black">Clinical Trace Matrix</h3>
+                  <h3 className="text-xl font-black uppercase tracking-tight text-black">Personal Deployment Matrix</h3>
                </div>
                <div className="flex items-center gap-3">
                   <Button variant="ghost" size="icon" onClick={() => api?.scrollPrev()} className="rounded-xl border hover:bg-slate-50"><ChevronLeft className="size-5" /></Button>
@@ -233,10 +256,10 @@ export default function EmployeePortal() {
             <Carousel setApi={setApi} className="w-full">
               <CarouselContent>
                 {weeks.map((week) => {
-                  const weekAssignments = getAssignmentsForWeek(week);
+                  const weekData = rosterData[week] || { assignments: [], published: false };
+                  const weekAssignments = weekData.assignments;
                   const isUpcoming = week === upcomingWeek;
                   const isCurrent = week === currentWeek;
-                  const isPrevious = week === previousWeek;
                   
                   return (
                     <CarouselItem key={week}>
@@ -246,63 +269,73 @@ export default function EmployeePortal() {
                       )}>
                         <CardHeader className={cn(
                           "p-10 border-none relative overflow-hidden",
-                          isUpcoming ? "bg-[#0F172A]" : isCurrent ? "bg-[#0F172A]" : "bg-slate-100"
+                          isUpcoming ? "bg-primary" : isCurrent ? "bg-[#0F172A]" : "bg-slate-100"
                         )}>
-                           <div className="absolute top-0 right-0 p-10 opacity-5"><CalendarDays size={200} className={isPrevious ? "text-black" : "text-white"} /></div>
+                           <div className="absolute top-0 right-0 p-10 opacity-5"><CalendarDays size={200} className={(!isUpcoming && !isCurrent) ? "text-black" : "text-white"} /></div>
                            <div className="flex items-center justify-between relative z-10">
                               <div className="space-y-1">
                                   <CardTitle className={cn(
                                     "text-2xl flex items-center gap-5 font-black uppercase tracking-tight leading-none",
-                                    isPrevious ? "text-black" : "text-white"
+                                    (!isUpcoming && !isCurrent) ? "text-black" : "text-white"
                                   )}>
                                      {isUpcoming ? <TrendingUp className="size-8 text-secondary" /> : isCurrent ? <Clock className="size-8 text-secondary" /> : <History className="size-8 text-black/40" />}
-                                     {isUpcoming ? 'Upcoming Cycle' : isCurrent ? 'Active Deployment' : 'Previous Cycle'}
+                                     {isUpcoming ? 'Upcoming Week' : isCurrent ? 'Active Cycle' : 'Historical Record'}
                                   </CardTitle>
                                   <CardDescription className={cn(
                                     "text-[11px] uppercase font-black tracking-[0.2em] mt-3",
-                                    isPrevious ? "text-black/40" : "text-white/40"
+                                    (!isUpcoming && !isCurrent) ? "text-black/40" : "text-white/40"
                                   )}>Cycle {week}</CardDescription>
                               </div>
                               <Badge className={cn(
                                 "border-none font-black text-[9px] uppercase px-5 py-2 rounded-full",
-                                isPrevious ? "bg-black/10 text-black" : "bg-white/10 text-white"
+                                (!isUpcoming && !isCurrent) ? "bg-black/10 text-black" : "bg-white/10 text-white"
                               )}>
-                                 Node_{profile?.office?.substring(0,3)}
+                                 {weekData.published ? 'PUBLISHED' : 'PENDING'}
                               </Badge>
                            </div>
                         </CardHeader>
                         <CardContent className="p-10 space-y-6">
-                           {weekAssignments.length > 0 ? (
-                             weekAssignments.sort((a: any, b: any) => {
-                               const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-                               return days.indexOf(a.dayOfWeek) - days.indexOf(b.dayOfWeek);
-                             }).map((a: any, i: number) => {
-                               const shift = shifts?.find(s => s.id === a.shiftId);
-                               return (
-                                 <div key={i} className="flex items-center justify-between p-8 rounded-[2rem] bg-white border-2 border-slate-50 hover:border-secondary/20 shadow-sm transition-all group">
-                                   <div className="flex flex-col gap-1.5">
-                                     <span className="font-black text-3xl uppercase tracking-tighter text-black group-hover:translate-x-2 transition-transform">{a.dayOfWeek}</span>
-                                     <div className="flex items-center gap-4">
-                                        <Badge variant="outline" className="text-[10px] font-black text-secondary border-secondary/20 uppercase px-4 py-1 rounded-lg">
-                                           {shift?.name || a.shiftId}
-                                        </Badge>
-                                        <span className="text-[11px] text-black font-black tracking-widest uppercase flex items-center gap-2">
-                                           <Clock className="size-3 text-secondary" /> {shift?.startTime} — {shift?.endTime} IST
-                                        </span>
+                           {weekData.published ? (
+                             weekAssignments.length > 0 ? (
+                               weekAssignments.sort((a: any, b: any) => {
+                                 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                                 return days.indexOf(a.dayOfWeek) - days.indexOf(b.dayOfWeek);
+                               }).map((a: any, i: number) => {
+                                 const shift = shifts?.find(s => s.id === a.shiftId);
+                                 return (
+                                   <div key={i} className="flex items-center justify-between p-8 rounded-[2rem] bg-white border-2 border-slate-50 hover:border-secondary/20 shadow-sm transition-all group">
+                                     <div className="flex flex-col gap-1.5">
+                                       <span className="font-black text-3xl uppercase tracking-tighter text-black group-hover:translate-x-2 transition-transform">{a.dayOfWeek}</span>
+                                       <div className="flex items-center gap-4">
+                                          <Badge variant="outline" className="text-[10px] font-black text-secondary border-secondary/20 uppercase px-4 py-1 rounded-lg">
+                                             {shift?.name || a.shiftId}
+                                          </Badge>
+                                          <span className="text-[11px] text-black font-black tracking-widest uppercase flex items-center gap-2">
+                                             <Clock className="size-3 text-secondary" /> {shift?.startTime} — {shift?.endTime} IST
+                                          </span>
+                                       </div>
+                                     </div>
+                                     <div className="size-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-secondary/10 group-hover:rotate-12 transition-all">
+                                        <Zap className="size-5 text-secondary group-hover:text-secondary transition-colors" />
                                      </div>
                                    </div>
-                                   <div className="size-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-secondary/10 group-hover:rotate-12 transition-all">
-                                      <Zap className="size-5 text-secondary group-hover:text-secondary transition-colors" />
-                                   </div>
-                                 </div>
-                               )
-                             })
+                                 )
+                               })
+                             ) : (
+                               <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
+                                  <CalendarDays className="size-24 text-black/5 mx-auto mb-8" />
+                                  <p className="text-xl font-black text-black/20 uppercase tracking-tight">No Duty Assigned</p>
+                                  <p className="text-[10px] text-black/40 uppercase mt-3 max-w-[280px] mx-auto leading-relaxed font-black tracking-[0.2em]">
+                                    You have no scheduled shifts for this cycle node.
+                                  </p>
+                               </div>
+                             )
                            ) : (
                              <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
-                                <CalendarDays className="size-24 text-black/5 mx-auto mb-8" />
+                                <Lock className="size-24 text-black/5 mx-auto mb-8" />
                                 <p className="text-xl font-black text-black/20 uppercase tracking-tight">Roster Node Pending</p>
                                 <p className="text-[10px] text-black/40 uppercase mt-3 max-w-[280px] mx-auto leading-relaxed font-black tracking-[0.2em]">
-                                  {isUpcoming ? 'Upcoming week roster is currently in review by administrative nodes.' : 'Audit in progress for your clinical cluster.'}
+                                  {isUpcoming ? 'The upcoming roster is currently in mathematical review by clinical leads.' : 'Historical records are being archived in the cluster cloud.'}
                                 </p>
                              </div>
                            )}
@@ -346,9 +379,9 @@ export default function EmployeePortal() {
                  </div>
               </div>
               
-              <Link href="/employee/swaps" className="block pt-4">
-                 <Button variant="outline" className="w-full h-16 border-white/20 hover:bg-white/5 text-white font-black uppercase text-[11px] tracking-[0.3em] rounded-2xl transition-all shadow-xl">
-                    Propose Shift Exchange
+              <Link href="/employee/preferences" className="block pt-4">
+                 <Button className="w-full h-16 bg-secondary hover:bg-secondary/80 text-white font-black uppercase text-[11px] tracking-[0.3em] rounded-2xl transition-all shadow-xl">
+                    Update Shift Preferences
                  </Button>
               </Link>
             </CardContent>
