@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -9,13 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateWeeklyRoster } from "@/ai/flows/generate-weekly-roster";
 import { explainSchedulingConflicts } from "@/ai/flows/explain-scheduling-conflicts-flow";
-import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server, Clock, Zap, Cpu, Terminal, Database, Building2 } from "lucide-react";
+import { BrainCircuit, Sparkles, AlertTriangle, History, ShieldCheck, Loader2, Play, Activity, ChevronRight, Target, Lock, Server, Clock, Zap, Cpu, Terminal, Database, Building2, CalendarDays } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { DemoBadge } from '@/components/ui/demo-badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { logAudit } from '@/lib/audit';
 import Link from 'next/link';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, getISOWeek, getISOWeekYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 export default function RosterSolver() {
@@ -32,7 +33,6 @@ export default function RosterSolver() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  // Dynamic Office Registry Subscription
   const { data: registryOffices, loading: registryLoading } = useCollection(
     query(collection(db, 'offices'), where('status', '==', 'Active'))
   );
@@ -58,6 +58,14 @@ export default function RosterSolver() {
   }, [db, profile, selectedOffice]);
   
   const { data: recentDrafts } = useCollection(draftsQuery);
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const year = getISOWeekYear(date);
+    const week = getISOWeek(date);
+    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
+    setWeekId(formattedWeek);
+  };
 
   const handleRunSolver = async () => {
     const targetOffice = selectedOffice;
@@ -126,18 +134,6 @@ export default function RosterSolver() {
     }
   };
 
-  const handleExplain = async () => {
-    if (!solverResult) return;
-    const result = await explainSchedulingConflicts({
-      problemDescription: `Roster Hub: ${selectedOffice} | Target Cycle: ${weekId}`,
-      hardConstraints: ["Atomic Clinical Quotas", "Protected Weekly-Offs", "Approved Absences", "Adjacency Fairness"],
-      softConstraints: ["Gender Pod Balance", "Professional Preferences"],
-      solverOutcome: solverResult.status,
-      detectedConflicts: solverResult.issuesEncountered
-    });
-    setExplanation(result);
-  };
-
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
@@ -152,7 +148,6 @@ export default function RosterSolver() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   CP-SAT Optimization Logic <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
@@ -176,14 +171,22 @@ export default function RosterSolver() {
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cycle</label>
-              <div className="flex items-center gap-2">
-                <Input 
-                  className="w-20 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
-                  value={weekId} 
-                  onChange={(e) => setWeekId(e.target.value)}
-                />
-                <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
+                    <CalendarDays className="size-4 text-secondary" />
+                    <span className="text-[16px]">{weekId}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
+                  <Calendar
+                    mode="single"
+                    onSelect={handleDateSelect}
+                    initialFocus
+                    className="bg-white"
+                  />
+                </PopoverContent>
+              </Popover>
            </div>
            <Button 
              className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 

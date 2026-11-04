@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -25,12 +24,16 @@ import {
   Database,
   Lock,
   Server,
-  Terminal
+  Terminal,
+  CalendarDays
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, getISOWeek, getISOWeekYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -50,7 +53,6 @@ export default function WeekOffConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  // Dynamic Office Registry Subscription
   const { data: registryOffices, loading: registryLoading } = useCollection(
     query(collection(db, 'offices'), where('status', '==', 'Active'))
   );
@@ -69,7 +71,6 @@ export default function WeekOffConfiguration() {
     }
   }, [authorizedOffices, office]);
 
-  // Load existing configuration if it exists for modification
   useEffect(() => {
     if (!db || !weekId || !office) return;
     
@@ -102,6 +103,14 @@ export default function WeekOffConfiguration() {
 
   const { data: configs, loading: fetching } = useCollection(configsQuery);
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const year = getISOWeekYear(date);
+    const week = getISOWeek(date);
+    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
+    setWeekId(formattedWeek);
+  };
+
   const handleSave = async () => {
     if (!weekId || !openTime || !closeTime || !office) {
       toast({ title: "Validation Error", description: "All unit parameters must be defined.", variant: "destructive" });
@@ -120,7 +129,7 @@ export default function WeekOffConfiguration() {
         bookingOpen: openTime,
         bookingClose: closeTime,
         quotas,
-        booked: exists ? {} : DAYS.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}), // Preserve booked counts if updating
+        booked: exists ? {} : DAYS.reduce((acc, day) => ({ ...acc, [day]: 0 }), {}),
         status: 'scheduled',
         updatedAt: new Date().toISOString(),
         actorId: profile?.uid,
@@ -174,14 +183,22 @@ export default function WeekOffConfiguration() {
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
-              <div className="flex items-center gap-2">
-                 <Input 
-                  className="w-24 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
-                  value={weekId} 
-                  onChange={(e) => setWeekId(e.target.value)}
-                />
-                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
+                    <CalendarDays className="size-4 text-secondary" />
+                    <span className="text-[16px]">{weekId}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
+                  <Calendar
+                    mode="single"
+                    onSelect={handleDateSelect}
+                    initialFocus
+                    className="bg-white"
+                  />
+                </PopoverContent>
+              </Popover>
            </div>
            <Button 
              className="bg-secondary text-white shadow-xl shadow-secondary/20 h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all hover:scale-105 active:scale-95 rounded-xl group" 

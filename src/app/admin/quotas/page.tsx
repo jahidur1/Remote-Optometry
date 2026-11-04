@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -22,12 +21,15 @@ import {
   Database,
   Building2,
   Clock,
-  Loader2
+  Loader2,
+  CalendarDays
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DemoBadge } from '@/components/ui/demo-badge';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, getISOWeek, getISOWeekYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { saveQuotaAction } from '@/services/quota-actions';
 
@@ -45,7 +47,6 @@ export default function QuotaConfiguration() {
   const { profile } = useUser();
   const { toast } = useToast();
 
-  // Dynamic Office Registry Subscription
   const { data: registryOffices, loading: registryLoading } = useCollection(
     query(collection(db, 'offices'), where('status', '==', 'Active'))
   );
@@ -127,6 +128,14 @@ export default function QuotaConfiguration() {
     return totals;
   }, [quotas, shifts]);
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const year = getISOWeekYear(date);
+    const week = getISOWeek(date);
+    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
+    setWeekId(formattedWeek);
+  };
+
   const handleQuotaChange = (day: string, shiftId: string, val: string) => {
     const num = parseInt(val) || 0;
     if (num < 0) return;
@@ -174,7 +183,6 @@ export default function QuotaConfiguration() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Staffing Optimization Hub <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
@@ -193,21 +201,27 @@ export default function QuotaConfiguration() {
                       {o.officeName} [{o.shortCode}] Hub
                     </SelectItem>
                   ))}
-                  {authorizedOffices.length === 0 && !registryLoading && (
-                    <div className="p-4 text-[10px] font-black uppercase text-destructive text-center">No Authorized Centers</div>
-                  )}
                 </SelectContent>
               </Select>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
-              <div className="flex items-center gap-2">
-                 <Input 
-                  className="w-24 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
-                  value={weekId} 
-                  onChange={(e) => setWeekId(e.target.value)}
-                />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
+                    <CalendarDays className="size-4 text-secondary" />
+                    <span className="text-[16px]">{weekId}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
+                  <Calendar
+                    mode="single"
+                    onSelect={handleDateSelect}
+                    initialFocus
+                    className="bg-white"
+                  />
+                </PopoverContent>
+              </Popover>
            </div>
            <Button 
              className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl group" 

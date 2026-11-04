@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -22,11 +21,12 @@ import {
   CalendarDays
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DemoBadge } from '@/components/ui/demo-badge';
 import { getDatesForWeek, isDateInRange } from '@/lib/date-utils';
-import { format } from 'date-fns';
+import { format, getISOWeek, getISOWeekYear } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from '@/lib/utils';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -36,7 +36,6 @@ export default function AvailabilitySummary() {
   const { profile } = useUser();
   const [selectedWeek, setSelectedWeek] = useState('2024-52');
 
-  // Stable Authoritative Fetch - Filtered by office for multi-office Admin scoping
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
@@ -66,7 +65,6 @@ export default function AvailabilitySummary() {
       const date = weekDates[index];
       const dateStr = format(date, 'yyyy-MM-dd');
 
-      // Confirmed Weekly Offs for this day
       const offCount = bookings?.filter(b => b.dayOfWeek === day).length || 0;
       
       const totalActive = employees.length;
@@ -83,12 +81,19 @@ export default function AvailabilitySummary() {
     });
   }, [employees, bookings, selectedWeek]);
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const year = getISOWeekYear(date);
+    const week = getISOWeek(date);
+    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
+    setSelectedWeek(formattedWeek);
+  };
+
   const totalActivePool = employees?.length || 0;
   const currentWeekOffs = bookings?.length || 0;
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* Institutional Pulse Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -101,7 +106,6 @@ export default function AvailabilitySummary() {
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Live Capacity Matrix <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
-                <DemoBadge />
               </div>
             </div>
           </div>
@@ -110,14 +114,22 @@ export default function AvailabilitySummary() {
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
-              <div className="flex items-center gap-2">
-                 <Input 
-                   className="w-24 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
-                   value={selectedWeek} 
-                   onChange={(e) => setSelectedWeek(e.target.value)}
-                 />
-                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
+                    <CalendarDays className="size-4 text-secondary" />
+                    <span className="text-[16px]">{selectedWeek}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
+                  <Calendar
+                    mode="single"
+                    onSelect={handleDateSelect}
+                    initialFocus
+                    className="bg-white"
+                  />
+                </PopoverContent>
+              </Popover>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
@@ -129,7 +141,6 @@ export default function AvailabilitySummary() {
         </div>
       </div>
 
-      {/* Primary KPI Matrix */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {[
           { label: 'Authorized Pool', value: totalActivePool, sub: 'Personnel Active', icon: Users, color: 'text-primary' },

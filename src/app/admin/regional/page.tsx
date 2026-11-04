@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -34,6 +33,9 @@ import {
   Cell,
 } from "recharts";
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, getISOWeek, getISOWeekYear } from 'date-fns';
 import { 
   getRegionalStatsAction, 
   getOfficeComparisonAction, 
@@ -86,6 +88,14 @@ export default function RegionalAnalytics() {
       fetchRegionalPulse();
     }
   }, [weekId, profile]);
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const year = getISOWeekYear(date);
+    const week = getISOWeek(date);
+    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
+    setWeekId(formattedWeek);
+  };
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -142,14 +152,22 @@ export default function RegionalAnalytics() {
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cycle</label>
-              <div className="flex items-center gap-2">
-                 <Input 
-                   className="w-24 h-6 font-black text-black border-none bg-transparent focus-visible:ring-0 p-0 text-[16px]" 
-                   value={weekId} 
-                   onChange={(e) => setWeekId(e.target.value)}
-                 />
-                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
+                    <CalendarDays className="size-4 text-secondary" />
+                    <span className="text-[16px]">{weekId}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
+                  <Calendar
+                    mode="single"
+                    onSelect={handleDateSelect}
+                    initialFocus
+                    className="bg-white"
+                  />
+                </PopoverContent>
+              </Popover>
            </div>
            <Button 
             className="bg-secondary text-white h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
