@@ -1,9 +1,9 @@
-
 'use server';
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
  * Refactored: Uses dynamic Office Registry, enforces Adjacency Rules, and supports dual-engine (CP-SAT/AI).
+ * Strictly maps data to serializable objects to prevent Server Component render failures.
  */
 
 import { ai } from '@/ai/genkit';
@@ -74,12 +74,12 @@ Days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
 3. Adhere strictly to Shift Adjacency Rules:
 {{#each employeeHardConstraints}}
    {{#if (eq type "restrictedShift")}}
-   - Professional {{employeeId}} on {{dayOfWeek}} MUST be assigned one of: [{{#each restrictedToShifts}}{{this}}, {{/each}}].
+   - Professional {{employeeId}} on {{dayOfWeek}} MUST be assigned one of these shifts: [{{#each restrictedToShifts}}{{this}}, {{/each}}].
    {{/if}}
 {{/each}}
 
 ## Instructions
-- Ensure 100% quota fulfillment.
+- Ensure 100% quota fulfillment from Shift Quotas.
 - Balance demand shifts (SO/OP) fairly across history counts.
 - Return a valid JSON array of assignments.
 `,
@@ -119,7 +119,7 @@ const generateWeeklyRosterFlow = ai.defineFlow(
         throw new Error(`Access Denied: Not authorized for cluster ${officeId}.`);
       }
 
-      // 3. Institutional Sync
+      // 3. Institutional Sync (Retrieve Quotas, Bookings, Rules)
       const quotaId = `${weekId}_${officeId}`;
       const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap, prefsSnap] = await Promise.all([
         adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
@@ -149,11 +149,11 @@ const generateWeeklyRosterFlow = ai.defineFlow(
       }));
 
       const shifts = shiftsSnap.docs.map(d => ({ id: d.id, name: String(d.data().name) }));
-      const bookings = bookingsSnap.docs.map(d => d.data());
-      const leaves = leavesSnap.docs.map(d => d.data());
-      const adjacencyRules = rulesSnap.docs.map(d => d.data());
+      const bookings = bookingsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      const leaves = leavesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      const adjacencyRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
 
-      // 4. Hard Constraint Synthesis (Including Adjacency)
+      // 4. Hard Constraint Synthesis (Including Adjacency Options)
       const employeeHardConstraints: any[] = [
         ...bookings.map(b => ({ employeeId: b.employeeId, type: 'weeklyOff', dayOfWeek: b.dayOfWeek })),
         ...leaves.flatMap(leaf => {

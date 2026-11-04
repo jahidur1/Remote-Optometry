@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -17,16 +16,17 @@ import { DemoBadge } from '@/components/ui/demo-badge';
 import { formatWeekId, displayWeekRange } from '@/lib/date-utils';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { cn } from '@/lib/utils';
 
 export default function ShiftAdjacencyManager() {
   const db = useFirestore();
   const { profile } = useUser();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [weekId, setWeekId] = useState('20241230-20250105'); // Default or calculated
+  const [weekId, setWeekId] = useState('20241230-20250105'); 
   const [saving, setSaving] = useState<string | null>(null);
 
-  // Fetch core data - Scoped to office
+  // Stable Authoritative Fetches
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
@@ -152,7 +152,7 @@ export default function ShiftAdjacencyManager() {
              <CardContent className="px-8 pb-8 space-y-6">
                 <p className="text-[13px] leading-relaxed opacity-70">
                   Select which shifts a professional is **allowed** to work around their off-day. 
-                  The CP-SAT engine will block any assignment not checked here.
+                  The generation engine will strictly restrict assignments to these selected options.
                 </p>
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                    <div className="flex items-center gap-3">
@@ -223,11 +223,10 @@ export default function ShiftAdjacencyManager() {
                                   <div key={s.id} className={cn(
                                     "flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all cursor-pointer",
                                     isChecked ? "bg-secondary/5 border-secondary/20 text-secondary" : "bg-slate-50 border-transparent opacity-30 grayscale hover:opacity-100 hover:grayscale-0"
-                                  )}>
+                                  )} onClick={() => handleUpdateRule(emp.id, 'pre', s.id, !isChecked)}>
                                      <Checkbox 
                                         id={`pre-${emp.id}-${s.id}`}
                                         checked={isChecked}
-                                        onCheckedChange={(checked) => handleUpdateRule(emp.id, 'pre', s.id, !!checked)}
                                         className="border-slate-300 data-[state=checked]:bg-secondary"
                                      />
                                      <label htmlFor={`pre-${emp.id}-${s.id}`} className="text-[10px] font-black cursor-pointer uppercase">{s.id}</label>
@@ -244,11 +243,10 @@ export default function ShiftAdjacencyManager() {
                                   <div key={s.id} className={cn(
                                     "flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all cursor-pointer",
                                     isChecked ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-slate-50 border-transparent opacity-30 grayscale hover:opacity-100 hover:grayscale-0"
-                                  )}>
+                                  )} onClick={() => handleUpdateRule(emp.id, 'post', s.id, !isChecked)}>
                                      <Checkbox 
                                         id={`post-${emp.id}-${s.id}`}
                                         checked={isChecked}
-                                        onCheckedChange={(checked) => handleUpdateRule(emp.id, 'post', s.id, !!checked)}
                                         className="border-slate-300 data-[state=checked]:bg-emerald-500"
                                      />
                                      <label htmlFor={`post-${emp.id}-${s.id}`} className="text-[10px] font-black cursor-pointer uppercase">{s.id}</label>

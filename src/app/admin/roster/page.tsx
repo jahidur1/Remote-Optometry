@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, orderBy, limit, doc, setDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, doc, setDoc, where } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,6 +106,7 @@ export default function RosterSolver() {
         return;
       }
 
+      // Automatically commit result to 'roster_drafts' collection
       const draftId = `draft_${weekId}_${Date.now()}`;
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
@@ -192,7 +192,7 @@ export default function RosterSolver() {
            </div>
            <Button className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-black" onClick={handleRunSolver} disabled={status === 'running' || !selectedOffice || !weekId}>
             {status === 'running' ? <Loader2 className="size-4 animate-spin mr-2" /> : method === 'solver' ? <Zap className="size-4 mr-2" /> : <Wand2 className="size-4 mr-2" />}
-            INITIATE GENERATION
+            INITIATE HUB GENERATION
            </Button>
         </div>
       </div>

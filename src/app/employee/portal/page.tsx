@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
@@ -159,7 +158,6 @@ export default function EmployeePortal() {
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);
   
-  // Fetch confirmed bookings for all visible weeks to show "WEEK-OFF" status
   const bookingsQuery = useMemo(() => {
     if (!profile?.employeeId) return null;
     return query(
