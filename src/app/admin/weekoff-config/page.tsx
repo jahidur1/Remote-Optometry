@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -139,7 +138,6 @@ export default function WeekOffConfiguration() {
     const configId = `${weekId}_${office}`;
     const configRef = doc(db, 'weekoff_configs', configId);
     
-    // Hardening: Ensure every active day has an initialized booked count
     const finalBookedMap = { ...currentBookedMap };
     activeDays.forEach(day => {
       if (finalBookedMap[day] === undefined) finalBookedMap[day] = 0;

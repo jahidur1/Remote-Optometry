@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -37,10 +36,10 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 export default function AvailabilitySummary() {
   const db = useFirestore();
   const { profile } = useUser();
-  const [selectedWeek, setSelectedWeek] = useState('2024-52');
+  const [selectedWeek, setSelectedWeek] = useState('20241230-20250105');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Stable Authoritative Fetches
+  // STABLE AUTHORITATIVE FETCHES
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
@@ -50,7 +49,7 @@ export default function AvailabilitySummary() {
   }, [db, profile]);
 
   const bookQuery = useMemo(() => {
-    if (!profile) return null;
+    if (!profile || !selectedWeek) return null;
     const q = collection(db, 'weekoff_bookings');
     return profile.role === 'super_admin'
       ? query(q, where('weekId', '==', selectedWeek))
@@ -69,9 +68,7 @@ export default function AvailabilitySummary() {
     return DAYS.map((day, index) => {
       const date = weekDates[index];
       const dateStr = format(date, 'yyyy-MM-dd');
-
       const offCount = bookings?.filter(b => b.dayOfWeek === day).length || 0;
-      
       const totalActive = employees.length;
       const available = totalActive - offCount;
 
@@ -108,8 +105,9 @@ export default function AvailabilitySummary() {
     if (!date) return;
     const year = getISOWeekYear(date);
     const week = getISOWeek(date);
-    const formattedWeek = `${year}-${week.toString().padStart(2, '0')}`;
-    setSelectedWeek(formattedWeek);
+    const start = format(date, 'yyyyMMdd');
+    const end = format(addDays(date, 6), 'yyyyMMdd');
+    setSelectedWeek(`${start}-${end}`);
   };
 
   const totalActivePool = employees?.length || 0;
@@ -145,12 +143,7 @@ export default function AvailabilitySummary() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
-                  <Calendar
-                    mode="single"
-                    onSelect={handleDateSelect}
-                    initialFocus
-                    className="bg-white"
-                  />
+                  <Calendar mode="single" onSelect={handleDateSelect} initialFocus className="bg-white" />
                 </PopoverContent>
               </Popover>
            </div>

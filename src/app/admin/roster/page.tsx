@@ -40,7 +40,7 @@ import { cn } from '@/lib/utils';
 import { formatWeekId, displayWeekRange } from '@/lib/date-utils';
 
 export default function RosterSolver() {
-  const [weekId, setWeekId] = useState('');
+  const [weekId, setWeekId] = useState('20241230-20250105');
   const [selectedOffice, setSelectedOffice] = useState<string>('');
   const [method, setMethod] = useState<'solver' | 'ai'>('solver');
   const [status, setStatus] = useState<"idle" | "running" | "success" | "conflict">("idle");
@@ -106,7 +106,6 @@ export default function RosterSolver() {
         return;
       }
 
-      // Automatically commit result to 'roster_drafts' collection
       const draftId = `draft_${weekId}_${Date.now()}`;
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
@@ -260,6 +259,9 @@ export default function RosterSolver() {
                       </div>
                     </div>
                   </div>
+                )}
+                {status === 'idle' && !registryLoading && authorizedOffices.length === 0 && (
+                   <div className="py-20 text-center opacity-30 italic font-black uppercase text-xs tracking-[0.4em]">No authorized offices found for your administrative identity.</div>
                 )}
               </div>
             </CardContent>

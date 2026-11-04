@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -47,16 +46,15 @@ export default function UserDetailsManagement() {
   const { selectedOffice } = useOffice();
   const { toast } = useToast();
 
+  // STABLE AUTHORITATIVE QUERY
   const usersQuery = useMemo(() => {
     if (!profile) return null;
     const usersRef = collection(firestore, 'users');
     
-    // Super Admin retrieves the entire global clinical registry from the users collection
     if (profile.role === 'super_admin') {
       return query(usersRef, orderBy('displayName', 'asc'));
     }
     
-    // Cluster Admin is scoped to their authorized center
     if (!selectedOffice) return null;
     return query(
       usersRef,
@@ -76,7 +74,6 @@ export default function UserDetailsManagement() {
   , [users, searchTerm]);
 
   const handleEdit = (user: any) => {
-    // Map user profile to employee-like structure for the dialog
     setSelectedUser({
       ...user,
       id: user.employeeId || user.uid,
@@ -190,7 +187,7 @@ export default function UserDetailsManagement() {
                         <div className="flex items-center gap-2 mt-1.5">
                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{user.office || 'GLOBAL'} HUB</span>
                            <span className="text-[9px] text-primary/30 font-black uppercase">•</span>
-                           <span className="text-[9px] text-secondary font-black uppercase tracking-widest">{user.role.replace('_', ' ')}</span>
+                           <span className="text-[9px] text-secondary font-black uppercase tracking-widest">{user.role?.replace('_', ' ') || 'USER'}</span>
                         </div>
                       </div>
                     </TableCell>
