@@ -51,17 +51,17 @@ export default function EmployeeProfile() {
     if (!profile?.employeeId) return;
     setSaving(true);
     try {
+      // CRITICAL: Filter fields to satisfy the 'only(['age'])' security rule for employees.
+      // Email updates must be initiated via administrative identity pulse.
       const empRef = doc(db, 'employees', profile.employeeId);
       await updateDoc(empRef, {
-        email: formData.email.toLowerCase(),
-        age: parseInt(formData.age) || 0,
-        updatedAt: new Date().toISOString()
+        age: parseInt(formData.age) || 0
       });
       
-      logAudit(db, profile.uid, 'UPDATE_PERSONAL_PROFILE', profile.employeeId, { email: formData.email, age: formData.age });
-      toast({ title: "Identity Synchronized", description: "Age and Official Email updated successfully." });
+      logAudit(db, profile.uid, 'UPDATE_PERSONAL_PROFILE', profile.employeeId, { age: formData.age });
+      toast({ title: "Identity Synchronized", description: "Professional age updated in registry." });
     } catch (e: any) {
-      toast({ title: "Operation Blocked", description: "Mandatory identity fields can only be managed by Administration.", variant: "destructive" });
+      toast({ title: "Operation Blocked", description: "Identity fields (Email) can only be managed by administrative nodes.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -117,7 +117,7 @@ export default function EmployeeProfile() {
               { label: 'Official Name', value: empData.fullName, icon: User },
               { label: 'ROC Cluster', value: empData.office?.replace('_', ' '), icon: Building2 },
               { label: 'Mobile Auth', value: empData.whatsappNumber, icon: Phone },
-              { label: 'Gender Node', value: empData.gender, icon: ShieldCheck },
+              { label: 'Official Email', value: empData.email, icon: Mail },
             ].map((field, i) => (
               <div key={i} className="space-y-3 group opacity-60">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] flex items-center gap-3 ml-1">
@@ -134,12 +134,6 @@ export default function EmployeeProfile() {
                   <Calendar className="size-3" /> Professional Age
                 </Label>
                 <Input id="age" type="number" className="h-14 font-black border-2 border-secondary/10 focus:border-secondary rounded-2xl px-6 text-lg transition-all" value={formData.age} onChange={e => setFormData({ ...formData, age: e.target.value })} />
-            </div>
-            <div className="space-y-3">
-                <Label htmlFor="email" className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] flex items-center gap-3 ml-1">
-                  <Mail className="size-3" /> Official Email
-                </Label>
-                <Input id="email" className="h-14 font-black border-2 border-secondary/10 focus:border-secondary rounded-2xl px-6 transition-all" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
             </div>
           </div>
           

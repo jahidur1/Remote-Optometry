@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from "react"
@@ -80,14 +81,17 @@ export default function EmployeePortal() {
   const weeks = [upcomingWeek, currentWeek, previousWeek];
 
   // Published Rosters for History/Upcoming Swipe
+  // CRITICAL: Filter by office to satisfy Cluster Isolation security rules
   const rosterQuery = useMemo(() => {
+    if (!profile?.office) return null;
     return query(
       collection(db, 'published_rosters'),
+      where('office', '==', profile.office),
       where('weekId', 'in', weeks),
       where('status', '==', 'active'),
       orderBy('publishedAt', 'desc')
     );
-  }, [db]);
+  }, [db, profile?.office]);
 
   const { data: publishedRosters, loading: rosterLoading } = useCollection(rosterQuery);
   const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
