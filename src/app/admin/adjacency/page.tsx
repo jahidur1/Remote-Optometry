@@ -8,9 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRightLeft, ShieldCheck, Save, Search, Filter, Target, Info, Loader2 } from "lucide-react";
+import { ShieldCheck, Search, Target, Info, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
@@ -24,11 +23,36 @@ export default function ShiftAdjacencyManager() {
   const [weekId, setWeekId] = useState('2024-52');
   const [saving, setSaving] = useState<string | null>(null);
 
-  // Fetch core data
-  const { data: employees, loading: empLoading } = useCollection(query(collection(db, 'employees'), where('status', '==', 'Active'), orderBy('fullName', 'asc')));
+  // Fetch core data - Scoped to office
+  const empQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'employees');
+    return profile.role === 'SUPER_ADMIN' 
+      ? query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'))
+      : query(q, where('office', '==', profile.office), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+  }, [db, profile]);
+
+  const rulesQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'shift_adjacency_rules');
+    const base = profile.role === 'SUPER_ADMIN'
+      ? query(q, where('weekId', '==', weekId))
+      : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
+    return base;
+  }, [db, profile, weekId]);
+
+  const bookingsQuery = useMemo(() => {
+    if (!profile) return null;
+    const q = collection(db, 'weekoff_bookings');
+    return profile.role === 'SUPER_ADMIN'
+      ? query(q, where('weekId', '==', weekId))
+      : query(q, where('weekId', '==', weekId), where('office', '==', profile.office));
+  }, [db, profile, weekId]);
+
+  const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: shifts } = useCollection(query(collection(db, 'shift_master'), orderBy('displayOrder')));
-  const { data: rules, loading: rulesLoading } = useCollection(query(collection(db, 'shift_adjacency_rules'), where('weekId', '==', weekId)));
-  const { data: bookings } = useCollection(query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId)));
+  const { data: rules } = useCollection(rulesQuery);
+  const { data: bookings } = useCollection(bookingsQuery);
 
   const filteredEmployees = employees?.filter(emp => 
     emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -36,11 +60,15 @@ export default function ShiftAdjacencyManager() {
   );
 
   const handleUpdateRule = async (employeeId: string, type: 'pre' | 'post', shiftId: string, checked: boolean) => {
+    const emp = employees?.find(e => e.id === employeeId);
+    if (!emp) return;
+
     const ruleId = `${weekId}_${employeeId}`;
     const existingRule = rules?.find(r => r.id === ruleId) || {
       id: ruleId,
       employeeId,
       weekId,
+      office: emp.office,
       allowedPreOffShifts: [],
       allowedPostOffShifts: []
     };
@@ -55,6 +83,7 @@ export default function ShiftAdjacencyManager() {
 
     const payload = {
       ...existingRule,
+      office: emp.office,
       [type === 'pre' ? 'allowedPreOffShifts' : 'allowedPostOffShifts']: updatedList,
       updatedAt: new Date().toISOString()
     };
@@ -62,7 +91,7 @@ export default function ShiftAdjacencyManager() {
     setSaving(employeeId);
     try {
       await setDoc(doc(db, 'shift_adjacency_rules', ruleId), payload);
-      logAudit(db, profile?.uid || 'system', 'UPDATE_ADJACENCY_RULE', employeeId, { type, shiftId, checked });
+      logAudit(db, profile?.uid || 'system', 'UPDATE_ADJACENCY_RULE', employeeId, { type, shiftId, checked, office: emp.office });
     } catch (e: any) {
       toast({ title: "Sync Failed", description: e.message, variant: "destructive" });
     } finally {
@@ -78,7 +107,7 @@ export default function ShiftAdjacencyManager() {
             <h1 className="text-3xl font-bold tracking-tight text-primary font-headline uppercase leading-none">Shift Adjacency Control</h1>
             <DemoBadge />
           </div>
-          <p className="text-muted-foreground font-medium mt-2">Manage fairness by restricting shift types before and after a clinical week-off.</p>
+          <p className="text-muted-foreground font-medium mt-2">Restrict shift types before and after a clinical week-off for {profile?.office?.replace('_', ' ') || 'authorized cluster'}.</p>
         </div>
         <div className="flex items-center gap-3">
            <div className="flex flex-col gap-1">
@@ -127,7 +156,7 @@ export default function ShiftAdjacencyManager() {
                 </div>
                 <div className="flex gap-2">
                     <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">
-                        {employees?.length || 0} Professionals Active
+                        {employees?.length || 0} Professionals
                     </Badge>
                 </div>
             </CardHeader>
@@ -137,8 +166,8 @@ export default function ShiftAdjacencyManager() {
                   <TableRow className="text-[10px] font-black uppercase tracking-widest">
                     <TableHead className="w-[200px]">Professional</TableHead>
                     <TableHead>Week-Off</TableHead>
-                    <TableHead className="text-center">Pre-Off Eligibility (Day Before)</TableHead>
-                    <TableHead className="text-center">Post-Off Eligibility (Day After)</TableHead>
+                    <TableHead className="text-center">Pre-Off Eligibility</TableHead>
+                    <TableHead className="text-center">Post-Off Eligibility</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -205,16 +234,6 @@ export default function ShiftAdjacencyManager() {
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter className="bg-muted/5 border-t p-4 flex justify-between items-center">
-                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
-                   <Info className="size-3 text-secondary" /> Changes take effect during the next solver execution.
-                </div>
-                {saving && (
-                  <div className="flex items-center gap-2 text-[10px] font-black text-secondary animate-pulse uppercase">
-                     <Loader2 className="size-3 animate-spin" /> Syncing Cloud Records...
-                  </div>
-                )}
-            </CardFooter>
           </Card>
       </div>
     </div>

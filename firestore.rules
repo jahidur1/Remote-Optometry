@@ -30,13 +30,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Dynamic Office Status Check
     function isOfficeActive(officeId) {
       let path = /databases/$(database)/documents/offices/$(officeId);
       return exists(path) && get(path).data.status == 'Active';
     }
 
-    // Cluster Isolation: Validates if user belongs to the specific ROC node
     function matchesOffice(officeId) {
       let user = getUserData();
       return isUserActive() && (
@@ -49,7 +47,7 @@ service cloud.firestore {
       );
     }
 
-    // --- PHASE 2: REGISTRY MANAGEMENT ---
+    // --- REGISTRY & SHIFTS ---
 
     match /offices/{officeId} {
       allow read: if isSignedIn();
@@ -65,7 +63,12 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
-    // --- PHASE 1: IDENTITY & PRIVILEGE PROTECTION ---
+    match /shift_master/{shiftId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // --- IDENTITY ---
 
     match /users/{userId} {
       allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
@@ -80,73 +83,64 @@ service cloud.firestore {
 
       allow get: if isSignedIn() && (isAdmin() || getEmployeeId() == employeeId);
       allow list: if isAdmin() && (isSuperAdmin() || matchesOffice(resource.data.office));
-
       allow create: if false;
-
       allow update: if isUserActive() && (
-        (isAdmin() && matchesOffice(resource.data.office) && 
-         request.resource.data.diff(resource.data).affectedKeys()
-          .only(['fullName', 'whatsappNumber', 'department', 'designation', 'age'])) ||
-        
-        (getEmployeeId() == employeeId && 
-         request.resource.data.diff(resource.data).affectedKeys().only(['age']) &&
-         request.resource.data.age is int && 
-         request.resource.data.age >= 18 && 
-         request.resource.data.age <= 80)
+        (isAdmin() && matchesOffice(resource.data.office)) ||
+        (getEmployeeId() == employeeId && request.resource.data.diff(resource.data).affectedKeys().only(['age']))
       );
-
       allow delete: if isSuperAdmin();
     }
 
-    // --- OPERATIONS (OFFICE SCOPED & STATUS AWARE) ---
+    // --- OPERATIONS ---
 
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && matchesOffice(resource.data.office);
-      allow write: if isAdmin() && 
-        matchesOffice(request.resource.data.office) && 
-        isOfficeActive(request.resource.data.office);
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
 
     match /weekoff_bookings/{bookingId} {
-      allow read: if isUserActive() && (
-        resource.data.employeeId == getUserData().employeeId || 
-        matchesOffice(resource.data.office)
-      );
-      allow create: if isUserActive() && 
-        request.resource.data.employeeId == getUserData().employeeId &&
-        matchesOffice(request.resource.data.office) &&
-        isOfficeActive(request.resource.data.office);
-      allow update: if isAdmin() && matchesOffice(resource.data.office);
-      allow delete: if isAdmin() && matchesOffice(resource.data.office);
+      allow read: if isUserActive() && (resource.data.employeeId == getUserData().employeeId || matchesOffice(resource.data.office));
+      allow create: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
+      allow delete, update: if isAdmin() && matchesOffice(resource.data.office);
     }
 
     match /published_rosters/{versionId} { 
       allow read: if isUserActive() && matchesOffice(resource.data.office); 
-      allow write: if isAdmin() && 
-        matchesOffice(request.resource.data.office) &&
-        isOfficeActive(request.resource.data.office);
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive() && (
-        !quotaId.contains('_') || 
-        matchesOffice(resource.data.officeId)
-      );
-      allow write: if isAdmin() && 
-        matchesOffice(request.resource.data.officeId) &&
-        isOfficeActive(request.resource.data.officeId) &&
-        quotaId == request.resource.data.weekId + "_" + request.resource.data.officeId;
-      allow delete: if isSuperAdmin();
-    }
-    
-    match /roster_drafts/{draftId} { 
-      allow read: if isAdmin() && matchesOffice(resource.data.office); 
-      allow write: if isAdmin() && 
-        matchesOffice(request.resource.data.office) &&
-        isOfficeActive(request.resource.data.office); 
+      allow read: if isUserActive() && (!quotaId.contains('_') || matchesOffice(resource.data.officeId));
+      allow write: if isAdmin() && matchesOffice(request.resource.data.officeId) && isOfficeActive(request.resource.data.officeId);
     }
 
-    // --- LOGS & AUDIT (IMMUTABLE) ---
+    match /roster_drafts/{draftId} { 
+      allow read: if isAdmin() && matchesOffice(resource.data.office); 
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office) && isOfficeActive(request.resource.data.office); 
+    }
+
+    match /employee_leaves/{leaveId} {
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId);
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office);
+    }
+
+    match /shift_adjacency_rules/{ruleId} {
+      allow read: if isAdmin() && matchesOffice(resource.data.office);
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office);
+    }
+
+    match /shift_swaps/{swapId} {
+      allow read: if isUserActive() && (isAdmin() || resource.data.requesterId == getUserData().employeeId || resource.data.targetEmployeeId == getUserData().employeeId);
+      allow create: if isUserActive() && request.resource.data.requesterId == getUserData().employeeId;
+      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getUserData().employeeId || isAdmin());
+    }
+
+    match /employee_preferences/{prefId} {
+      allow read: if isUserActive() && (isAdmin() || resource.data.employeeId == getUserData().employeeId);
+      allow write: if isUserActive() && request.resource.data.employeeId == getUserData().employeeId;
+    }
+
+    // --- LOGS & AUTH ---
 
     match /audit_logs/{logId} {
       allow read: if isAdmin();
@@ -158,7 +152,6 @@ service cloud.firestore {
       allow create: if isSignedIn(); 
     }
     
-    // Sessions and OTP (Global)
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
       allow create: if true; 
@@ -168,11 +161,7 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && (
-        (isAdmin() && request.resource.data.status == 'revoked') ||
-        (request.auth.uid == resource.data.uid && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'deadlineAt', 'verifiedAt']))
-      );
+      allow update: if isSignedIn() && (isAdmin() || request.auth.uid == resource.data.uid);
     }
   }
 }
