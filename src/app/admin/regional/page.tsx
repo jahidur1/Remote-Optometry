@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -67,7 +66,6 @@ export default function RegionalAnalytics() {
       const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) throw new Error("Session expired. Please re-authenticate.");
 
-      // Fetch all regional segments in parallel for performance
       const [statsRes, compRes, rosterRes, leaveRes] = await Promise.all([
         getRegionalStatsAction(idToken),
         getOfficeComparisonAction(idToken, weekId),
@@ -129,7 +127,6 @@ export default function RegionalAnalytics() {
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4">
-      {/* Institutional Regional Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">

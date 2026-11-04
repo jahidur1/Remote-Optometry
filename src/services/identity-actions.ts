@@ -41,9 +41,71 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 }
 
 /**
+ * updateEmployeeRecordAction
+ * Allows privileged nodes to modify clinical professional records.
+ * Super Admins can update roles and email (synced to Auth).
+ */
+export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
+  try {
+    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
+    if (!empSnap.exists) throw new Error("Record not found.");
+    const current = empSnap.data()!;
+
+    const caller = await getAuthorizedCaller(idToken, current.office);
+
+    // Define which fields can be modified
+    const allowed = ['fullName', 'email', 'whatsappNumber', 'department', 'designation', 'age', 'gender', 'office', 'officeIds', 'role', 'status'];
+    const filtered: any = {};
+    allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
+
+    // Restriction: Only Super Admins can change roles or cross-cluster assignments
+    if (caller.role !== 'super_admin') {
+      delete filtered.role;
+      delete filtered.office;
+      delete filtered.officeIds;
+      delete filtered.status;
+    }
+
+    const batch = adminDb.batch();
+    
+    // 1. Update Clinical Registry
+    batch.update(adminDb.collection('employees').doc(employeeId), {
+      ...filtered,
+      updatedAt: new Date().toISOString()
+    });
+
+    // 2. Synchronize with Governance Profile and Firebase Auth
+    if (current.authUid) {
+      const userUpdates: any = { 
+        updatedAt: new Date().toISOString(), 
+        ...filtered 
+      };
+      if (filtered.fullName) userUpdates.displayName = filtered.fullName;
+      
+      batch.update(adminDb.collection('users').doc(current.authUid), userUpdates);
+
+      // 3. Auth Node Sync (Email & Status)
+      if (filtered.email && filtered.email !== current.email) {
+        await adminAuth.updateUser(current.authUid, { email: filtered.email });
+      }
+      if (filtered.status) {
+        await adminAuth.updateUser(current.authUid, { disabled: filtered.status === 'Suspended' });
+      }
+    }
+
+    await batch.commit();
+    await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId, { updatedFields: Object.keys(filtered) });
+    
+    return { success: true };
+  } catch (e: any) {
+    console.error('Identity Update Failure:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * selfRegisterAction
  * PUBLIC NODE: Allows new users to sign up with a default 'user' role.
- * Hardened for ROC 2026 Registry Protocols.
  */
 export async function selfRegisterAction(formData: any, password: string) {
   const { fullName, email, employeeId, whatsappNumber, office } = formData;
@@ -52,7 +114,6 @@ export async function selfRegisterAction(formData: any, password: string) {
   const phoneFormatted = `+91${whatsappNumber.replace(/\D/g, '').slice(-10)}`;
 
   try {
-    // 1. Availability Pulse
     const [idSnap, emailSnap, phoneSnap] = await Promise.all([
       adminDb.collection('employees').doc(normalizedEmployeeId).get(),
       adminDb.collection('employees').where('email', '==', normalizedEmail).get(),
@@ -60,10 +121,9 @@ export async function selfRegisterAction(formData: any, password: string) {
     ]);
 
     if (idSnap.exists) throw new Error("Registry Conflict: Employee ID already registered.");
-    if (!emailSnap.empty) throw new Error("Registry Conflict: Email already bound to a node.");
+    if (!emailSnap.empty) throw new Error("Registry Conflict: Email already bound.");
     if (!phoneSnap.empty) throw new Error("Registry Conflict: Mobile number already bound.");
 
-    // 2. Provision Auth Node
     const authUser = await adminAuth.createUser({
       email: normalizedEmail,
       password: password,
@@ -76,7 +136,7 @@ export async function selfRegisterAction(formData: any, password: string) {
       fullName,
       email: normalizedEmail,
       whatsappNumber: phoneFormatted,
-      role: 'user', // Strictly enforced default
+      role: 'user',
       office: office,
       status: 'Active',
       updatedAt: new Date().toISOString()
@@ -84,11 +144,10 @@ export async function selfRegisterAction(formData: any, password: string) {
 
     const batch = adminDb.batch();
     
-    // 3. Mirror to Master Registry
     batch.set(adminDb.collection('employees').doc(normalizedEmployeeId), {
       ...commonData,
       id: normalizedEmployeeId,
-      gender: 'Male', // Default, user can update in profile
+      gender: 'Male',
       department: 'Remote Optometry',
       designation: 'Professional Staff',
       joinedAt: new Date().toISOString().split('T')[0],
@@ -96,7 +155,6 @@ export async function selfRegisterAction(formData: any, password: string) {
       authUid: authUser.uid
     });
 
-    // 4. Mirror to Governance Profile
     batch.set(adminDb.collection('users').doc(authUser.uid), {
       ...commonData,
       uid: authUser.uid,
@@ -111,14 +169,12 @@ export async function selfRegisterAction(formData: any, password: string) {
 
     return { success: true, uid: authUser.uid };
   } catch (e: any) {
-    console.error('Self-Registration Failure:', e.message);
     return { success: false, error: e.message };
   }
 }
 
 /**
  * syncProfileOnLoginAction
- * Securely consolidates multiple auth methods to a single clinical professional record.
  */
 export async function syncProfileOnLoginAction(idToken: string) {
   if (!idToken) throw new Error("Token missing.");
@@ -135,7 +191,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
     const empSnap = await adminDb.collection('employees').where(field, '==', value).get();
     
     if (empSnap.empty) {
-      throw new Error("This identity is not authorized for portal access. Contact administrative nodes.");
+      throw new Error("This identity is not authorized for portal access.");
     }
 
     const employee = empSnap.docs[0].data();
@@ -148,10 +204,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
     const empRef = adminDb.collection('employees').doc(employee.id);
     const userRef = adminDb.collection('users').doc(user.uid);
 
-    batch.update(empRef, {
-      authUid: user.uid,
-      updatedAt: new Date().toISOString()
-    });
+    batch.update(empRef, { authUid: user.uid, updatedAt: new Date().toISOString() });
 
     batch.set(userRef, {
       uid: user.uid,
@@ -169,14 +222,8 @@ export async function syncProfileOnLoginAction(idToken: string) {
 
     await batch.commit();
     
-    return { 
-      success: true, 
-      role: employee.role, 
-      fullName: employee.fullName,
-      employeeId: employee.id 
-    };
+    return { success: true, role: employee.role, fullName: employee.fullName, employeeId: employee.id };
   } catch (e: any) {
-    console.error('Login Pulse Failure:', e.message);
     return { success: false, error: e.message };
   }
 }
@@ -186,7 +233,6 @@ export async function syncProfileOnLoginAction(idToken: string) {
  */
 export async function provisionIdentityAction(idToken: string, formData: any, password: string) {
   const caller = await getAuthorizedCaller(idToken, formData.office);
-
   await assertOfficeActive(formData.office);
 
   const employeeId = formData.employeeId.toUpperCase().trim();
@@ -250,74 +296,6 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
 
     return { success: true, uid: authUser.uid };
   } catch (e: any) {
-    console.error('Provisioning Pulse Failure:', e.message);
-    return { success: false, error: e.message };
-  }
-}
-
-/**
- * seedFirstSuperAdminAction
- * ONE-TIME INITIALIZATION: Creates the first Super Admin identity node.
- */
-export async function seedFirstSuperAdminAction() {
-  const email = 'jahidur1204@gmail.com';
-  const fullName = 'JAHIDUR RAHAMAN';
-  const phone = '+919832441153';
-  const employeeId = 'ROC-SADMIN-001';
-  const password = 'Initial@1234';
-
-  try {
-    const existingSnap = await adminDb.collection('employees').doc(employeeId).get();
-    if (existingSnap.exists) {
-      return { success: false, error: "System already initialized. Identity exists." };
-    }
-
-    // 1. Create Auth User
-    const authUser = await adminAuth.createUser({
-      email,
-      password,
-      displayName: fullName,
-      phoneNumber: phone,
-      emailVerified: true
-    });
-
-    const commonData = {
-      fullName,
-      email,
-      whatsappNumber: phone,
-      role: 'super_admin',
-      office: 'HQ_GLOBAL',
-      officeIds: [],
-      status: 'Active',
-      updatedAt: new Date().toISOString()
-    };
-
-    const batch = adminDb.batch();
-    
-    batch.set(adminDb.collection('employees').doc(employeeId), {
-      ...commonData,
-      id: employeeId,
-      gender: 'Male',
-      department: 'Infrastructure',
-      designation: 'System Architect',
-      joinedAt: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      authUid: authUser.uid
-    });
-
-    batch.set(adminDb.collection('users').doc(authUser.uid), {
-      ...commonData,
-      uid: authUser.uid,
-      displayName: fullName,
-      employeeId,
-      phoneNumber: phone,
-      lastLogin: null
-    });
-
-    await batch.commit();
-    return { success: true, message: "System initialized successfully." };
-  } catch (e: any) {
-    console.error('Initialization failure:', e.message);
     return { success: false, error: e.message };
   }
 }
@@ -350,48 +328,6 @@ export async function updateAccountStatusAction(idToken: string, employeeId: str
 
     await batch.commit();
     await logAuditServer(caller.uid, `ADMIN_SET_STATUS_${newStatus.toUpperCase()}`, employeeId);
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
-  try {
-    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
-    if (!empSnap.exists) throw new Error("Record not found.");
-    const current = empSnap.data()!;
-
-    const caller = await getAuthorizedCaller(idToken, current.office);
-
-    const allowed = ['fullName', 'whatsappNumber', 'department', 'designation', 'age', 'gender', 'office', 'officeIds', 'role'];
-    const filtered: any = {};
-    allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
-
-    if (caller.role !== 'super_admin') {
-      delete filtered.role;
-      delete filtered.office;
-      delete filtered.officeIds;
-    }
-
-    const batch = adminDb.batch();
-    batch.update(adminDb.collection('employees').doc(employeeId), {
-      ...filtered,
-      updatedAt: new Date().toISOString()
-    });
-
-    if (current.authUid) {
-      const userUpdates: any = { 
-        updatedAt: new Date().toISOString(), 
-        ...filtered 
-      };
-      if (filtered.fullName) userUpdates.displayName = filtered.fullName;
-      
-      batch.update(adminDb.collection('users').doc(current.authUid), userUpdates);
-    }
-
-    await batch.commit();
-    await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
