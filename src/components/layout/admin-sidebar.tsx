@@ -21,13 +21,10 @@ import {
   BarChart3,
   ShieldAlert,
   ArrowRightLeft,
-  Key,
   Network,
   Globe,
   Building2,
   ChevronDown,
-  User,
-  Bell
 } from "lucide-react"
 
 import {
@@ -75,7 +72,7 @@ const navGroups = [
   {
     label: "Workforce",
     items: [
-      { title: "Directory", url: "/admin/employees", icon: Users, roles: ["super_admin", "admin"] },
+      { title: "User Details", url: "/admin/employees", icon: Users, roles: ["super_admin", "admin"] },
       { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["super_admin", "admin"] },
       { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["super_admin", "admin"] },
     ]
@@ -110,7 +107,6 @@ export function AdminSidebar() {
 
   const currentOffice = authorizedOffices.find(o => o.officeId === selectedOffice);
 
-  // super_admin skips office selector for some views but needs it for admin views
   const showOfficeSelector = profile?.role === 'admin' || (profile?.role === 'super_admin' && authorizedOffices.length > 0);
 
   return (

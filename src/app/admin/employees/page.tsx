@@ -13,17 +13,12 @@ import { Input } from "@/components/ui/input";
 import { 
   Search, 
   UserPlus, 
-  Filter, 
   MoreVertical, 
   Edit2, 
   ShieldAlert, 
-  Building2, 
   Users, 
   Activity, 
-  Zap, 
-  ShieldCheck, 
-  Database,
-  CheckCircle2,
+  CheckCircle2, 
   Loader2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,7 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { updateAccountStatusAction } from '@/services/identity-actions';
 import Link from 'next/link';
 
-export default function EmployeeManagement() {
+export default function UserDetailsManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -54,13 +49,22 @@ export default function EmployeeManagement() {
   const { toast } = useToast();
 
   const employeesQuery = useMemo(() => {
+    if (!profile) return null;
+    const empsRef = collection(firestore, 'employees');
+    
+    // Super Admin retrieves the entire global clinical registry
+    if (profile.role === 'super_admin') {
+      return query(empsRef, orderBy('fullName', 'asc'));
+    }
+    
+    // Cluster Admin is scoped to their authorized center
     if (!selectedOffice) return null;
     return query(
-      collection(firestore, 'employees'),
+      empsRef,
       where('office', '==', selectedOffice),
       orderBy('fullName', 'asc')
     );
-  }, [firestore, selectedOffice]);
+  }, [firestore, profile, selectedOffice]);
 
   const { data: employees, loading } = useCollection(employeesQuery);
 
@@ -106,7 +110,7 @@ export default function EmployeeManagement() {
               <Users className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Directory</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">User Details</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   Institutional Professionals <Activity className="size-3 text-secondary animate-pulse" />
@@ -179,7 +183,11 @@ export default function EmployeeManagement() {
                     <TableCell className="py-8 border-r border-slate-100">
                       <div className="flex flex-col gap-1">
                         <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{employee.fullName}</span>
-                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">{employee.designation || 'STAFF'}</span>
+                        <div className="flex items-center gap-2 mt-1.5">
+                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{employee.designation || 'STAFF'}</span>
+                           <span className="text-[9px] text-primary/30 font-black uppercase">•</span>
+                           <span className="text-[9px] text-secondary font-black uppercase tracking-widest">{employee.role.replace('_', ' ')}</span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="py-8 border-r border-slate-100 text-center">
@@ -207,7 +215,7 @@ export default function EmployeeManagement() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64 rounded-2xl shadow-2xl border border-slate-100 bg-white p-2 animate-in zoom-in-95">
                           <DropdownMenuItem className="h-12 font-black uppercase text-[10px] tracking-[0.2em] rounded-xl focus:bg-primary focus:text-white cursor-pointer" onClick={() => handleEdit(employee)}>
-                            <Edit2 className="mr-3 h-4 w-4" /> Edit Metadata
+                            <Edit2 className="mr-3 h-4 w-4" /> Edit User Details
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-slate-50" />
                           <DropdownMenuItem 
