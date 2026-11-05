@@ -361,7 +361,7 @@ export default function AvailabilitySummary() {
                                       <SelectItem value="none" className="font-bold text-[10px] uppercase">UNASSIGNED</SelectItem>
                                       {shifts?.map(s => (
                                         <SelectItem key={s.id} value={s.id} className="font-bold text-[10px] uppercase py-2.5">
-                                          {s.id} <span className="opacity-30 ml-2 text-[8px]">[{s.startTime.split(' ')[0]}]</span>
+                                          {s.name}
                                         </SelectItem>
                                       ))}
                                    </SelectContent>

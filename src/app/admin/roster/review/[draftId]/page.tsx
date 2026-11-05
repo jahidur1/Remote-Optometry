@@ -356,7 +356,7 @@ export default function RosterReviewWorkspace() {
                                       <div className="h-px bg-slate-100 my-2" />
                                       {shifts?.map(s => (
                                           <SelectItem key={s.id} value={s.id} className="text-[11px] font-black uppercase tracking-widest rounded-xl py-3 hover:bg-secondary/5 hover:text-secondary">
-                                              {s.id} <span className="opacity-30 ml-3 text-[10px] font-bold tracking-tight">[{s.startTime.split(' ')[0]}]</span>
+                                              {s.name}
                                           </SelectItem>
                                       ))}
                                   </SelectContent>

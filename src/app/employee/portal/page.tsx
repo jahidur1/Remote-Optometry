@@ -268,13 +268,21 @@ export default function EmployeePortal() {
                       </Badge>
                    </div>
                 ) : todayShift ? (
-                   <div className="flex items-center gap-3 mt-6">
-                      <Badge className="bg-secondary text-white text-[10px] font-black uppercase px-6 py-2 rounded-xl">
-                         {todayShiftDetails?.name || todayShift.shiftId}
-                      </Badge>
-                      <span className="text-[14px] font-black tracking-widest text-white/60">
-                         {todayShiftDetails?.startTime} — {todayShiftDetails?.endTime}
-                      </span>
+                   <div className="mt-8 space-y-4">
+                      <div className="flex items-center gap-4">
+                        <Badge className="bg-secondary text-white text-[12px] font-black uppercase px-8 py-3 rounded-2xl shadow-xl">
+                          {todayShiftDetails?.name || todayShift.shiftId}
+                        </Badge>
+                        <Badge variant="outline" className="border-white/20 text-white/40 font-black text-[10px] px-3 py-1 rounded-lg">
+                          {todayShift.shiftId}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 text-white/60">
+                        <Clock className="size-5 text-secondary" />
+                        <span className="text-xl font-black tracking-[0.2em] tabular-nums">
+                          {todayShiftDetails?.startTime} — {todayShiftDetails?.endTime}
+                        </span>
+                      </div>
                    </div>
                 ) : (
                   <p className="text-lg font-bold text-white/40 uppercase tracking-widest mt-6">No Duty Assigned</p>
@@ -363,9 +371,12 @@ export default function EmployeePortal() {
                                            </div>
                                         ) : weekData.published ? (
                                            shift ? (
-                                             <div className="flex items-center gap-2 mt-1">
-                                                <Badge className="bg-secondary/10 text-secondary text-[8px] font-black uppercase px-2 py-0.5 rounded-md border-none">{shift.id}</Badge>
-                                                <span className="text-[9px] font-bold text-black/40 uppercase tracking-widest">{shift.startTime} - {shift.endTime}</span>
+                                             <div className="flex flex-col gap-1 mt-1">
+                                                <span className="text-[11px] font-black uppercase text-secondary leading-none">{shift.name}</span>
+                                                <div className="flex items-center gap-2">
+                                                   <Badge className="bg-slate-50 text-slate-400 text-[7px] font-black uppercase px-1.5 py-0 rounded border-none">{shift.id}</Badge>
+                                                   <span className="text-[9px] font-bold text-black/30 uppercase tracking-[0.1em]">{shift.startTime} - {shift.endTime}</span>
+                                                </div>
                                              </div>
                                            ) : (
                                              <span className="text-[9px] font-bold text-black/20 uppercase tracking-widest italic mt-1">No Duty Assigned</span>
