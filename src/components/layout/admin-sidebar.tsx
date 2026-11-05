@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   Activity,
   LogOut,
-  CalendarRange,
   UserCheck,
   Target,
   BarChart3,
@@ -65,7 +64,6 @@ const navGroups = [
     items: [
       { title: "Roster Solver", url: "/admin/roster", icon: Calendar, roles: ["super_admin", "admin"] },
       { title: "Shift Quotas", url: "/admin/quotas", icon: Target, roles: ["super_admin", "admin"] },
-      { title: "Weekly-Off Matrix", url: "/admin/weekoff-config", icon: CalendarRange, roles: ["super_admin", "admin"] },
       { title: "Shift Master", url: "/admin/shifts", icon: Clock, roles: ["super_admin", "admin"] },
     ]
   },

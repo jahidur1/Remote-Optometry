@@ -56,6 +56,11 @@ export default function AvailabilitySummary() {
     setSelectedWeek(getCurrentWeekId());
   }, []);
 
+  // Clear assignments on cycle change to prevent ghosting
+  useEffect(() => {
+    setAssignments([]);
+  }, [selectedWeek, selectedOffice]);
+
   // Stable Authoritative Registry Fetches
   const empQuery = useMemo(() => {
     if (!profile || !selectedOffice) return null;
