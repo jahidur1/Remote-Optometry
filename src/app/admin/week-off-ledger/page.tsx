@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, where, orderBy, doc, deleteDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, deleteDoc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,6 +36,23 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/**
+ * Resilient Timestamp Formatter
+ * Prevents client-side crashes when dealing with inconsistent temporal data.
+ */
+function formatTimestamp(ts: any): string {
+  if (!ts) return '---';
+  try {
+    if (ts instanceof Timestamp) return ts.toDate().toLocaleTimeString();
+    if (typeof ts.toDate === 'function') return ts.toDate().toLocaleTimeString();
+    if (ts instanceof Date) return ts.toLocaleTimeString();
+    if (typeof ts === 'string') return new Date(ts).toLocaleTimeString();
+  } catch (e) {
+    return '---';
+  }
+  return '---';
+}
 
 export default function WeekOffLedger() {
   const db = useFirestore();
@@ -79,10 +96,12 @@ export default function WeekOffLedger() {
         weekOff: booking?.dayOfWeek || null,
         timestamp: booking?.timestamp
       };
-    }).filter(e => 
-      e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      e.id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    }).filter(e => {
+      const name = (e.fullName || '').toLowerCase();
+      const id = (e.id || '').toLowerCase();
+      const search = searchTerm.toLowerCase();
+      return name.includes(search) || id.includes(search);
+    });
   }, [employees, bookings, searchTerm]);
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -153,7 +172,6 @@ export default function WeekOffLedger() {
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
-      {/* Header Pulse */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -179,7 +197,7 @@ export default function WeekOffLedger() {
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[16px]">{displayWeekRange(selectedWeek)}</span>
+                    <span className="text-[14px] uppercase">{displayWeekRange(selectedWeek)}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
@@ -246,8 +264,8 @@ export default function WeekOffLedger() {
                   <TableRow key={emp.id} className="hover:bg-slate-50 transition-all duration-300 group border-b border-slate-100 last:border-0">
                     <TableCell className="pl-10 py-8 border-r border-slate-100">
                        <div className="flex flex-col gap-1.5">
-                          <span className="font-black text-[17px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
-                          <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
+                          <span className="font-black text-[17px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName || 'Unmapped Identity'}</span>
+                          <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id || '---'}</Badge>
                        </div>
                     </TableCell>
                     <TableCell className="py-8 border-r border-slate-100 text-center px-8">
@@ -272,7 +290,9 @@ export default function WeekOffLedger() {
                                <ShieldCheck className="size-3.5" />
                                <span className="text-[11px] font-black uppercase tracking-widest">REGISTRY_LOCKED</span>
                             </div>
-                            <span className="text-[8px] font-mono text-slate-300 uppercase">{emp.timestamp?.toDate?.()?.toLocaleTimeString() || '---'}</span>
+                            <span className="text-[8px] font-mono text-slate-300 uppercase">
+                              {formatTimestamp(emp.timestamp)}
+                            </span>
                          </div>
                        ) : (
                          <div className="flex items-center justify-center gap-2 text-slate-300">
@@ -306,7 +326,8 @@ export default function WeekOffLedger() {
           </Table>
         </CardContent>
       </Card>
-
+      
+      {/* Footer Governance Hub */}
       <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 relative overflow-hidden group shadow-2xl">
          <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><Database size={280} className="text-primary" /></div>
          <div className="flex flex-col md:flex-row gap-10 items-start relative z-10">
@@ -337,7 +358,7 @@ export default function WeekOffLedger() {
                 </div>
                 <div>
                    <p className="text-[10px] font-black uppercase text-slate-400">Professional</p>
-                   <p className="text-base font-black uppercase tracking-tight">{selectedEmp?.fullName}</p>
+                   <p className="text-base font-black uppercase tracking-tight">{selectedEmp?.fullName || '---'}</p>
                 </div>
              </div>
 

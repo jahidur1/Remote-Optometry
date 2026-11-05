@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -141,7 +142,7 @@ export async function generateWeeklyRoster(input: {
       .filter(d => employeeIds.includes(d.id))
       .map(d => ({
         id: String(d.id),
-        name: String(d.data().fullName),
+        name: String(d.data().fullName || 'Unknown'),
         weekOffDay: bookingsMap.get(d.id) || null
       }));
 

@@ -74,10 +74,12 @@ export default function AvailabilitySummary() {
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
-    return employees.filter(e => 
-      e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      e.id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return employees.filter(e => {
+      const name = (e.fullName || '').toLowerCase();
+      const id = (e.id || '').toLowerCase();
+      const search = searchTerm.toLowerCase();
+      return name.includes(search) || id.includes(search);
+    });
   }, [employees, searchTerm]);
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -217,10 +219,10 @@ export default function AvailabilitySummary() {
                 ) : (
                   filteredEmployees.map((emp) => (
                     <TableRow key={emp.id} className="hover:bg-slate-50 transition-all duration-300 group border-b border-slate-100 last:border-0">
-                      <TableCell className="pl-10 py-8 border-r border-slate-100 bg-white group-hover:bg-slate-50 transition-colors sticky left-0 z-10 shadow-[4px_0_15px_rgba(0,0,0,0.02)]">
+                      <TableCell className="pl-10 py-8 border-r border-slate-100 bg-white group-hover:bg-slate-50 transition-colors sticky left-0 z-10 shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
                          <div className="flex flex-col gap-1.5">
-                            <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
-                            <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
+                            <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName || 'Unmapped Identity'}</span>
+                            <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id || '---'}</Badge>
                          </div>
                       </TableCell>
                       {DAYS.map((day, idx) => {
