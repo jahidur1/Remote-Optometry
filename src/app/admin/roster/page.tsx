@@ -20,7 +20,10 @@ import {
   CalendarDays,
   Loader2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Zap,
+  Target,
+  ArrowRightLeft
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -54,6 +57,11 @@ export default function RosterSolver() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
 
+  // Global Constraints State
+  const [globalFreq, setGlobalFreq] = useState<Record<string, { min: number, max: number, label: string }>>({});
+  const [globalPreOff, setGlobalPreOff] = useState<string[]>([]);
+  const [globalPostOff, setGlobalPostOff] = useState<string[]>([]);
+
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useUser();
@@ -74,11 +82,6 @@ export default function RosterSolver() {
     return query(collection(db, 'employees'), where('office', '==', selectedOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
   }, [db, selectedOffice]);
 
-  const rulesQuery = useMemo(() => {
-    if (!selectedOffice || !weekId) return null;
-    return query(collection(db, 'shift_adjacency_rules'), where('weekId', '==', weekId), where('office', '==', selectedOffice));
-  }, [db, selectedOffice, weekId]);
-
   const bookingsQuery = useMemo(() => {
     if (!selectedOffice || !weekId) return null;
     return query(collection(db, 'weekoff_bookings'), where('weekId', '==', weekId), where('office', '==', selectedOffice));
@@ -88,7 +91,6 @@ export default function RosterSolver() {
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: shifts } = useCollection(shiftsQuery);
-  const { data: rules } = useCollection(rulesQuery);
   const { data: bookings } = useCollection(bookingsQuery);
 
   useEffect(() => {
@@ -97,12 +99,8 @@ export default function RosterSolver() {
     }
   }, [authorizedOffices, selectedOffice]);
 
-  // Filter for role === 'user'
-  const rosterEligibleUsers = useMemo(() => {
-    return employees?.filter(e => e.role === 'user') || [];
-  }, [employees]);
+  const rosterEligibleUsers = useMemo(() => employees?.filter(e => e.role === 'user') || [], [employees]);
 
-  // Pre-select all users when loaded
   useEffect(() => {
     if (rosterEligibleUsers.length > 0 && selectedEmpIds.length === 0 && status === 'idle') {
       setSelectedEmpIds(rosterEligibleUsers.map(e => e.id));
@@ -118,68 +116,13 @@ export default function RosterSolver() {
     setWeekId(formatWeekId(date));
   };
 
-  const toggleAllSelection = (checked: boolean) => {
-    if (checked) {
-      setSelectedEmpIds(rosterEligibleUsers.map(e => e.id));
-    } else {
-      setSelectedEmpIds([]);
-    }
-  };
-
-  const toggleEmpSelection = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedEmpIds(prev => [...prev, id]);
-    } else {
-      setSelectedEmpIds(prev => prev.filter(eid => eid !== id));
-    }
-  };
-
-  const handleUpdateRule = async (employeeId: string, type: 'pre' | 'post', shiftId: string, checked: boolean) => {
-    const ruleId = `${weekId}_${employeeId}`;
-    const existingRule = rules?.find(r => r.employeeId === employeeId) || {
-      id: ruleId, weekId, employeeId, office: selectedOffice, allowedPreOffShifts: [], allowedPostOffShifts: [], frequencyLimits: {}
-    };
-
-    let updatedList = type === 'pre' ? [...(existingRule.allowedPreOffShifts || [])] : [...(existingRule.allowedPostOffShifts || [])];
-    if (checked) { if (!updatedList.includes(shiftId)) updatedList.push(shiftId); }
-    else { updatedList = updatedList.filter(id => id !== shiftId); }
-
-    await setDoc(doc(db, 'shift_adjacency_rules', ruleId), {
-      ...existingRule,
-      [type === 'pre' ? 'allowedPreOffShifts' : 'allowedPostOffShifts']: updatedList,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  };
-
-  const handleUpdateFrequency = async (employeeId: string, shiftId: string, rangeValue: string) => {
-    const range = FREQUENCY_RANGES.find(r => r.label === rangeValue);
-    if (!range) return;
-
-    const ruleId = `${weekId}_${employeeId}`;
-    const existingRule = rules?.find(r => r.employeeId === employeeId) || {
-      id: ruleId, weekId, employeeId, office: selectedOffice, allowedPreOffShifts: [], allowedPostOffShifts: [], frequencyLimits: {}
-    };
-
-    const updatedFrequency = {
-      ...(existingRule.frequencyLimits || {}),
-      [shiftId]: { min: range.min, max: range.max, label: range.label }
-    };
-
-    await setDoc(doc(db, 'shift_adjacency_rules', ruleId), {
-      ...existingRule,
-      frequencyLimits: updatedFrequency,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  };
-
   const handleRunSolver = async () => {
     if (!selectedOffice || !weekId) {
       toast({ variant: "destructive", title: "Input Required", description: "Select Hub and Clinical Cycle." });
       return;
     }
-
     if (selectedEmpIds.length === 0) {
-      toast({ variant: "destructive", title: "Selection Required", description: "Select at least one professional for roster generation." });
+      toast({ variant: "destructive", title: "Selection Required", description: "Select at least one professional." });
       return;
     }
     
@@ -191,12 +134,14 @@ export default function RosterSolver() {
       const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) throw new Error("Session pulse failed.");
 
-      setProgress(40);
       const result = await generateWeeklyRoster({
         weekId,
         officeId: selectedOffice,
         employeeIds: selectedEmpIds,
         idToken: idToken,
+        globalFrequencyLimits: globalFreq,
+        globalPreOffShifts: globalPreOff,
+        globalPostOffShifts: globalPostOff
       });
       
       setSolverResult(result);
@@ -220,7 +165,8 @@ export default function RosterSolver() {
         createdAt: new Date().toISOString(),
         actorId: profile?.uid,
         generationMethod: 'ai',
-        includedProfessionals: selectedEmpIds
+        includedProfessionals: selectedEmpIds,
+        appliedGlobalConstraints: { globalFreq, globalPreOff, globalPostOff }
       });
 
       setLastDraftId(draftId);
@@ -230,6 +176,14 @@ export default function RosterSolver() {
       setStatus("conflict");
       toast({ variant: "destructive", title: "Engine Conflict", description: e.message });
     }
+  };
+
+  const toggleAllSelection = (checked: boolean) => {
+    setSelectedEmpIds(checked ? rosterEligibleUsers.map(e => e.id) : []);
+  };
+
+  const toggleEmpSelection = (id: string, checked: boolean) => {
+    setSelectedEmpIds(prev => checked ? [...prev, id] : prev.filter(eid => eid !== id));
   };
 
   return (
@@ -287,116 +241,154 @@ export default function RosterSolver() {
 
       {status === 'config' ? (
         <div className="space-y-8 animate-in">
-           <div className="flex items-center justify-between">
-              <Button variant="ghost" onClick={() => setStatus('idle')} className="font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Engine</Button>
-              <div className="flex items-center gap-4">
-                <div className="bg-secondary/5 px-6 py-2 rounded-xl border border-secondary/20 font-black text-[10px] uppercase text-secondary">Selected: {selectedEmpIds.length} / {rosterEligibleUsers.length}</div>
-                <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
-                    <Input placeholder="Search Professionals..." className="pl-10 h-10 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-              </div>
+           <Button variant="ghost" onClick={() => setStatus('idle')} className="font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Engine</Button>
+
+           <div className="grid gap-8 lg:grid-cols-12">
+              <Card className="lg:col-span-4 shadow-2xl border-none rounded-[2.5rem] bg-[#0F172A] text-white overflow-hidden border-t-8 border-t-secondary">
+                 <CardHeader className="p-10 pb-6 border-b border-white/5">
+                    <div className="flex items-center gap-5">
+                       <div className="size-12 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary shadow-inner">
+                          <Target className="size-6" />
+                       </div>
+                       <CardTitle className="text-xl font-black uppercase tracking-tight">Global Constraints</CardTitle>
+                    </div>
+                    <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-4">Defining institutional rules for Cycle {weekId}</CardDescription>
+                 </CardHeader>
+                 <CardContent className="p-10 space-y-10">
+                    <div className="space-y-6">
+                       <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Shift Adjacency eligibility</Label>
+                       <div className="space-y-4">
+                          <div className="space-y-2">
+                             <p className="text-[9px] font-bold text-white/40 uppercase">Pre-Off Options:</p>
+                             <div className="flex flex-wrap gap-2">
+                                {shifts?.map(s => (
+                                   <Badge 
+                                      key={s.id} 
+                                      onClick={() => setGlobalPreOff(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                                      className={cn("h-10 px-4 rounded-xl font-black cursor-pointer transition-all border-2", globalPreOff.includes(s.id) ? "bg-secondary text-white border-secondary shadow-lg" : "bg-white/5 text-white/40 border-white/10")}
+                                   >
+                                      {s.id}
+                                   </Badge>
+                                ))}
+                             </div>
+                          </div>
+                          <div className="space-y-2 pt-2">
+                             <p className="text-[9px] font-bold text-white/40 uppercase">Post-Off Options:</p>
+                             <div className="flex flex-wrap gap-2">
+                                {shifts?.map(s => (
+                                   <Badge 
+                                      key={s.id} 
+                                      onClick={() => setGlobalPostOff(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                                      className={cn("h-10 px-4 rounded-xl font-black cursor-pointer transition-all border-2", globalPostOff.includes(s.id) ? "bg-emerald-500 text-white border-emerald-500 shadow-lg" : "bg-white/5 text-white/40 border-white/10")}
+                                   >
+                                      {s.id}
+                                   </Badge>
+                                ))}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="space-y-6 pt-6 border-t border-white/5">
+                       <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Weekly Frequency ranges</Label>
+                       <div className="grid grid-cols-2 gap-4">
+                          {shifts?.slice(0, 4).map(s => (
+                             <div key={s.id} className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/10">
+                                <p className="text-[10px] font-black uppercase text-white/80">{s.name}</p>
+                                <Select onValueChange={(v) => {
+                                   const range = FREQUENCY_RANGES.find(r => r.label === v);
+                                   if (range) setGlobalFreq(prev => ({ ...prev, [s.id]: { min: range.min, max: range.max, label: range.label } }));
+                                }}>
+                                   <SelectTrigger className="h-9 text-[9px] font-black bg-white/10 border-none text-white uppercase rounded-lg">
+                                      <SelectValue placeholder="UNRESTRICTED" />
+                                   </SelectTrigger>
+                                   <SelectContent className="bg-[#0F172A] border-white/10 text-white">
+                                      {FREQUENCY_RANGES.map(r => <SelectItem key={r.label} value={r.label} className="font-bold text-[10px]">{r.label}</SelectItem>)}
+                                   </SelectContent>
+                                </Select>
+                             </div>
+                          ))}
+                       </div>
+                    </div>
+                 </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-8 shadow-2xl border-none rounded-[2.5rem] bg-white overflow-hidden">
+                <CardHeader className="bg-slate-50/50 border-b p-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                   <div>
+                      <CardTitle className="text-xl font-black uppercase">Professional Enrollment</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Select professionals to include in this generation pulse.</CardDescription>
+                   </div>
+                   <div className="flex items-center gap-4">
+                      <div className="bg-primary text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase">Selected: {selectedEmpIds.length} / {rosterEligibleUsers.length}</div>
+                      <div className="relative w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
+                          <Input placeholder="Filter Identity..." className="pl-10 h-10 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                      </div>
+                   </div>
+                </CardHeader>
+                <CardContent className="p-0 overflow-x-auto no-scrollbar max-h-[500px]">
+                   <Table>
+                      <TableHeader className="bg-slate-50/30 sticky top-0 z-10 backdrop-blur-md">
+                         <TableRow>
+                            <TableHead className="w-[80px] pl-10">
+                               <Checkbox 
+                                  checked={selectedEmpIds.length === rosterEligibleUsers.length && rosterEligibleUsers.length > 0} 
+                                  onCheckedChange={(c) => toggleAllSelection(!!c)} 
+                               />
+                            </TableHead>
+                            <TableHead className="w-[300px] py-6 uppercase text-[10px] font-black tracking-widest border-r">Professional Identity</TableHead>
+                            <TableHead className="py-6 uppercase text-[10px] font-black tracking-widest text-center">Confirmed Off-Day</TableHead>
+                            <TableHead className="py-6 uppercase text-[10px] font-black tracking-widest text-center">Status Pulse</TableHead>
+                         </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                         {filteredEmployees?.map(emp => {
+                           const booking = bookings?.find(b => b.employeeId === emp.id);
+                           const isSelected = selectedEmpIds.includes(emp.id);
+                           return (
+                             <TableRow key={emp.id} className={cn("hover:bg-slate-50 transition-colors border-b last:border-0", !isSelected && "opacity-40 grayscale")}>
+                                <TableCell className="pl-10">
+                                   <Checkbox checked={isSelected} onCheckedChange={(c) => toggleEmpSelection(emp.id, !!c)} />
+                                </TableCell>
+                                <TableCell className="py-6 border-r">
+                                   <div className="flex flex-col gap-1">
+                                      <span className="font-black text-[15px] text-black uppercase">{emp.fullName}</span>
+                                      <code className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">ID: {emp.id.slice(-6)}</code>
+                                   </div>
+                                </TableCell>
+                                <TableCell className="text-center py-6 border-r">
+                                   {booking ? <Badge className="bg-secondary text-white text-[10px] font-black px-4 py-1 rounded-full shadow-lg">{booking.dayOfWeek.toUpperCase()}</Badge> : <span className="text-[10px] font-black text-destructive/30 italic">NOT SET</span>}
+                                </TableCell>
+                                <TableCell className="text-center py-6">
+                                   {isSelected ? (
+                                      <div className="flex items-center justify-center gap-2 text-emerald-500 font-black text-[10px] uppercase">
+                                         <CheckCircle2 className="size-3.5" /> Enrolled
+                                      </div>
+                                   ) : (
+                                      <span className="text-[10px] font-black text-slate-300 uppercase">Excluded</span>
+                                   )}
+                                </TableCell>
+                             </TableRow>
+                           );
+                         })}
+                      </TableBody>
+                   </Table>
+                </CardContent>
+                <CardFooter className="bg-slate-50/50 p-10 border-t">
+                   <Button className="w-full h-20 bg-primary text-white font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all hover:scale-[1.01]" onClick={handleRunSolver}>
+                      <Wand2 className="mr-4 size-8" /> INITIATE AI GENERATION PULSE
+                   </Button>
+                </CardFooter>
+              </Card>
            </div>
-
-           <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white overflow-hidden border-t-8 border-t-secondary">
-             <CardHeader className="bg-slate-50/50 border-b p-8">
-                <CardTitle className="text-xl font-black uppercase">Clinical Enrollment & Constraints</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Select professionals to include and define their individual distribution rules.</CardDescription>
-             </CardHeader>
-             <CardContent className="p-0 overflow-x-auto">
-                <Table>
-                   <TableHeader className="bg-slate-50/30">
-                      <TableRow>
-                         <TableHead className="w-[60px] pl-10">
-                            <Checkbox 
-                               checked={selectedEmpIds.length === rosterEligibleUsers.length && rosterEligibleUsers.length > 0} 
-                               onCheckedChange={(c) => toggleAllSelection(!!c)} 
-                            />
-                         </TableHead>
-                         <TableHead className="w-[200px] py-6 uppercase text-[9px] font-black tracking-widest">Professional</TableHead>
-                         <TableHead className="w-[100px] py-6 uppercase text-[9px] font-black tracking-widest text-center">Off-Day</TableHead>
-                         <TableHead className="py-6 uppercase text-[9px] font-black tracking-widest text-center">Frequency limits</TableHead>
-                         <TableHead className="py-6 uppercase text-[9px] font-black tracking-widest text-center">Pre-Off eligibility</TableHead>
-                         <TableHead className="py-6 uppercase text-[9px] font-black tracking-widest text-center">Post-Off eligibility</TableHead>
-                      </TableRow>
-                   </TableHeader>
-                   <TableBody>
-                      {filteredEmployees?.map(emp => {
-                        const rule = rules?.find(r => r.employeeId === emp.id);
-                        const booking = bookings?.find(b => b.employeeId === emp.id);
-                        const isSelected = selectedEmpIds.includes(emp.id);
-
-                        return (
-                          <TableRow key={emp.id} className={cn("hover:bg-slate-50 border-b transition-colors", !isSelected && "opacity-40 grayscale")}>
-                             <TableCell className="pl-10">
-                                <Checkbox 
-                                   checked={isSelected} 
-                                   onCheckedChange={(c) => toggleEmpSelection(emp.id, !!c)} 
-                                />
-                             </TableCell>
-                             <TableCell className="py-4">
-                                <p className="font-black text-[13px] uppercase">{emp.fullName}</p>
-                                <code className="text-[9px] font-bold text-slate-300">{emp.id}</code>
-                             </TableCell>
-                             <TableCell className="text-center">
-                                {booking ? <Badge className="bg-secondary text-white text-[9px] font-black">{booking.dayOfWeek.toUpperCase()}</Badge> : <span className="text-[9px] text-destructive italic">NOT SET</span>}
-                             </TableCell>
-                             <TableCell className="px-4">
-                                <div className="grid grid-cols-2 gap-2">
-                                   {shifts?.slice(0, 4).map(s => (
-                                     <div key={s.id} className="space-y-1">
-                                        <p className="text-[8px] font-black uppercase text-slate-400">{s.id}</p>
-                                        <Select value={rule?.frequencyLimits?.[s.id]?.label || 'UNRESTRICTED'} onValueChange={(v) => handleUpdateFrequency(emp.id, s.id, v)}>
-                                          <SelectTrigger className="h-8 text-[8px] font-black uppercase rounded-lg">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {FREQUENCY_RANGES.map(range => <SelectItem key={range.label} value={range.label} className="text-[9px] font-bold">{range.label}</SelectItem>)}
-                                          </SelectContent>
-                                        </Select>
-                                     </div>
-                                   ))}
-                                </div>
-                             </TableCell>
-                             <TableCell className="px-4">
-                                <div className="flex flex-wrap gap-2 justify-center">
-                                   {shifts?.map(s => (
-                                     <div key={s.id} className="flex items-center gap-1">
-                                        <Checkbox checked={rule?.allowedPreOffShifts?.includes(s.id)} onCheckedChange={(c) => handleUpdateRule(emp.id, 'pre', s.id, !!c)} />
-                                        <span className="text-[9px] font-black">{s.id}</span>
-                                     </div>
-                                   ))}
-                                </div>
-                             </TableCell>
-                             <TableCell className="px-4">
-                                <div className="flex flex-wrap gap-2 justify-center">
-                                   {shifts?.map(s => (
-                                     <div key={s.id} className="flex items-center gap-1">
-                                        <Checkbox checked={rule?.allowedPostOffShifts?.includes(s.id)} onCheckedChange={(c) => handleUpdateRule(emp.id, 'post', s.id, !!c)} />
-                                        <span className="text-[9px] font-black">{s.id}</span>
-                                     </div>
-                                   ))}
-                                </div>
-                             </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                   </TableBody>
-                </Table>
-             </CardContent>
-             <CardFooter className="bg-slate-50/50 p-8 border-t">
-                <Button className="w-full h-16 bg-primary text-white font-black uppercase tracking-[0.25em] rounded-2xl shadow-2xl hover:bg-black transition-all" onClick={handleRunSolver}>
-                   <Wand2 className="mr-3 size-6" /> INITIATE AI GENERATION
-                </Button>
-             </CardFooter>
-           </Card>
         </div>
       ) : (
         <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
           <CardHeader className="bg-slate-50/50 border-b p-10 flex items-center justify-between">
             <div>
-              <CardTitle className="text-xl uppercase font-black leading-none">Institutional AI Hub</CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Engine: Gemini 1.5 Flash (Deterministic Command Protocol)</CardDescription>
+              <CardTitle className="text-xl uppercase font-black leading-none">Institutional AI Orchestrator</CardTitle>
+              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Engine: Gemini 1.5 Flash (Deterministic Protocol)</CardDescription>
             </div>
             <div className="size-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary">
                <BrainCircuit className="size-7" />
@@ -407,11 +399,11 @@ export default function RosterSolver() {
               <div className="space-y-4">
                   <div className="flex justify-between items-end">
                      <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/40">Inference Velocity</span>
-                     <span className="text-xl font-black tabular-nums">{progress}%</span>
+                     <span className="text-2xl font-black tabular-nums">{progress}%</span>
                   </div>
-                  <div className="h-4 bg-slate-100 rounded-full overflow-hidden border p-0.5 shadow-inner">
+                  <div className="h-5 bg-slate-100 rounded-full overflow-hidden border p-0.5 shadow-inner">
                      <div className={cn(
-                         "h-full rounded-full transition-all duration-700 shadow-[0_0_15px_rgba(59,130,246,0.3)]",
+                         "h-full rounded-full transition-all duration-700 shadow-[0_0_20px_rgba(59,130,246,0.3)]",
                          status === 'running' ? 'bg-secondary animate-pulse' : status === 'success' ? 'bg-emerald-500' : status === 'conflict' ? 'bg-destructive' : 'bg-slate-200'
                      )} style={{ width: `${progress}%` }} />
                   </div>
@@ -419,28 +411,33 @@ export default function RosterSolver() {
 
               {solverResult && (
                 <div className={cn(
-                    "p-10 rounded-[2.5rem] border-2 animate-in zoom-in-95", 
+                    "p-12 rounded-[3rem] border-4 animate-in zoom-in-95", 
                     (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20'
                 )}>
-                  <div className="flex flex-col md:flex-row gap-10 items-start">
+                  <div className="flex flex-col md:flex-row gap-12 items-start">
                     <div className={cn(
-                        "size-20 rounded-3xl flex items-center justify-center shrink-0 shadow-2xl", 
+                        "size-24 rounded-[2rem] flex items-center justify-center shrink-0 shadow-2xl", 
                         (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive text-white shadow-destructive/20' : 'bg-emerald-500 text-white shadow-emerald-500/20'
                     )}>
-                       {(solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? <AlertTriangle className="size-10" /> : <ShieldCheck className="size-10" />}
+                       {(solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? <AlertTriangle className="size-12" /> : <ShieldCheck className="size-12" />}
                     </div>
-                    <div className="space-y-8 flex-1">
-                       <div className="space-y-2">
-                          <h3 className="text-2xl font-black uppercase tracking-tight leading-none">AI Orchestration Result</h3>
-                          <p className="text-[15px] font-medium leading-relaxed text-black/60">{solverResult.summary}</p>
+                    <div className="space-y-10 flex-1">
+                       <div className="space-y-4">
+                          <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Orchestration Result</h3>
+                          <p className="text-lg font-medium leading-relaxed text-black/60">{solverResult.summary}</p>
                        </div>
                        
                        {lastDraftId && solverResult.status !== 'INFEASIBLE' && solverResult.status !== 'UNKNOWN' && (
-                         <Link href={`/admin/roster/review/${lastDraftId}`}>
-                            <Button className="w-full h-16 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:bg-black transition-all hover:scale-[1.02]">
-                              Audit & Review Workspace <ChevronRight className="ml-3 size-5" />
+                         <div className="flex flex-col sm:flex-row gap-4">
+                            <Link href={`/admin/roster/review/${lastDraftId}`} className="flex-1">
+                                <Button className="w-full h-18 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:bg-black transition-all hover:scale-[1.02]">
+                                    Audit & Review Workspace <ChevronRight className="ml-3 size-6" />
+                                </Button>
+                            </Link>
+                            <Button variant="outline" onClick={() => setStatus('config')} className="h-18 px-10 font-black uppercase text-[10px] tracking-[0.2em] border-2 rounded-2xl">
+                                Re-Configure Pulse
                             </Button>
-                         </Link>
+                         </div>
                        )}
                     </div>
                   </div>

@@ -3,8 +3,7 @@
 
 /**
  * Trusted Coordinator Flow for Clinical Roster Generation.
- * Hardened: Gemini AI Exclusive Protocol with Minimum Quota Enforcement and Max Utilization.
- * Uses high-precision plain objects to prevent Next.js serialization conflicts.
+ * Hardened: Gemini AI Exclusive Protocol with Global Constraints enforcement.
  */
 
 import { ai } from '@/ai/genkit';
@@ -19,6 +18,10 @@ export const GenerateWeeklyRosterInputSchema = z.object({
   officeId: z.string(),
   employeeIds: z.array(z.string()).describe('List of professional IDs selected for this generation pulse.'),
   idToken: z.string().describe('Firebase ID token for administrative authentication.'),
+  // Global Constraints
+  globalFrequencyLimits: z.record(z.object({ min: z.number(), max: z.number(), label: z.string() })).optional(),
+  globalPreOffShifts: z.array(z.string()).optional(),
+  globalPostOffShifts: z.array(z.string()).optional(),
 });
 
 export type GenerateWeeklyRosterInput = z.infer<typeof GenerateWeeklyRosterInputSchema>;
@@ -42,12 +45,16 @@ const PromptInputSchema = z.object({
     gender: z.string(),
     historicalSO: z.number(),
     historicalOP: z.number(),
-    frequencyLimits: z.record(z.object({ min: z.number(), max: z.number(), label: z.string() })).optional(),
   })),
   locks: z.array(z.object({
     employeeId: z.string(),
     dayOfWeek: z.string(),
   })),
+  globalConstraints: z.object({
+    frequencyLimits: z.record(z.object({ min: z.number(), max: z.number(), label: z.string() })),
+    preOffShifts: z.array(z.string()),
+    postOffShifts: z.array(z.string()),
+  }),
   adjacencies: z.array(z.object({
     employeeId: z.string(),
     dayOfWeek: z.string(),
@@ -89,15 +96,13 @@ You MUST assign AT LEAST the following number of professionals to each shift. Ov
 - Day: {{dayOfWeek}} | Shift: {{shiftId}} | Minimum Required: {{requiredStaff}}
 {{/each}}
 
-3. FREQUENCY DISTRIBUTION MATRIX:
-Respect weekly occurrence ranges for each professional. Do not exceed the 'max' or go below the 'min' for each shift type:
-{{#each employees}}
-{{#if frequencyLimits}}
-- Prof {{id}}: {{#each frequencyLimits}}[{{@key}}: {{min}} to {{max}} times] {{/each}}
-{{/if}}
+3. GLOBAL FREQUENCY DISTRIBUTION:
+Respect weekly occurrence ranges for EVERY professional. Do not exceed the 'max' or go below the 'min' for each shift type as defined below:
+{{#each globalConstraints.frequencyLimits}}
+- [{{@key}}]: must occur {{min}} to {{max}} times per professional per week.
 {{/each}}
 
-4. TRANSITION INTEGRITY (ADJACENCY):
+4. GLOBAL TRANSITION INTEGRITY (ADJACENCY):
 Respect eligibility rules for days surrounding a professional's day off:
 {{#each adjacencies}}
 - Prof {{employeeId}} on {{dayOfWeek}} is RESTRICTED. Only assign one of: [{{#each restrictedToShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
@@ -112,13 +117,9 @@ OUTPUT SPECIFICATION:
 - Never double-assign a professional on the same day.`,
 });
 
-/**
- * High-Intensity Server Action for Roster Generation.
- * Hardened against serialization errors by converting all data to plain JSON.
- */
 export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
   const start = Date.now();
-  const { weekId, officeId, employeeIds, idToken } = input;
+  const { weekId, officeId, employeeIds, idToken, globalFrequencyLimits, globalPreOffShifts, globalPostOffShifts } = input;
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekDates = getDatesForWeek(weekId);
 
@@ -131,13 +132,11 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     
     await assertOfficeActive(officeId);
     
-    const [empSnap, shiftsSnap, quotaSnap, bookingsSnap, leavesSnap, rulesSnap] = await Promise.all([
+    const [empSnap, quotaSnap, bookingsSnap, leavesSnap] = await Promise.all([
       adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
-      adminDb.collection('shift_master').orderBy('displayOrder').get(),
       adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).get(),
       adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
       adminDb.collection('employee_leaves').where('office', '==', officeId).where('status', '==', 'approved').get(),
-      adminDb.collection('shift_adjacency_rules').where('weekId', '==', weekId).where('office', '==', officeId).get(),
     ]);
 
     if (!quotaSnap.exists) {
@@ -150,22 +149,12 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       };
     }
 
-    const rulesData = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    
-    // Filter employees based on selection
-    const allEmployees = empSnap.docs.map(d => {
-      const data = d.data();
-      const rule: any = rulesData.find(r => r.employeeId === d.id);
-      return { 
-        id: d.id, 
-        gender: (data.gender || 'Other').toLowerCase(),
-        historicalSO: Number(data.historicalSO || 0), 
-        historicalOP: Number(data.historicalOP || 0),
-        frequencyLimits: rule?.frequencyLimits || {}
-      };
-    });
-
-    const employees = allEmployees.filter(e => employeeIds.includes(e.id));
+    const employees = empSnap.docs
+      .map(d => {
+        const data = d.data();
+        return { id: d.id, gender: (data.gender || 'Other').toLowerCase(), historicalSO: Number(data.historicalSO || 0), historicalOP: Number(data.historicalOP || 0) };
+      })
+      .filter(e => employeeIds.includes(e.id));
 
     if (employees.length === 0) {
       throw new Error("Pipeline Blocked: No professionals selected for generation.");
@@ -183,15 +172,13 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     ];
 
     const adjacencies = bookings.flatMap((booking: any) => {
-      const rule: any = rulesData.find(r => r.employeeId === booking.employeeId);
-      if (!rule) return [];
       const res: any[] = [];
       const idx = DAYS.indexOf(booking.dayOfWeek);
-      if (idx > 0 && rule.allowedPreOffShifts?.length > 0) {
-        res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx - 1], restrictedToShifts: rule.allowedPreOffShifts });
+      if (idx > 0 && globalPreOffShifts && globalPreOffShifts.length > 0) {
+        res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx - 1], restrictedToShifts: globalPreOffShifts });
       }
-      if (idx < 6 && rule.allowedPostOffShifts?.length > 0) {
-        res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx + 1], restrictedToShifts: rule.allowedPostOffShifts });
+      if (idx < 6 && globalPostOffShifts && globalPostOffShifts.length > 0) {
+        res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx + 1], restrictedToShifts: globalPostOffShifts });
       }
       return res;
     });
@@ -201,8 +188,14 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       return { dayOfWeek: day, shiftId: sId, requiredStaff: Number(val) };
     });
 
+    const globalConstraints = {
+      frequencyLimits: globalFrequencyLimits || {},
+      preOffShifts: globalPreOffShifts || [],
+      postOffShifts: globalPostOffShifts || [],
+    };
+
     // Gemini Inference Pulse
-    const { output } = await aiPrompt({ weekId, officeId, weeklyQuotas, employees, locks, adjacencies });
+    const { output } = await aiPrompt({ weekId, officeId, weeklyQuotas, employees, locks, globalConstraints, adjacencies });
     const resultAssignments = output || [];
     const solveTimeMs = Date.now() - start;
     
