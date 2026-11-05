@@ -4,6 +4,7 @@
 import { useState, useMemo } from 'react';
 import { collection, query, where, orderBy, doc, deleteDoc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
+import { useOffice } from '@/context/office-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,7 @@ function formatTimestamp(ts: any): string {
 export default function WeekOffLedger() {
   const db = useFirestore();
   const { profile } = useUser();
+  const { selectedOffice } = useOffice();
   const { toast } = useToast();
   const [selectedWeek, setSelectedWeek] = useState('20241230-20250105');
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,18 +72,26 @@ export default function WeekOffLedger() {
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
-    return profile.role === 'super_admin' 
-      ? query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'))
-      : query(q, where('office', '==', profile.office || ''), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
-  }, [db, profile]);
+    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
+    
+    if (profile.role === 'super_admin' && !selectedOffice) {
+      return query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+    }
+    
+    return query(q, where('office', '==', targetOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+  }, [db, profile, selectedOffice]);
 
   const bookQuery = useMemo(() => {
     if (!profile || !selectedWeek) return null;
     const q = collection(db, 'weekoff_bookings');
-    return profile.role === 'super_admin'
-      ? query(q, where('weekId', '==', selectedWeek))
-      : query(q, where('weekId', '==', selectedWeek), where('office', '==', profile.office || ''));
-  }, [db, selectedWeek, profile]);
+    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
+
+    if (profile.role === 'super_admin' && !selectedOffice) {
+      return query(q, where('weekId', '==', selectedWeek));
+    }
+    
+    return query(q, where('weekId', '==', selectedWeek), where('office', '==', targetOffice));
+  }, [db, selectedWeek, profile, selectedOffice]);
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: bookings, loading: bookLoading } = useCollection(bookQuery);

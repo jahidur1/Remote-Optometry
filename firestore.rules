@@ -95,7 +95,7 @@ service cloud.firestore {
       allow read: if isUserActive() && (isSuperAdmin() || resource == null || isMemberOf(resource.data.office));
       allow create: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office));
       allow update: if (isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office)))
-                    || (isUserActive() && isMemberOf(request.resource.data.office) 
+                    || (isUserActive() && isMemberOf(resource.data.office) 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked', 'updatedAt']));
       allow delete: if isSuperAdmin();
     }
@@ -139,7 +139,7 @@ service cloud.firestore {
 
       allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
       allow create: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office));
-      allow update: if isAdmin() && (isSuperAdmin() || isMemberOf(resource.data.office));
+      allow update: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office));
       allow delete: if isSuperAdmin();
     }
 
