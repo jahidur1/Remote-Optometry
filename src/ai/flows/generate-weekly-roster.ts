@@ -2,8 +2,9 @@
 'use server';
 
 /**
- * Trusted Coordinator Flow for Clinical Roster Generation.
+ * @fileOverview Trusted Coordinator Flow for Clinical Roster Generation.
  * Hardened: Gemini AI Exclusive Protocol with Global Constraints enforcement.
+ * Ensures 100% serializable data returns to prevent Next.js render conflicts.
  */
 
 import { ai } from '@/ai/genkit';
@@ -152,7 +153,12 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     const employees = empSnap.docs
       .map(d => {
         const data = d.data();
-        return { id: d.id, gender: (data.gender || 'Other').toLowerCase(), historicalSO: Number(data.historicalSO || 0), historicalOP: Number(data.historicalOP || 0) };
+        return { 
+          id: d.id, 
+          gender: (data.gender || 'Other').toLowerCase(), 
+          historicalSO: Number(data.historicalSO || 0), 
+          historicalOP: Number(data.historicalOP || 0) 
+        };
       })
       .filter(e => employeeIds.includes(e.id));
 
@@ -160,8 +166,25 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       throw new Error("Pipeline Blocked: No professionals selected for generation.");
     }
 
-    const bookings = bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => employeeIds.includes(b.employeeId));
-    const leaves = leavesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((l: any) => employeeIds.includes(l.employeeId));
+    // SANITIZE DATA FOR PROMPT & NEXTJS BOUNDARY
+    const bookings = bookingsSnap.docs.map(d => {
+        const data = d.data();
+        return { 
+            id: d.id, 
+            employeeId: data.employeeId, 
+            dayOfWeek: data.dayOfWeek 
+        };
+    }).filter((b: any) => employeeIds.includes(b.employeeId));
+
+    const leaves = leavesSnap.docs.map(d => {
+        const data = d.data();
+        return { 
+            id: d.id, 
+            employeeId: data.employeeId, 
+            startDate: data.startDate, 
+            endDate: data.endDate 
+        };
+    }).filter((l: any) => employeeIds.includes(l.employeeId));
 
     const locks = [
       ...bookings.map((b: any) => ({ employeeId: b.employeeId, dayOfWeek: b.dayOfWeek })),
@@ -194,8 +217,17 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       postOffShifts: globalPostOffShifts || [],
     };
 
-    // Gemini Inference Pulse
-    const { output } = await aiPrompt({ weekId, officeId, weeklyQuotas, employees, locks, globalConstraints, adjacencies });
+    // GEMINI INFERENCE PULSE
+    const { output } = await aiPrompt({ 
+        weekId, 
+        officeId, 
+        weeklyQuotas, 
+        employees, 
+        locks, 
+        globalConstraints, 
+        adjacencies 
+    });
+
     const resultAssignments = output || [];
     const solveTimeMs = Date.now() - start;
     
@@ -203,9 +235,11 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
 
     return {
       rosterAssignments: resultAssignments,
-      summary: !integrity.isValid ? "CRITICAL INTEGRITY FAILURE: AI violated clinical locks." : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol for ${employees.length} selected professionals.`,
+      summary: !integrity.isValid 
+        ? "CRITICAL INTEGRITY FAILURE: AI violated clinical locks. Check Adjacency Matrix." 
+        : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol for ${employees.length} selected professionals.`,
       status: !integrity.isValid ? 'UNKNOWN' : 'FEASIBLE',
-      issuesEncountered: integrity.issues,
+      issuesEncountered: integrity.issues.map(i => String(i)),
       solverMetadata: {
         solveTimeMs,
         constraintsChecked: locks.length + adjacencies.length,
@@ -219,7 +253,7 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       rosterAssignments: [],
       summary: `Pipeline Conflict: ${e.message}`,
       status: 'UNKNOWN',
-      issuesEncountered: [e.message],
+      issuesEncountered: [String(e.message)],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'error' }
     };
   }

@@ -23,7 +23,8 @@ import {
   AlertTriangle,
   Zap,
   Target,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Users
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -99,6 +100,7 @@ export default function RosterSolver() {
     }
   }, [authorizedOffices, selectedOffice]);
 
+  // STRICT FILTER: Display only professionals with 'user' role
   const rosterEligibleUsers = useMemo(() => employees?.filter(e => e.role === 'user') || [], [employees]);
 
   useEffect(() => {
@@ -174,7 +176,7 @@ export default function RosterSolver() {
       setStatus("success");
     } catch (e: any) {
       setStatus("conflict");
-      toast({ variant: "destructive", title: "Engine Conflict", description: e.message });
+      toast({ variant: "destructive", title: "Engine Conflict", description: String(e.message) });
     }
   };
 
@@ -195,10 +197,10 @@ export default function RosterSolver() {
               <BrainCircuit className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">GenAI Roster Engine</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Gemini 1.5 Flash Orchestrator <Activity className="size-3 text-secondary animate-pulse" />
+                  GenAI Intelligence Mode <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
               </div>
             </div>
@@ -207,10 +209,10 @@ export default function RosterSolver() {
 
         <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Hub</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
                 <SelectTrigger className="h-6 w-48 font-black border-none bg-transparent p-0 text-[14px]">
-                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
+                  <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Center..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl bg-white p-2 border-none shadow-2xl">
                   {authorizedOffices.map(o => (
@@ -220,12 +222,12 @@ export default function RosterSolver() {
               </Select>
            </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Clinical Cycle</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Monday Cycle</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[14px] uppercase">{weekId ? displayWeekRange(weekId) : 'Select Monday'}</span>
+                    <span className="text-[14px] uppercase">{weekId ? displayWeekRange(weekId) : 'Select Start'}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
@@ -234,17 +236,23 @@ export default function RosterSolver() {
               </Popover>
            </div>
            <Button className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-black" onClick={() => setStatus('config')} disabled={status === 'running' || !selectedOffice || !weekId}>
-             <Play className="size-4 mr-2" /> SETUP CONSTRAINTS
+             <Play className="size-4 mr-2" /> {status === 'idle' ? 'INITIATE ENGINE' : 'ADJUST PARAMETERS'}
            </Button>
         </div>
       </div>
 
       {status === 'config' ? (
-        <div className="space-y-8 animate-in">
-           <Button variant="ghost" onClick={() => setStatus('idle')} className="font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Engine</Button>
+        <div className="space-y-8 animate-in slide-in-from-bottom-4">
+           <div className="flex items-center justify-between">
+              <Button variant="ghost" onClick={() => setStatus('idle')} className="font-black uppercase text-[10px] tracking-widest hover:bg-slate-100"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Pulse</Button>
+              <div className="flex items-center gap-4 px-6 py-2 bg-secondary/5 rounded-xl border border-secondary/10">
+                 <Users className="size-4 text-secondary" />
+                 <span className="text-[10px] font-black uppercase text-primary">Selected Professionals: {selectedEmpIds.length}</span>
+              </div>
+           </div>
 
            <div className="grid gap-8 lg:grid-cols-12">
-              <Card className="lg:col-span-4 shadow-2xl border-none rounded-[2.5rem] bg-[#0F172A] text-white overflow-hidden border-t-8 border-t-secondary">
+              <Card className="lg:col-span-4 shadow-2xl border-none rounded-[2.5rem] bg-[#0F172A] text-white overflow-hidden border-t-8 border-t-secondary sticky top-24">
                  <CardHeader className="p-10 pb-6 border-b border-white/5">
                     <div className="flex items-center gap-5">
                        <div className="size-12 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary shadow-inner">
@@ -252,14 +260,14 @@ export default function RosterSolver() {
                        </div>
                        <CardTitle className="text-xl font-black uppercase tracking-tight">Global Constraints</CardTitle>
                     </div>
-                    <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-4">Defining institutional rules for Cycle {weekId}</CardDescription>
+                    <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-4">Uniform standards for Cycle {weekId}</CardDescription>
                  </CardHeader>
                  <CardContent className="p-10 space-y-10">
                     <div className="space-y-6">
                        <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Shift Adjacency eligibility</Label>
-                       <div className="space-y-4">
-                          <div className="space-y-2">
-                             <p className="text-[9px] font-bold text-white/40 uppercase">Pre-Off Options:</p>
+                       <div className="space-y-6">
+                          <div className="space-y-3">
+                             <p className="text-[9px] font-bold text-white/40 uppercase flex items-center gap-2"><Zap className="size-3" /> Pre-Off Options:</p>
                              <div className="flex flex-wrap gap-2">
                                 {shifts?.map(s => (
                                    <Badge 
@@ -272,8 +280,8 @@ export default function RosterSolver() {
                                 ))}
                              </div>
                           </div>
-                          <div className="space-y-2 pt-2">
-                             <p className="text-[9px] font-bold text-white/40 uppercase">Post-Off Options:</p>
+                          <div className="space-y-3 pt-2">
+                             <p className="text-[9px] font-bold text-white/40 uppercase flex items-center gap-2"><Zap className="size-3" /> Post-Off Options:</p>
                              <div className="flex flex-wrap gap-2">
                                 {shifts?.map(s => (
                                    <Badge 
@@ -289,18 +297,18 @@ export default function RosterSolver() {
                        </div>
                     </div>
 
-                    <div className="space-y-6 pt-6 border-t border-white/5">
+                    <div className="space-y-6 pt-8 border-t border-white/5">
                        <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Weekly Frequency ranges</Label>
                        <div className="grid grid-cols-2 gap-4">
-                          {shifts?.slice(0, 4).map(s => (
-                             <div key={s.id} className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/10">
-                                <p className="text-[10px] font-black uppercase text-white/80">{s.name}</p>
+                          {shifts?.map(s => (
+                             <div key={s.id} className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-secondary/30 transition-all group">
+                                <p className="text-[10px] font-black uppercase text-white/80 group-hover:text-secondary">{s.name}</p>
                                 <Select onValueChange={(v) => {
                                    const range = FREQUENCY_RANGES.find(r => r.label === v);
                                    if (range) setGlobalFreq(prev => ({ ...prev, [s.id]: { min: range.min, max: range.max, label: range.label } }));
                                 }}>
                                    <SelectTrigger className="h-9 text-[9px] font-black bg-white/10 border-none text-white uppercase rounded-lg">
-                                      <SelectValue placeholder="UNRESTRICTED" />
+                                      <SelectValue placeholder="AUTO" />
                                    </SelectTrigger>
                                    <SelectContent className="bg-[#0F172A] border-white/10 text-white">
                                       {FREQUENCY_RANGES.map(r => <SelectItem key={r.label} value={r.label} className="font-bold text-[10px]">{r.label}</SelectItem>)}
@@ -316,18 +324,15 @@ export default function RosterSolver() {
               <Card className="lg:col-span-8 shadow-2xl border-none rounded-[2.5rem] bg-white overflow-hidden">
                 <CardHeader className="bg-slate-50/50 border-b p-10 flex flex-col md:flex-row items-center justify-between gap-6">
                    <div>
-                      <CardTitle className="text-xl font-black uppercase">Professional Enrollment</CardTitle>
-                      <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Select professionals to include in this generation pulse.</CardDescription>
+                      <CardTitle className="text-2xl font-black uppercase tracking-tight">Professional Enrollment</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">Selecting clinical staff for generation pulse.</CardDescription>
                    </div>
-                   <div className="flex items-center gap-4">
-                      <div className="bg-primary text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase">Selected: {selectedEmpIds.length} / {rosterEligibleUsers.length}</div>
-                      <div className="relative w-64">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
-                          <Input placeholder="Filter Identity..." className="pl-10 h-10 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                      </div>
+                   <div className="relative w-full max-w-sm">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
+                      <Input placeholder="Search Identity..." className="pl-12 h-12 rounded-xl text-[12px] font-bold" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                    </div>
                 </CardHeader>
-                <CardContent className="p-0 overflow-x-auto no-scrollbar max-h-[500px]">
+                <CardContent className="p-0 overflow-x-auto no-scrollbar max-h-[600px]">
                    <Table>
                       <TableHeader className="bg-slate-50/30 sticky top-0 z-10 backdrop-blur-md">
                          <TableRow>
@@ -338,12 +343,18 @@ export default function RosterSolver() {
                                />
                             </TableHead>
                             <TableHead className="w-[300px] py-6 uppercase text-[10px] font-black tracking-widest border-r">Professional Identity</TableHead>
-                            <TableHead className="py-6 uppercase text-[10px] font-black tracking-widest text-center">Confirmed Off-Day</TableHead>
+                            <TableHead className="py-6 uppercase text-[10px] font-black tracking-widest text-center border-r">Week-Off Status</TableHead>
                             <TableHead className="py-6 uppercase text-[10px] font-black tracking-widest text-center">Status Pulse</TableHead>
                          </TableRow>
                       </TableHeader>
                       <TableBody>
-                         {filteredEmployees?.map(emp => {
+                         {empLoading ? (
+                           Array(5).fill(0).map((_, i) => (
+                             <TableRow key={i}><TableCell colSpan={4} className="p-12"><Loader2 className="animate-spin mx-auto size-6" /></TableCell></TableRow>
+                           ))
+                         ) : filteredEmployees.length === 0 ? (
+                           <TableRow><TableCell colSpan={4} className="py-40 text-center opacity-30 italic font-black uppercase text-[11px] tracking-widest">No authorized professionals found in registry.</TableCell></TableRow>
+                         ) : filteredEmployees.map(emp => {
                            const booking = bookings?.find(b => b.employeeId === emp.id);
                            const isSelected = selectedEmpIds.includes(emp.id);
                            return (
@@ -351,22 +362,29 @@ export default function RosterSolver() {
                                 <TableCell className="pl-10">
                                    <Checkbox checked={isSelected} onCheckedChange={(c) => toggleEmpSelection(emp.id, !!c)} />
                                 </TableCell>
-                                <TableCell className="py-6 border-r">
-                                   <div className="flex flex-col gap-1">
-                                      <span className="font-black text-[15px] text-black uppercase">{emp.fullName}</span>
-                                      <code className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">ID: {emp.id.slice(-6)}</code>
+                                <TableCell className="py-8 border-r">
+                                   <div className="flex flex-col gap-1.5">
+                                      <span className="font-black text-[16px] text-black uppercase">{emp.fullName}</span>
+                                      <div className="flex items-center gap-2">
+                                         <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md tabular-nums">ID: {emp.id}</Badge>
+                                         <span className="text-[8px] font-black text-black/20 uppercase tracking-widest">• {emp.gender}</span>
+                                      </div>
                                    </div>
                                 </TableCell>
-                                <TableCell className="text-center py-6 border-r">
-                                   {booking ? <Badge className="bg-secondary text-white text-[10px] font-black px-4 py-1 rounded-full shadow-lg">{booking.dayOfWeek.toUpperCase()}</Badge> : <span className="text-[10px] font-black text-destructive/30 italic">NOT SET</span>}
+                                <TableCell className="text-center py-8 border-r">
+                                   {booking ? (
+                                      <Badge className="bg-secondary text-white text-[10px] font-black px-5 py-1.5 rounded-full shadow-lg shadow-secondary/20">{booking.dayOfWeek.toUpperCase()}</Badge>
+                                   ) : (
+                                      <span className="text-[10px] font-black text-destructive/20 italic tracking-widest">NOT SECURED</span>
+                                   )}
                                 </TableCell>
-                                <TableCell className="text-center py-6">
+                                <TableCell className="text-center py-8">
                                    {isSelected ? (
-                                      <div className="flex items-center justify-center gap-2 text-emerald-500 font-black text-[10px] uppercase">
-                                         <CheckCircle2 className="size-3.5" /> Enrolled
+                                      <div className="flex items-center justify-center gap-2 text-emerald-500 font-black text-[10px] uppercase tracking-widest">
+                                         <CheckCircle2 className="size-4" /> Enrolled
                                       </div>
                                    ) : (
-                                      <span className="text-[10px] font-black text-slate-300 uppercase">Excluded</span>
+                                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Excluded</span>
                                    )}
                                 </TableCell>
                              </TableRow>
@@ -375,77 +393,140 @@ export default function RosterSolver() {
                       </TableBody>
                    </Table>
                 </CardContent>
-                <CardFooter className="bg-slate-50/50 p-10 border-t">
-                   <Button className="w-full h-20 bg-primary text-white font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all hover:scale-[1.01]" onClick={handleRunSolver}>
-                      <Wand2 className="mr-4 size-8" /> INITIATE AI GENERATION PULSE
+                <CardFooter className="bg-slate-50/50 p-12 border-t">
+                   <Button 
+                    className="w-full h-20 bg-primary text-white font-black uppercase tracking-[0.25em] rounded-3xl shadow-2xl hover:bg-black transition-all hover:scale-[1.01] group" 
+                    onClick={handleRunSolver}
+                    disabled={selectedEmpIds.length === 0}
+                   >
+                      <Wand2 className="mr-5 size-8 group-hover:rotate-12 transition-transform" /> INITIATE AI GENERATION PULSE
                    </Button>
                 </CardFooter>
               </Card>
            </div>
         </div>
       ) : (
-        <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
-          <CardHeader className="bg-slate-50/50 border-b p-10 flex items-center justify-between">
-            <div>
-              <CardTitle className="text-xl uppercase font-black leading-none">Institutional AI Orchestrator</CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Engine: Gemini 1.5 Flash (Deterministic Protocol)</CardDescription>
-            </div>
-            <div className="size-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary">
-               <BrainCircuit className="size-7" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-10">
-            <div className="space-y-12">
-              <div className="space-y-4">
+        <div className="space-y-12">
+          {/* Status Tracker */}
+          {status !== 'idle' && (
+            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white animate-in zoom-in-95 duration-500">
+               <CardContent className="p-14 space-y-10">
                   <div className="flex justify-between items-end">
-                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/40">Inference Velocity</span>
-                     <span className="text-2xl font-black tabular-nums">{progress}%</span>
+                     <div className="space-y-2">
+                        <span className="text-[11px] font-black uppercase tracking-[0.4em] text-primary/40">Engine Velocity</span>
+                        <p className="text-4xl font-black text-black tabular-nums tracking-tighter">{progress}%</p>
+                     </div>
+                     <div className="text-right">
+                        <Badge variant="outline" className={cn(
+                          "px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest",
+                          status === 'running' ? 'bg-secondary/10 text-secondary border-secondary/20 animate-pulse' : 
+                          status === 'success' ? 'bg-emerald-500 text-white border-none' : 'bg-destructive/10 text-destructive border-destructive/20'
+                        )}>
+                           {status === 'running' ? 'INFERENCE ACTIVE' : status === 'success' ? 'SYNC COMPLETE' : 'ENGINE CONFLICT'}
+                        </Badge>
+                     </div>
                   </div>
-                  <div className="h-5 bg-slate-100 rounded-full overflow-hidden border p-0.5 shadow-inner">
+                  <div className="h-6 bg-slate-100 rounded-full overflow-hidden border-2 p-1 shadow-inner">
                      <div className={cn(
-                         "h-full rounded-full transition-all duration-700 shadow-[0_0_20px_rgba(59,130,246,0.3)]",
-                         status === 'running' ? 'bg-secondary animate-pulse' : status === 'success' ? 'bg-emerald-500' : status === 'conflict' ? 'bg-destructive' : 'bg-slate-200'
+                         "h-full rounded-full transition-all duration-1000 cubic-bezier(0.4, 0, 0.2, 1)",
+                         status === 'running' ? 'bg-secondary' : status === 'success' ? 'bg-emerald-500' : 'bg-destructive'
                      )} style={{ width: `${progress}%` }} />
                   </div>
-              </div>
+               </CardContent>
+            </Card>
+          )}
 
-              {solverResult && (
-                <div className={cn(
-                    "p-12 rounded-[3rem] border-4 animate-in zoom-in-95", 
-                    (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive/5 border-destructive/20' : 'bg-emerald-500/5 border-emerald-500/20'
-                )}>
-                  <div className="flex flex-col md:flex-row gap-12 items-start">
-                    <div className={cn(
-                        "size-24 rounded-[2rem] flex items-center justify-center shrink-0 shadow-2xl", 
-                        (solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? 'bg-destructive text-white shadow-destructive/20' : 'bg-emerald-500 text-white shadow-emerald-500/20'
-                    )}>
-                       {(solverResult.status === 'INFEASIBLE' || solverResult.status === 'UNKNOWN') ? <AlertTriangle className="size-12" /> : <ShieldCheck className="size-12" />}
-                    </div>
-                    <div className="space-y-10 flex-1">
-                       <div className="space-y-4">
-                          <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Orchestration Result</h3>
-                          <p className="text-lg font-medium leading-relaxed text-black/60">{solverResult.summary}</p>
-                       </div>
-                       
-                       {lastDraftId && solverResult.status !== 'INFEASIBLE' && solverResult.status !== 'UNKNOWN' && (
-                         <div className="flex flex-col sm:flex-row gap-4">
-                            <Link href={`/admin/roster/review/${lastDraftId}`} className="flex-1">
-                                <Button className="w-full h-18 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:bg-black transition-all hover:scale-[1.02]">
-                                    Audit & Review Workspace <ChevronRight className="ml-3 size-6" />
-                                </Button>
-                            </Link>
-                            <Button variant="outline" onClick={() => setStatus('config')} className="h-18 px-10 font-black uppercase text-[10px] tracking-[0.2em] border-2 rounded-2xl">
-                                Re-Configure Pulse
-                            </Button>
-                         </div>
-                       )}
-                    </div>
+          {/* Results Summary */}
+          {solverResult && (
+            <Card className={cn(
+                "shadow-2xl border-none overflow-hidden rounded-[3rem] animate-in slide-in-from-bottom-8 duration-700",
+                status === 'success' ? 'bg-white' : 'bg-destructive/5'
+            )}>
+               <div className={cn("h-4", status === 'success' ? 'bg-emerald-500' : 'bg-destructive')} />
+               <CardContent className="p-12 md:p-20 flex flex-col md:flex-row gap-16 items-start">
+                  <div className={cn(
+                      "size-32 rounded-[2.5rem] flex items-center justify-center shrink-0 shadow-3xl transform -rotate-6",
+                      status === 'success' ? 'bg-emerald-500 text-white' : 'bg-destructive text-white'
+                  )}>
+                     {status === 'success' ? <ShieldCheck className="size-16" /> : <AlertTriangle className="size-16" />}
                   </div>
-                </div>
-              )}
+                  <div className="space-y-12 flex-1">
+                     <div className="space-y-6">
+                        <h2 className="text-4xl font-black uppercase tracking-tight leading-none text-black">Orchestration Outcome</h2>
+                        <p className="text-xl font-medium text-black/60 leading-relaxed max-w-4xl italic">"{solverResult.summary}"</p>
+                     </div>
+
+                     {status === 'success' && lastDraftId && (
+                        <div className="flex flex-col sm:flex-row gap-6">
+                           <Link href={`/admin/roster/review/${lastDraftId}`} className="flex-1">
+                              <Button className="w-full h-20 bg-primary text-white font-black uppercase tracking-[0.3em] rounded-3xl shadow-2xl hover:bg-black transition-all hover:scale-[1.02]">
+                                 Audit & Review Workspace <ChevronRight className="ml-4 size-6" />
+                              </Button>
+                           </Link>
+                           <Button variant="outline" onClick={() => setStatus('config')} className="h-20 px-12 border-2 border-slate-100 rounded-3xl font-black uppercase text-[11px] tracking-[0.2em] hover:bg-slate-50">
+                              Adjust Pulse
+                           </Button>
+                        </div>
+                     )}
+
+                     {status === 'conflict' && (
+                       <div className="space-y-8">
+                         <div className="p-8 rounded-3xl bg-destructive/10 border-2 border-destructive/20 space-y-6">
+                            <p className="text-[11px] font-black uppercase text-destructive tracking-[0.4em]">Conflict Log Trace</p>
+                            <ul className="space-y-4">
+                               {solverResult.issuesEncountered?.map((issue: string, i: number) => (
+                                 <li key={i} className="flex gap-4 items-start text-destructive/80 font-bold text-[13px] uppercase tracking-tight">
+                                    <AlertTriangle className="size-4 shrink-0 mt-0.5" /> {issue}
+                                 </li>
+                               ))}
+                            </ul>
+                         </div>
+                         <Button onClick={() => setStatus('config')} className="h-16 px-12 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em]">
+                            Re-Configure Clinical Matrix
+                         </Button>
+                       </div>
+                     )}
+                  </div>
+               </CardContent>
+            </Card>
+          )}
+
+          {/* Initial State / Selection Card */}
+          {status === 'idle' && (
+            <div className="grid gap-8 lg:grid-cols-2">
+               <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white group hover:border-secondary transition-all p-12 space-y-10 border-t-8 border-t-primary">
+                  <div className="size-20 rounded-[1.75rem] bg-secondary/10 flex items-center justify-center text-secondary shadow-inner group-hover:scale-110 transition-transform duration-700">
+                     <BrainCircuit className="size-10" />
+                  </div>
+                  <div className="space-y-4">
+                     <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Intelligence Pulse</h3>
+                     <p className="text-[14px] text-muted-foreground font-medium leading-relaxed">
+                        Initiate the Gemini 1.5 Flash orchestrator to analyze staffing requirements, professional week-offs, and distribution limits.
+                     </p>
+                  </div>
+                  <Button className="h-16 px-10 bg-primary text-white font-black uppercase text-[11px] tracking-[0.2em] rounded-2xl shadow-xl w-full" onClick={() => setStatus('config')}>
+                    Configure Generation Workspace <ChevronRight className="ml-3 size-4" />
+                  </Button>
+               </Card>
+
+               <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white p-12 space-y-10 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:rotate-12 transition-transform duration-1000"><Zap size={220} /></div>
+                  <ShieldCheck className="size-12 text-secondary" />
+                  <div className="space-y-4 relative z-10">
+                     <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Security Protocol</h3>
+                     <p className="text-[14px] text-white/40 font-medium leading-relaxed">
+                        All generated assignments are strictly isolated as drafts. 
+                        No data is transmitted to professionals until a Super Administrator authorizes the publication pulse.
+                     </p>
+                  </div>
+                  <div className="pt-6 relative z-10 flex gap-4">
+                     <Badge variant="outline" className="bg-white/5 border-white/10 text-white/60 font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-lg">Audit Active</Badge>
+                     <Badge variant="outline" className="bg-secondary/20 border-secondary/20 text-secondary font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-lg">Level 4 Secure</Badge>
+                  </div>
+               </Card>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
     </div>
   );

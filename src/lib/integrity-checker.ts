@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Institutional Integrity Guard.
  * 
@@ -20,18 +21,22 @@ export function verifyRosterIntegrity(
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   // 1. Clean Assignments: Exclude non-operational markers
-  const activeAssignments = assignments.filter(a => a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
+  const activeAssignments = (assignments || []).filter(a => a && a.shiftId && a.shiftId !== 'none' && a.shiftId !== 'unassigned');
+
+  if (!activeAssignments.length && assignments.length > 0) {
+      issues.push("CRITICAL: AI failed to generate any active clinical assignments.");
+      return { isValid: false, issues };
+  }
 
   activeAssignments.forEach(a => {
     // 2. FCFS Protection: No assignments on protected Weekly-Offs
     const isOff = bookings.some(b => 
       b.employeeId === a.employeeId && 
-      b.dayOfWeek === a.dayOfWeek &&
-      b.status === 'confirmed'
+      b.dayOfWeek === a.dayOfWeek
     );
     
     if (isOff) {
-      issues.push(`CRITICAL: Professional ${a.employeeId} assigned shift ${a.shiftId} on protected Weekly-Off (${a.dayOfWeek}).`);
+      issues.push(`CRITICAL: Prof ${a.employeeId} assigned shift ${a.shiftId} on protected Weekly-Off (${a.dayOfWeek}).`);
     }
 
     // 3. Absence Protection: No assignments during approved leave window
@@ -41,12 +46,11 @@ export function verifyRosterIntegrity(
       const onLeave = leaves.some(l => 
         l.employeeId === a.employeeId && 
         dateStr >= l.startDate && 
-        dateStr <= l.endDate && 
-        l.status === 'approved'
+        dateStr <= l.endDate
       );
       
       if (onLeave) {
-        issues.push(`CRITICAL: Professional ${a.employeeId} assigned shift ${a.shiftId} during approved absence window (${a.dayOfWeek} / ${dateStr}).`);
+        issues.push(`CRITICAL: Prof ${a.employeeId} assigned shift ${a.shiftId} during approved absence window (${a.dayOfWeek} / ${dateStr}).`);
       }
     }
   });
