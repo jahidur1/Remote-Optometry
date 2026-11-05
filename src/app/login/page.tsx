@@ -159,6 +159,7 @@ export default function LoginPage() {
       setConfirmationResult(result);
       setStep('otp');
       toast({ title: "Verification Initiated", description: "Security code dispatched." });
+      setLoading(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Access Denied", description: error.message });
       setLoading(false);
@@ -236,10 +237,11 @@ export default function LoginPage() {
                       <Input
                         maxLength={6}
                         placeholder="000000"
-                        className="pl-12 h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-white text-black shadow-inner"
+                        className="h-20 text-5xl text-center font-black tracking-[0.6em] rounded-2xl border-4 border-slate-100 bg-white text-black shadow-inner"
                         value={otp}
                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                         required
+                        autoFocus
                       />
                     </div>
                     <button type="button" onClick={() => setStep('phone')} className="text-[10px] font-black uppercase text-primary hover:underline">Edit Number</button>
