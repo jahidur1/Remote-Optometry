@@ -168,7 +168,7 @@ export default function RosterReviewWorkspace() {
   };
 
   const handlePublish = async () => {
-    if (!profile) return;
+    if (!profile || !weekId || !officeId) return;
     
     if (!quotaDoc) {
       toast({ variant: "destructive", title: "Institutional Block", description: "Publication restricted. Office-specific quota configuration is missing." });
@@ -183,10 +183,12 @@ export default function RosterReviewWorkspace() {
 
     setPublishing(true);
     try {
-      const versionId = `${weekId}_v${Date.now()}`;
-      await setDoc(doc(db, 'published_rosters', versionId), {
+      // UNIQUE WEEK ID PROTOCOL
+      const activeId = `active_${weekId}_${officeId}`;
+      await setDoc(doc(db, 'published_rosters', activeId), {
+        id: activeId,
         weekId,
-        office: draft?.office,
+        office: officeId,
         version: Date.now(),
         assignments,
         publishedAt: new Date().toISOString(),
@@ -196,8 +198,8 @@ export default function RosterReviewWorkspace() {
 
       await updateDoc(doc(db, 'roster_drafts', draftId), { status: 'published' });
       
-      logAudit(db, profile.uid, 'PUBLISH_ROSTER', versionId, { weekId, office: draft?.office });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Meta Cloud API Center." });
+      logAudit(db, profile.uid, 'PUBLISH_ROSTER', activeId, { weekId, office: officeId });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Week ID protocol." });
       router.push('/admin/roster');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -414,10 +416,10 @@ export default function RosterReviewWorkspace() {
            
            <div className="flex flex-col justify-center bg-white/5 p-8 rounded-3xl border border-white/10 text-right shrink-0">
               <div className="flex items-center justify-end gap-4 text-[13px] font-black text-secondary uppercase tracking-[0.3em]">
-                 <Server className="size-5" /> SYSTEM_SYNC
+                 <Server className="size-5" /> UNIQUE_ID_SYNC
               </div>
               <p className="text-[11px] text-white/30 font-bold leading-relaxed mt-4 uppercase tracking-tighter max-w-[260px]">
-                 Automated rollout is restricted until daily headcount imbalances are neutralized.
+                 Automated rollout via unique week ID protocol ensures professional visibility.
               </p>
            </div>
         </div>

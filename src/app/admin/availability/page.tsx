@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, where, orderBy, doc, setDoc, limit, onSnapshot } from 'firebase/firestore';
-import { useFirestore, useCollection, useUser, useAuth } from '@/firebase';
+import { collection, query, where, orderBy, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { useFirestore, useUser, useAuth } from '@/firebase';
 import { useOffice } from '@/context/office-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -51,17 +51,15 @@ export default function AvailabilitySummary() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  // Initialize week hydration-safely
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
   }, []);
 
-  // STABLE AUTHORITATIVE FETCHES
+  // Stable Authoritative Registry Fetches
   const empQuery = useMemo(() => {
     if (!profile || !selectedOffice) return null;
     const q = collection(db, 'employees');
     const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
-    
     if (!targetOffice) return null;
     return query(q, where('office', '==', targetOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
   }, [db, profile, selectedOffice]);
@@ -85,49 +83,33 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  // REAL-TIME REGISTRY LINK
+  // REAL-TIME REGISTRY LINK (Unique Week ID Protocol)
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
     setLoadingAssignments(true);
     
-    // 1. Listen for current draft
-    const draftQ = query(
-      collection(db, 'roster_drafts'), 
-      where('weekId', '==', selectedWeek), 
-      where('office', '==', selectedOffice),
-      where('status', '==', 'draft'),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
+    // Deterministic IDs for direct sync
+    const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
+    const activeRosterId = `active_${selectedWeek}_${selectedOffice}`;
 
-    const unsubDraft = onSnapshot(draftQ, (draftSnap) => {
-      if (!draftSnap.empty) {
-        setAssignments(draftSnap.docs[0].data().assignments || []);
+    // 1. First listen for manual draft pulse
+    const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (draftSnap) => {
+      if (draftSnap.exists() && draftSnap.data().status === 'draft') {
+        setAssignments(draftSnap.data().assignments || []);
         setLoadingAssignments(false);
       } else {
-        // 2. Fallback to latest published version
-        const publishQ = query(
-          collection(db, 'published_rosters'),
-          where('weekId', '==', selectedWeek),
-          where('office', '==', selectedOffice),
-          where('status', '==', 'active'),
-          orderBy('publishedAt', 'desc'),
-          limit(1)
-        );
-
-        onSnapshot(publishQ, (publishSnap) => {
-          if (!publishSnap.empty) {
-            setAssignments(publishSnap.docs[0].data().assignments || []);
+        // 2. Fallback to Published Pulse
+        const unsubActive = onSnapshot(doc(db, 'published_rosters', activeRosterId), (activeSnap) => {
+          if (activeSnap.exists()) {
+            setAssignments(activeSnap.data().assignments || []);
           } else {
             setAssignments([]);
           }
           setLoadingAssignments(false);
         });
+        return () => unsubActive();
       }
-    }, (error) => {
-      console.error("Registry Sync Failure:", error);
-      setLoadingAssignments(false);
     });
 
     return () => unsubDraft();
@@ -178,10 +160,10 @@ export default function AvailabilitySummary() {
         createdAt: new Date().toISOString(),
         actorId: profile?.uid,
         generationMethod: 'manual'
-      }, { merge: true });
+      });
 
       logAudit(db, profile?.uid || 'system', 'SAVE_MANUAL_ROSTER_DRAFT', draftId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Draft Synchronized" });
+      toast({ title: "Draft Synchronized", description: "Roster details secured with Week ID protocol." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -193,8 +175,9 @@ export default function AvailabilitySummary() {
     if (!selectedOffice || !selectedWeek) return;
     setPublishing(true);
     try {
-      const versionId = `${selectedWeek}_v${Date.now()}`;
-      await setDoc(doc(db, 'published_rosters', versionId), {
+      const activeId = `active_${selectedWeek}_${selectedOffice}`;
+      await setDoc(doc(db, 'published_rosters', activeId), {
+        id: activeId,
         weekId: selectedWeek,
         office: selectedOffice,
         version: Date.now(),
@@ -204,12 +187,12 @@ export default function AvailabilitySummary() {
         status: 'active'
       });
 
-      // Clear draft status on publish to satisfy fallback logic
+      // Clear draft status on publish
       const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
-      logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', versionId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated." });
+      logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', activeId, { weekId: selectedWeek, office: selectedOffice });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Week ID protocol." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
     } finally {
@@ -283,7 +266,7 @@ export default function AvailabilitySummary() {
               <div className="space-y-1">
                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Master Availability Matrix</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Direct shift assignment and clinical constraint auditing hub.
+                    Direct shift assignment and clinical Week ID synchronization hub.
                  </CardDescription>
               </div>
            </div>
@@ -408,7 +391,7 @@ export default function AvailabilitySummary() {
            </div>
            <div className="ml-auto flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="size-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Atomic Registry Verified</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Atomic Week-ID Synchronized</span>
            </div>
         </CardFooter>
       </Card>

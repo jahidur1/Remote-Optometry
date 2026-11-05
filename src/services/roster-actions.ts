@@ -8,11 +8,13 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
  * 
  * Access Control: Role-based (EMPLOYEE restricted to own data)
  * Privacy: Server-side projection (Zero exposure of peer schedules)
+ * Protocol: Uses Unique Week ID (active_{weekId}_{officeId})
  */
 
 /**
  * getMyRosterAction
  * Retrieves the published assignments for the authenticated professional for a specific week.
+ * Now uses deterministic Week ID lookup for 100% reliability.
  */
 export async function getMyRosterAction(idToken: string, weekId: string) {
   if (!idToken) throw new Error("Authentication token missing.");
@@ -28,23 +30,15 @@ export async function getMyRosterAction(idToken: string, weekId: string) {
 
     if (!employeeId || !office) throw new Error("Registry Error: Profile incomplete.");
 
-    // Fetch the latest published roster for this week and office
-    // LOG: Cycle Pulse Trace
-    console.log(`[ACTION:GET_ROSTER] Week=${weekId} Office=${office} Employee=${employeeId}`);
+    // Fetch via Unique Week ID Protocol
+    const activeId = `active_${weekId}_${office}`;
+    const rosterSnap = await adminDb.collection('published_rosters').doc(activeId).get();
 
-    const rosterSnap = await adminDb.collection('published_rosters')
-      .where('weekId', '==', weekId)
-      .where('office', '==', office)
-      .where('status', '==', 'active')
-      .orderBy('publishedAt', 'desc')
-      .limit(1)
-      .get();
-
-    if (rosterSnap.empty) {
+    if (!rosterSnap.exists) {
       return { success: true, assignments: [], published: false };
     }
 
-    const rosterData = rosterSnap.docs[0].data();
+    const rosterData = rosterSnap.data()!;
     
     // SECURITY PROJECT: Filter assignments server-side. 
     // The employee NEVER sees the raw document containing other staff schedules.
