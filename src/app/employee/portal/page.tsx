@@ -230,10 +230,14 @@ export default function EmployeePortal() {
   }
 
   const now = new Date();
-  const today = format(now, 'EEEE');
-  const todayShift = rosterData[currentWeekId]?.assignments.find(a => a.dayOfWeek === today);
+  const todayName = format(now, 'EEEE');
+  const todayDateStr = format(now, 'yyyy-MM-dd');
+  
+  // Find current week roster and specific today's shift by date
+  const currentRoster = rosterData[currentWeekId] || { assignments: [], published: false };
+  const todayShift = currentRoster.assignments.find(a => a.date === todayDateStr || a.dayOfWeek === todayName);
   const todayShiftDetails = shifts?.find(s => s.id === todayShift?.shiftId);
-  const todayBooking = userBookings?.find(b => b.weekId === currentWeekId && b.dayOfWeek === today);
+  const todayBooking = userBookings?.find(b => b.weekId === currentWeekId && b.dayOfWeek === todayName);
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-12 pb-40 px-6 pt-6 animate-in text-black">
@@ -256,35 +260,43 @@ export default function EmployeePortal() {
       <div className="grid gap-10 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-10">
           <Card className="border-none bg-[#0F172A] text-white shadow-2xl rounded-[3rem] overflow-hidden relative group">
-             <div className="absolute top-0 right-0 p-12 opacity-10 transform group-hover:scale-110 duration-1000"><Zap size={260} /></div>
+             <div className="absolute top-0 right-0 p-14 opacity-10 transform group-hover:scale-110 duration-1000"><Zap size={260} /></div>
              <CardContent className="p-14 relative z-10">
                 <p className="text-[9px] font-black uppercase tracking-[0.3em] text-secondary">Today's Pulse</p>
-                <h2 className="text-7xl font-black uppercase tracking-tighter leading-none italic mt-2">{today}</h2>
+                <div className="flex flex-col sm:flex-row sm:items-end gap-4 mt-2">
+                   <h2 className="text-7xl font-black uppercase tracking-tighter leading-none italic">{todayName}</h2>
+                   <p className="text-xl font-black text-white/30 tracking-widest mb-1 tabular-nums">{format(now, 'dd MMM yyyy')}</p>
+                </div>
                 {todayBooking ? (
-                   <div className="flex items-center gap-3 mt-6">
-                      <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase px-8 py-3 rounded-xl shadow-2xl">
+                   <div className="flex items-center gap-3 mt-8">
+                      <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase px-10 py-4 rounded-xl shadow-2xl border-none">
                          <ShieldCheck className="size-4 mr-2" /> PROTECTED WEEK-OFF
                       </Badge>
                    </div>
                 ) : todayShift ? (
-                   <div className="mt-8 space-y-4">
-                      <div className="flex items-center gap-4">
-                        <Badge className="bg-secondary text-white text-[12px] font-black uppercase px-8 py-3 rounded-2xl shadow-xl">
-                          {todayShiftDetails?.name || todayShift.shiftId}
-                        </Badge>
-                        <Badge variant="outline" className="border-white/20 text-white/40 font-black text-[10px] px-3 py-1 rounded-lg">
-                          {todayShift.shiftId}
-                        </Badge>
+                   <div className="mt-10 space-y-6">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="px-10 py-4 bg-secondary rounded-2xl shadow-[0_20px_50px_-10px_rgba(59,130,246,0.6)]">
+                           <span className="text-[16px] font-black uppercase tracking-widest text-white">{todayShiftDetails?.name || todayShift.shiftId}</span>
+                        </div>
+                        <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
+                           <span className="text-[12px] font-black text-white/40 uppercase tracking-widest">{todayShift.shiftId}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 text-white/60">
-                        <Clock className="size-5 text-secondary" />
-                        <span className="text-xl font-black tracking-[0.2em] tabular-nums">
+                      <div className="flex items-center gap-4 text-white/80">
+                        <div className="size-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                           <Clock className="size-6 text-secondary" />
+                        </div>
+                        <span className="text-3xl font-black tracking-[0.1em] tabular-nums">
                           {todayShiftDetails?.startTime} — {todayShiftDetails?.endTime}
                         </span>
                       </div>
                    </div>
                 ) : (
-                  <p className="text-lg font-bold text-white/40 uppercase tracking-widest mt-6">No Duty Assigned</p>
+                  <div className="mt-10 flex items-center gap-4 text-white/20">
+                     <Lock className="size-8" />
+                     <p className="text-2xl font-black uppercase tracking-widest">No Duty Assigned</p>
+                  </div>
                 )}
              </CardContent>
           </Card>
@@ -345,22 +357,25 @@ export default function EmployeePortal() {
                        <div className="grid grid-cols-1 gap-3 px-1">
                          {DAYS_LIST.map((day, idx) => {
                            const date = weekDates[idx];
-                           const dateStr = date ? format(date, 'MMM dd') : '-- --';
-                           const assignment = weekData.assignments.find(a => a.dayOfWeek === day);
+                           const dateFullStr = date ? format(date, 'yyyy-MM-dd') : '';
+                           const dateDisplayStr = date ? format(date, 'MMM dd') : '-- --';
+                           
+                           // Check by specific date first, then fallback to day name for current cycle
+                           const assignment = weekData.assignments.find(a => a.date === dateFullStr || (isCurrent && a.dayOfWeek === day));
                            const shift = shifts?.find(s => s.id === assignment?.shiftId);
                            const isOff = userBookings?.some(b => b.weekId === week && b.dayOfWeek === day);
 
                            return (
                              <Card key={day} className={cn(
                                "border-none shadow-md overflow-hidden rounded-2xl bg-white transition-all group hover:scale-[1.01] hover:shadow-xl",
-                               isCurrent ? "border-l-4 border-l-secondary" : "",
+                               isCurrent && assignment ? "border-l-4 border-l-secondary" : "",
                                isOff ? "bg-emerald-50/30" : ""
                              )}>
                                <CardContent className="p-5 flex items-center justify-between">
                                   <div className="flex items-center gap-5">
                                      <div className="w-14 text-center border-r-2 border-slate-50 pr-4">
                                         <p className="text-[10px] font-black uppercase text-black/30 leading-none">{day.substring(0,3)}</p>
-                                        <p className="text-[14px] font-black text-black mt-1.5 tabular-nums">{dateStr.split(' ')[1]}</p>
+                                        <p className="text-[14px] font-black text-black mt-1.5 tabular-nums">{dateDisplayStr.split(' ')[1]}</p>
                                      </div>
                                      <div className="flex flex-col">
                                         <span className="text-[11px] font-black uppercase tracking-widest text-primary leading-tight">{day}</span>
@@ -372,9 +387,9 @@ export default function EmployeePortal() {
                                            shift ? (
                                              <div className="flex flex-col gap-1 mt-1">
                                                 <span className="text-[11px] font-black uppercase text-secondary leading-none">{shift.name}</span>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-3">
                                                    <Badge className="bg-slate-50 text-slate-400 text-[7px] font-black uppercase px-1.5 py-0 rounded border-none">{shift.id}</Badge>
-                                                   <span className="text-[9px] font-bold text-black/30 uppercase tracking-[0.1em]">{shift.startTime} - {shift.endTime}</span>
+                                                   <span className="text-[10px] font-bold text-black/40 uppercase tracking-[0.05em] tabular-nums">{shift.startTime} - {shift.endTime}</span>
                                                 </div>
                                              </div>
                                            ) : (

@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { format } from 'date-fns';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -87,14 +88,15 @@ export default function RosterReviewWorkspace() {
   const getConstraintStatus = (employeeId: string, day: string, dateIndex: number) => {
     const isOff = bookings?.some(b => b.employeeId === employeeId && b.dayOfWeek === day);
     const date = weekDates[dateIndex];
-    const leaf = leaves?.find(l => l.employeeId === employeeId && isDateInRange(date, l.startDate, l.endDate));
+    const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
+    const leaf = leaves?.find(l => l.employeeId === employeeId && dateStr >= l.startDate && dateStr <= l.endDate);
     
     if (isOff) return { type: 'WEEKLY_OFF', label: 'WEEK OFF', color: 'text-secondary' };
     if (leaf) return { type: 'LEAVE', label: leaf.type.toUpperCase(), color: 'text-accent' };
     return null;
   };
 
-  const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
+  const handleAssignmentChange = (employeeId: string, day: string, shiftId: string, dateStr: string) => {
     const constraint = getConstraintStatus(employeeId, day, DAYS.indexOf(day));
     
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role !== 'super_admin') {
@@ -103,26 +105,26 @@ export default function RosterReviewWorkspace() {
     }
 
     if (constraint?.type === 'WEEKLY_OFF' && profile?.role === 'super_admin') {
-      setOverrideData({ employeeId, day, shiftId });
+      setOverrideData({ employeeId, day, shiftId, date: dateStr });
       setOverrideDialogOpen(true);
       return;
     }
 
-    applyAssignmentUpdate(employeeId, day, shiftId);
+    applyAssignmentUpdate(employeeId, day, shiftId, dateStr);
   };
 
-  const applyAssignmentUpdate = (employeeId: string, day: string, shiftId: string) => {
+  const applyAssignmentUpdate = (employeeId: string, day: string, shiftId: string, dateStr: string) => {
     setAssignments(prev => {
       const filtered = prev.filter(a => !(a.employeeId === employeeId && a.dayOfWeek === day));
       if (shiftId === 'none') return filtered;
-      return [...filtered, { employeeId, dayOfWeek: day, shiftId }];
+      return [...filtered, { employeeId, dayOfWeek: day, shiftId, date: dateStr }];
     });
   };
 
   const handleProcessOverride = async () => {
     if (!overrideReason.trim()) return;
     
-    applyAssignmentUpdate(overrideData.employeeId, overrideData.day, overrideData.shiftId);
+    applyAssignmentUpdate(overrideData.employeeId, overrideData.day, overrideData.shiftId, overrideData.date);
     logAudit(db, profile?.uid || 'system', 'SUPER_ADMIN_OVERRIDE_OFF', overrideData.employeeId, { 
       day: overrideData.day, 
       newShift: overrideData.shiftId,
@@ -323,8 +325,10 @@ export default function RosterReviewWorkspace() {
                       </div>
                     </TableCell>
                     {DAYS.map((day, idx) => {
+                      const date = weekDates[idx];
+                      const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
                       const status = getConstraintStatus(emp.id, day, idx);
-                      const assignment = assignments.find(a => a.employeeId === emp.id && a.dayOfWeek === day);
+                      const assignment = assignments.find(a => a.employeeId === emp.id && (a.date === dateStr || a.dayOfWeek === day));
                       
                       return (
                         <TableCell key={day} className={cn(
@@ -342,7 +346,7 @@ export default function RosterReviewWorkspace() {
                               )}
                               <Select 
                                   value={assignment?.shiftId || 'none'}
-                                  onValueChange={(val) => handleAssignmentChange(emp.id, day, val)}
+                                  onValueChange={(val) => handleAssignmentChange(emp.id, day, val, dateStr)}
                               >
                                   <SelectTrigger className={cn(
                                       "h-12 text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all",

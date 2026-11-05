@@ -149,11 +149,11 @@ export default function AvailabilitySummary() {
     setSelectedWeek(formatWeekId(date));
   };
 
-  const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
+  const handleAssignmentChange = (employeeId: string, day: string, shiftId: string, date: string) => {
     setAssignments(prev => {
       const filtered = prev.filter(a => !(a.employeeId === employeeId && a.dayOfWeek === day));
       if (shiftId === 'none') return filtered;
-      return [...filtered, { employeeId, dayOfWeek: day, shiftId }];
+      return [...filtered, { employeeId, dayOfWeek: day, shiftId, date }];
     });
   };
 
@@ -283,7 +283,7 @@ export default function AvailabilitySummary() {
                  </CardDescription>
               </div>
            </div>
-           <div className="relative w-full max-w-xl group">
+           <div className="relative w-full max-xl:max-w-xl group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
               <Input 
                 placeholder="Search Professional Name or ID..." 
@@ -359,7 +359,7 @@ export default function AvailabilitySummary() {
                                <div className="flex flex-col gap-2 items-center">
                                  <Select 
                                    value={currentAssignment?.shiftId || 'none'} 
-                                   onValueChange={(val) => handleAssignmentChange(emp.id, day, val)}
+                                   onValueChange={(val) => handleAssignmentChange(emp.id, day, val, dateStr)}
                                  >
                                    <SelectTrigger className={cn(
                                      "h-10 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
