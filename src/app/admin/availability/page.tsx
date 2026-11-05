@@ -34,7 +34,7 @@ import { DemoBadge } from '@/components/ui/demo-badge';
 import { logAudit } from '@/lib/audit';
 import { useToast } from '@/hooks/use-toast';
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function AvailabilitySummary() {
   const db = useFirestore();
@@ -85,7 +85,6 @@ export default function AvailabilitySummary() {
     const fetchData = async () => {
       setLoadingAssignments(true);
       try {
-        // 1. Check for latest draft
         const draftQ = query(
           collection(db, 'roster_drafts'), 
           where('weekId', '==', selectedWeek), 
@@ -98,7 +97,6 @@ export default function AvailabilitySummary() {
         if (!draftSnap.empty) {
           setAssignments(draftSnap.docs[0].data().assignments || []);
         } else {
-          // 2. Fallback to latest published roster
           const publishQ = query(
             collection(db, 'published_rosters'),
             where('weekId', '==', selectedWeek),
@@ -305,12 +303,12 @@ export default function AvailabilitySummary() {
                 {empLoading || bookLoading || loadingAssignments ? (
                   Array(8).fill(0).map((_, i) => (
                     <TableRow key={i} className="border-b border-slate-100">
-                      <TableCell colSpan={7} className="py-12 px-10"><Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /></TableCell>
+                      <TableCell colSpan={8} className="py-12 px-10"><Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-40 text-center">
+                    <TableCell colSpan={8} className="py-40 text-center">
                       <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] italic">No active professionals match the filter registry.</p>
                     </TableCell>
                   </TableRow>

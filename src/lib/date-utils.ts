@@ -4,8 +4,8 @@ import { addDays, format, parse, isValid, startOfISOWeek, endOfISOWeek } from 'd
 /**
  * Institutional Date Registry Helpers
  * 
- * Manages the transition from ISO Week IDs to strict 6-day range identifiers.
- * Format: YYYYMMDD-YYYYMMDD (Strictly Monday to Saturday)
+ * Manages the transition from ISO Week IDs to strict 7-day range identifiers.
+ * Format: YYYYMMDD-YYYYMMDD (Strictly Monday to Sunday)
  */
 
 export function getDatesForWeek(weekId: string): Date[] {
@@ -17,8 +17,8 @@ export function getDatesForWeek(weekId: string): Date[] {
     if (parts.length === 2) {
       const start = parse(parts[0], 'yyyyMMdd', new Date());
       if (isValid(start)) {
-        // Return 6 days: Monday to Saturday
-        return Array.from({ length: 6 }, (_, i) => addDays(start, i));
+        // Return 7 days: Monday to Sunday
+        return Array.from({ length: 7 }, (_, i) => addDays(start, i));
       }
     }
   }
@@ -32,7 +32,7 @@ export function getDatesForWeek(weekId: string): Date[] {
       const startOfFirstWeek = addDays(jan4, 1 - day);
       const startOfTargetWeek = addDays(startOfFirstWeek, (week - 1) * 7);
       const monday = startOfISOWeek(startOfTargetWeek);
-      return Array.from({ length: 6 }, (_, i) => addDays(monday, i));
+      return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
     }
   } catch (e) {
     // Pulse failure
@@ -43,12 +43,12 @@ export function getDatesForWeek(weekId: string): Date[] {
 
 /**
  * Forces any date to the Monday of its week to maintain institutional cycle integrity.
- * The range ends on Saturday (6 days total).
+ * The range ends on Sunday (7 days total).
  */
 export function formatWeekId(date: Date): string {
   const monday = startOfISOWeek(date);
-  const saturday = addDays(monday, 5); // 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat
-  return `${format(monday, 'yyyyMMdd')}-${format(saturday, 'yyyyMMdd')}`;
+  const sunday = addDays(monday, 6); // 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+  return `${format(monday, 'yyyyMMdd')}-${format(sunday, 'yyyyMMdd')}`;
 }
 
 /**
@@ -62,7 +62,7 @@ export function displayWeekRange(weekId: string): string {
   if (!weekId) return 'Select Cycle';
   const dates = getDatesForWeek(weekId);
   if (dates.length === 0) return weekId;
-  return `${format(dates[0], 'MMM dd')} - ${format(dates[5], 'MMM dd, yyyy')}`;
+  return `${format(dates[0], 'MMM dd')} - ${format(dates[6], 'MMM dd, yyyy')}`;
 }
 
 /**

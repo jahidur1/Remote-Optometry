@@ -33,7 +33,7 @@ import { getMyRosterAction } from "@/services/roster-actions"
 import { displayWeekRange, getDatesForWeek } from "@/lib/date-utils";
 import { format, startOfISOWeek, subWeeks, addWeeks, addDays } from "date-fns";
 
-const DAYS_LIST = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS_LIST = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, userBooking: any, weekId: string }) {
   const [now, setNow] = useState(new Date());
@@ -142,8 +142,8 @@ export default function EmployeePortal() {
     const currentStart = startOfISOWeek(now);
     
     const generateId = (start: Date) => {
-      // Monday to Saturday cycle
-      const end = addDays(start, 5);
+      // Monday to Sunday cycle (7 days)
+      const end = addDays(start, 6);
       return `${format(start, 'yyyyMMdd')}-${format(end, 'yyyyMMdd')}`;
     };
 
