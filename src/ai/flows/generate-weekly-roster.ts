@@ -18,7 +18,7 @@ import { getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
 
-// --- SCHEMA DEFINITIONS ---
+// --- SCHEMA DEFINITIONS (Internal only to satisfy Next.js 15 requirements) ---
 
 const RosterAssignmentSchema = z.object({
   employeeId: z.string(),

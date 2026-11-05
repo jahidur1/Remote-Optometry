@@ -48,7 +48,7 @@ service cloud.firestore {
     // --- REGISTRY & SHIFTS ---
 
     match /offices/{officeId} {
-      allow read: if true; 
+      allow read: if isSignedIn(); 
       allow create: if isSuperAdmin() && officeId == request.resource.data.officeId;
       allow update: if isSuperAdmin() && 
         request.resource.data.officeId == resource.data.officeId &&
@@ -81,7 +81,7 @@ service cloud.firestore {
 
       allow get: if isSignedIn() && (isAdmin() || getEmployeeId() == employeeId);
       allow list: if isAdmin();
-      allow create: if false; 
+      allow create: if isSuperAdmin(); 
       allow update: if isUserActive() && (
         (isAdmin() && (isSuperAdmin() || isMemberOf(resource.data.office))) ||
         (getEmployeeId() == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age']))
