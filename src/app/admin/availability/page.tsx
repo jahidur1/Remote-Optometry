@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, where, orderBy, doc, setDoc, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, setDoc, limit, onSnapshot } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser, useAuth } from '@/firebase';
 import { useOffice } from '@/context/office-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import {
   Save,
   Send,
   Loader2,
-  AlertTriangle
+  Database
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
@@ -44,14 +44,12 @@ export default function AvailabilitySummary() {
   const { selectedOffice } = useOffice();
   const { toast } = useToast();
   
-  // Hydration-safe initial state
   const [selectedWeek, setSelectedWeek] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [refreshPulse, setRefreshPulse] = useState(0);
 
   // Initialize week hydration-safely
   useEffect(() => {
@@ -60,7 +58,7 @@ export default function AvailabilitySummary() {
 
   // STABLE AUTHORITATIVE FETCHES
   const empQuery = useMemo(() => {
-    if (!profile) return null;
+    if (!profile || !selectedOffice) return null;
     const q = collection(db, 'employees');
     const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
     
@@ -87,52 +85,53 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  // Sync Assignments (Fetch current draft OR latest published)
+  // REAL-TIME REGISTRY LINK
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
-    const fetchData = async () => {
-      setLoadingAssignments(true);
-      try {
-        // Priority 1: Current Manual Draft
-        const draftQ = query(
-          collection(db, 'roster_drafts'), 
-          where('weekId', '==', selectedWeek), 
+    setLoadingAssignments(true);
+    
+    // 1. Listen for current draft
+    const draftQ = query(
+      collection(db, 'roster_drafts'), 
+      where('weekId', '==', selectedWeek), 
+      where('office', '==', selectedOffice),
+      where('status', '==', 'draft'),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+
+    const unsubDraft = onSnapshot(draftQ, (draftSnap) => {
+      if (!draftSnap.empty) {
+        setAssignments(draftSnap.docs[0].data().assignments || []);
+        setLoadingAssignments(false);
+      } else {
+        // 2. Fallback to latest published version
+        const publishQ = query(
+          collection(db, 'published_rosters'),
+          where('weekId', '==', selectedWeek),
           where('office', '==', selectedOffice),
-          where('status', '==', 'draft'),
-          orderBy('createdAt', 'desc'),
+          where('status', '==', 'active'),
+          orderBy('publishedAt', 'desc'),
           limit(1)
         );
-        const draftSnap = await getDocs(draftQ);
-        
-        if (!draftSnap.empty) {
-          setAssignments(draftSnap.docs[0].data().assignments || []);
-        } else {
-          // Priority 2: Latest Published Version
-          const publishQ = query(
-            collection(db, 'published_rosters'),
-            where('weekId', '==', selectedWeek),
-            where('office', '==', selectedOffice),
-            where('status', '==', 'active'),
-            orderBy('publishedAt', 'desc'),
-            limit(1)
-          );
-          const publishSnap = await getDocs(publishQ);
+
+        onSnapshot(publishQ, (publishSnap) => {
           if (!publishSnap.empty) {
             setAssignments(publishSnap.docs[0].data().assignments || []);
           } else {
-            setAssignments([]); // No clinical data found
+            setAssignments([]);
           }
-        }
-      } catch (e: any) {
-        console.error("Registry Sync Failed:", e.message);
-        toast({ variant: "destructive", title: "Sync Conflict", description: "Failed to fetch assignments from registry." });
-      } finally {
-        setLoadingAssignments(false);
+          setLoadingAssignments(false);
+        });
       }
-    };
-    fetchData();
-  }, [db, selectedWeek, selectedOffice, refreshPulse, toast]);
+    }, (error) => {
+      console.error("Registry Sync Failure:", error);
+      setLoadingAssignments(false);
+    });
+
+    return () => unsubDraft();
+  }, [db, selectedWeek, selectedOffice]);
 
   const weekDates = useMemo(() => selectedWeek ? getDatesForWeek(selectedWeek) : [], [selectedWeek]);
 
@@ -183,7 +182,6 @@ export default function AvailabilitySummary() {
 
       logAudit(db, profile?.uid || 'system', 'SAVE_MANUAL_ROSTER_DRAFT', draftId, { weekId: selectedWeek, office: selectedOffice });
       toast({ title: "Draft Synchronized" });
-      setRefreshPulse(prev => prev + 1);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -206,13 +204,12 @@ export default function AvailabilitySummary() {
         status: 'active'
       });
 
-      // Clear draft status on publish to satisfy Priority logic
+      // Clear draft status on publish to satisfy fallback logic
       const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
       logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', versionId, { weekId: selectedWeek, office: selectedOffice });
       toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated." });
-      setRefreshPulse(prev => prev + 1);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
     } finally {

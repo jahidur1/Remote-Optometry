@@ -25,14 +25,18 @@ export function getDatesForWeek(weekId: string): Date[] {
 
   // 2. Legacy Fallback: YYYY-WW (Normalized to Monday start)
   try {
-    const [year, week] = weekId.split('-').map(Number);
-    if (!isNaN(year) && !isNaN(week)) {
-      const jan4 = new Date(year, 0, 4);
-      const day = jan4.getDay() || 7;
-      const startOfFirstWeek = addDays(jan4, 1 - day);
-      const startOfTargetWeek = addDays(startOfFirstWeek, (week - 1) * 7);
-      const monday = startOfISOWeek(startOfTargetWeek);
-      return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+    const parts = weekId.split('-');
+    if (parts.length === 2 && parts[1].length <= 2) {
+      const year = parseInt(parts[0]);
+      const week = parseInt(parts[1]);
+      if (!isNaN(year) && !isNaN(week)) {
+        const jan4 = new Date(year, 0, 4);
+        const day = jan4.getDay() || 7;
+        const startOfFirstWeek = addDays(jan4, 1 - day);
+        const startOfTargetWeek = addDays(startOfFirstWeek, (week - 1) * 7);
+        const monday = startOfISOWeek(startOfTargetWeek);
+        return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+      }
     }
   } catch (e) {
     // Pulse failure

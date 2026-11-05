@@ -18,7 +18,7 @@ export async function getMyRosterAction(idToken: string, weekId: string) {
   if (!idToken) throw new Error("Authentication token missing.");
   
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
+    const decoded = await adminAuth.verifyIdToken(idToken);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     
     if (!userSnap.exists) throw new Error("Professional profile not found.");
@@ -29,6 +29,9 @@ export async function getMyRosterAction(idToken: string, weekId: string) {
     if (!employeeId || !office) throw new Error("Registry Error: Profile incomplete.");
 
     // Fetch the latest published roster for this week and office
+    // LOG: Cycle Pulse Trace
+    console.log(`[ACTION:GET_ROSTER] Week=${weekId} Office=${office} Employee=${employeeId}`);
+
     const rosterSnap = await adminDb.collection('published_rosters')
       .where('weekId', '==', weekId)
       .where('office', '==', office)
@@ -45,7 +48,9 @@ export async function getMyRosterAction(idToken: string, weekId: string) {
     
     // SECURITY PROJECT: Filter assignments server-side. 
     // The employee NEVER sees the raw document containing other staff schedules.
-    const myAssignments = (rosterData.assignments || []).filter((a: any) => a.employeeId === employeeId);
+    const myAssignments = (rosterData.assignments || []).filter((a: any) => 
+      String(a.employeeId) === String(employeeId)
+    );
 
     return { 
       success: true, 
