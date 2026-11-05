@@ -6,6 +6,8 @@
  * Implements a Strict POJO Protocol to ensure 100% JSON-serializable returns.
  * Optimized with Lean Data Protocol: Sends only essential clinical identities
  * and quotas to Gemini to prevent serialization/timeout conflicts.
+ * 
+ * Configured with expanded execution window (60s) for complex clinical models.
  */
 
 import { ai } from '@/ai/genkit';
@@ -14,6 +16,9 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
+
+// Increase execution threshold for high-intensity optimization
+export const maxDuration = 60;
 
 // --- SCHEMA DEFINITIONS ---
 
@@ -115,7 +120,6 @@ OUTPUT: Return ONLY a JSON array of assignment objects.`,
 
 export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Promise<GenerateWeeklyRosterOutput> {
   const start = Date.now();
-  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   try {
     const { weekId, officeId, employeeIds, idToken, globalFrequencyLimits, globalPreOffShifts, globalPostOffShifts } = input;
@@ -128,16 +132,17 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     await assertOfficeActive(officeId);
     
     // 2. Data Aggregation (Fetch everything in parallel)
-    const [empSnap, quotaSnap, bookingsSnap] = await Promise.all([
+    const [empSnap, quotaSnap, bookingsSnap, leavesSnap] = await Promise.all([
       adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
       adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).get(),
       adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
+      adminDb.collection('employee_leaves').where('office', '==', officeId).where('status', '==', 'approved').get()
     ]);
 
     if (!quotaSnap.exists) {
       return {
         rosterAssignments: [],
-        summary: `Quota Matrix Missing: ${weekId}`,
+        summary: `Quota Matrix Missing: Staffing requirements for ROC ${officeId} in Week ${weekId} have not been defined.`,
         status: 'UNKNOWN',
         issuesEncountered: ["MISSING_QUOTA"],
         solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'error' }
@@ -165,8 +170,16 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       return { day: String(day), shiftId: String(sId), count: Number(val) };
     });
 
+    // Clean constraints to remove internal UI labels before sending to AI
+    const frequencyConstraints: Record<string, { min: number, max: number }> = {};
+    if (globalFrequencyLimits) {
+      Object.entries(globalFrequencyLimits).forEach(([sid, lim]) => {
+        frequencyConstraints[sid] = { min: lim.min, max: lim.max };
+      });
+    }
+
     const constraints = {
-      frequency: globalFrequencyLimits || {},
+      frequency: frequencyConstraints,
       preOffShifts: globalPreOffShifts || [],
       postOffShifts: globalPostOffShifts || [],
     };
@@ -189,12 +202,17 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
         shiftId: String(a.shiftId)
     }));
 
-    // Integrity Check (Simulated leaves for this lean flow)
-    const integrity = verifyRosterIntegrity(resultAssignments, bookingsSnap.docs.map(d => d.data()), [], getDatesForWeek(weekId));
+    // Integrity Check
+    const integrity = verifyRosterIntegrity(
+      resultAssignments, 
+      bookingsSnap.docs.map(d => ({ employeeId: d.data().employeeId, dayOfWeek: d.data().dayOfWeek })), 
+      leavesSnap.docs.map(d => ({ employeeId: d.data().employeeId, startDate: d.data().startDate, endDate: d.data().endDate })), 
+      getDatesForWeek(weekId)
+    );
 
     return {
       rosterAssignments: resultAssignments,
-      summary: !integrity.isValid ? "Critical rules violated. Review Adjacency Logic." : "Assignments synchronized with clinical registry.",
+      summary: !integrity.isValid ? "Critical rules violated. The engine encountered conflicts with clinical locks." : "Assignments synchronized with clinical registry.",
       status: !integrity.isValid ? 'INFEASIBLE' : 'FEASIBLE',
       issuesEncountered: integrity.issues.map(i => String(i)),
       solverMetadata: {
@@ -210,7 +228,7 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       rosterAssignments: [],
       summary: `Engine Conflict: ${e.message || 'SERIALIZATION_FAILURE'}`,
       status: 'UNKNOWN',
-      issuesEncountered: ["The pipeline encountered a serialization or timeout error. Verify network stability."],
+      issuesEncountered: ["The generation pipeline encountered a serialization or timeout error. This usually occurs when the clinical model is too large or network stability is compromised."],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'none' }
     };
   }
