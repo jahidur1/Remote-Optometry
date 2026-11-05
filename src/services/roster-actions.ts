@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -8,7 +7,7 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
  * 
  * Access Control: Role-based (EMPLOYEE restricted to own data)
  * Privacy: Server-side projection (Zero exposure of peer schedules)
- * Protocol: Uses Singleton Unique Week ID (active_{weekId}_{officeId})
+ * Protocol: Uses Deterministic Singleton Unique Week ID (active_{weekId}_{officeId})
  */
 
 /**

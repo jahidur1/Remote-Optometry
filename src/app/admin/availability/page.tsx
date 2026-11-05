@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -90,9 +89,8 @@ export default function AvailabilitySummary() {
   const { data: shifts } = useCollection(shiftsQuery);
 
   /**
-   * REAL-TIME REGISTRY LINK (Singleton ID Protocol)
-   * Monitors both the current unified Draft and the Published version.
-   * Singleton document format ensures overwrites instead of duplicates.
+   * DETERMINISTIC SINGLETON REGISTRY LINK
+   * Simultaneously monitors the specific Draft and Published documents for the week/office.
    */
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
@@ -105,7 +103,7 @@ export default function AvailabilitySummary() {
     let activeData: any[] = [];
     let hasActiveDraft = false;
 
-    // 1. Listen for Unified Draft Singleton
+    // 1. Listen for Draft Singleton
     const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (snap) => {
       if (snap.exists() && snap.data().status === 'draft') {
         draftData = snap.data().assignments || [];
@@ -116,14 +114,14 @@ export default function AvailabilitySummary() {
       updateState();
     });
 
-    // 2. Listen for Published Singleton Pulse
+    // 2. Listen for Active Published Singleton
     const unsubActive = onSnapshot(doc(db, 'published_rosters', activeId), (snap) => {
       activeData = snap.exists() ? (snap.data().assignments || []) : [];
       updateState();
     });
 
     function updateState() {
-      // Prioritize Draft for manual editing, otherwise show Published
+      // Logic Priority: Show Draft if it's being worked on, otherwise show Published
       setAssignments(hasActiveDraft ? draftData : activeData);
       setLoadingAssignments(false);
     }
@@ -138,14 +136,9 @@ export default function AvailabilitySummary() {
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
-    return employees.map(e => ({
-        id: String(e.id || ''),
-        fullName: String(e.fullName || 'Unmapped Identity'),
-        office: String(e.office || ''),
-        status: String(e.status || 'Active')
-    })).filter(e => {
-      const name = e.fullName.toLowerCase();
-      const id = e.id.toLowerCase();
+    return employees.filter(e => {
+      const name = (e.fullName || '').toLowerCase();
+      const id = (e.id || '').toLowerCase();
       const search = searchTerm.toLowerCase();
       return name.includes(search) || id.includes(search);
     });
@@ -207,7 +200,7 @@ export default function AvailabilitySummary() {
         status: 'active'
       });
 
-      // Clear draft status on publish to transition priority
+      // Clear draft status on publish to transition priority back to published view
       const draftId = `draft_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
@@ -229,10 +222,10 @@ export default function AvailabilitySummary() {
               <Activity className="size-8 text-secondary" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Registry Pulse</h1>
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Master Matrix</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Live Capacity Matrix <Activity className="size-3 text-secondary animate-pulse" />
+                  Deterministic Registry Link <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -284,9 +277,9 @@ export default function AvailabilitySummary() {
                  <ArrowRightLeft className="size-8 text-white" />
               </div>
               <div className="space-y-1">
-                 <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Master Availability Matrix</CardTitle>
+                 <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Pulse</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Direct shift assignment and clinical Unique Week-ID synchronization hub.
+                    Direct shift assignment and deterministic registry synchronization.
                  </CardDescription>
               </div>
            </div>
@@ -411,7 +404,7 @@ export default function AvailabilitySummary() {
            </div>
            <div className="ml-auto flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="size-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Unique Week-ID Singleton Verified</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Singleton ID Registry Verified</span>
            </div>
         </CardFooter>
       </Card>

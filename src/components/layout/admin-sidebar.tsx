@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -71,7 +70,7 @@ const navGroups = [
     label: "Workforce",
     items: [
       { title: "User Details", url: "/admin/employees", icon: Users, roles: ["super_admin", "admin"] },
-      { title: "Availability", url: "/admin/availability", icon: UserCheck, roles: ["super_admin", "admin"] },
+      { title: "Master Matrix", url: "/admin/availability", icon: UserCheck, roles: ["super_admin", "admin"] },
       { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["super_admin", "admin"] },
     ]
   },
