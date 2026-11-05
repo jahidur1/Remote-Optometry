@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -13,21 +14,16 @@ import {
   CalendarRange, 
   Save, 
   Clock, 
-  Info, 
   ShieldCheck, 
   History, 
   MapPin, 
   Loader2, 
   Zap, 
   Activity, 
-  ArrowUpRight,
   Database,
-  Lock,
-  Server,
-  Terminal,
   CalendarDays,
   Trash2,
-  AlertTriangle
+  Terminal
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { logAudit } from '@/lib/audit';
@@ -37,12 +33,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
+import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function WeekOffConfiguration() {
-  const [weekId, setWeekId] = useState('');
+  const [weekId, setWeekId] = useState(getCurrentWeekId());
   const [office, setOffice] = useState('');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');

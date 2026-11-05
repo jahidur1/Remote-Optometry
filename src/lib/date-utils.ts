@@ -49,6 +49,13 @@ export function formatWeekId(date: Date): string {
   return `${format(monday, 'yyyyMMdd')}-${format(sunday, 'yyyyMMdd')}`;
 }
 
+/**
+ * Retrieves the current week identifier based on institutional standards.
+ */
+export function getCurrentWeekId(): string {
+  return formatWeekId(new Date());
+}
+
 export function displayWeekRange(weekId: string): string {
   if (!weekId) return 'Select Cycle';
   const dates = getDatesForWeek(weekId);

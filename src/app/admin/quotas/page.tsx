@@ -30,10 +30,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { saveQuotaAction } from '@/services/quota-actions';
-import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
+import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
 
 export default function QuotaConfiguration() {
-  const [weekId, setWeekId] = useState('');
+  const [weekId, setWeekId] = useState(getCurrentWeekId());
   const [selectedOffice, setSelectedOffice] = useState<string>('');
   const [quotas, setQuotas] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);

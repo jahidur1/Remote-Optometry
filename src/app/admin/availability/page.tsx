@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,10 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Users, 
   Activity, 
   ShieldCheck, 
-  Database,
   Search,
   CheckCircle2,
   CalendarDays,
@@ -20,11 +19,10 @@ import {
   ArrowRightLeft,
   Save,
   Send,
-  Loader2,
-  AlertTriangle
+  Loader2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
+import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -44,9 +42,10 @@ export default function AvailabilitySummary() {
   const { profile } = useUser();
   const { selectedOffice } = useOffice();
   const { toast } = useToast();
-  const [selectedWeek, setSelectedWeek] = useState('20241230-20250105');
+  const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekId());
   const [searchTerm, setSearchTerm] = useState('');
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
@@ -79,38 +78,46 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  // Fetch current draft OR published to populate assignments for re-editing
+  // Sync Assignments (Fetch current draft OR published for re-editing)
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
     const fetchData = async () => {
-      // 1. Check for latest draft
-      const draftQ = query(
-        collection(db, 'roster_drafts'), 
-        where('weekId', '==', selectedWeek), 
-        where('office', '==', selectedOffice),
-        orderBy('createdAt', 'desc'),
-        limit(1)
-      );
-      const draftSnap = await getDocs(draftQ);
-      
-      if (!draftSnap.empty) {
-        setAssignments(draftSnap.docs[0].data().assignments || []);
-      } else {
-        // 2. Fallback to latest published roster for "Re-Edit" functionality
-        const publishQ = query(
-          collection(db, 'published_rosters'),
-          where('weekId', '==', selectedWeek),
+      setLoadingAssignments(true);
+      try {
+        // 1. Check for latest draft
+        const draftQ = query(
+          collection(db, 'roster_drafts'), 
+          where('weekId', '==', selectedWeek), 
           where('office', '==', selectedOffice),
-          orderBy('publishedAt', 'desc'),
+          orderBy('createdAt', 'desc'),
           limit(1)
         );
-        const publishSnap = await getDocs(publishQ);
-        if (!publishSnap.empty) {
-          setAssignments(publishSnap.docs[0].data().assignments || []);
+        const draftSnap = await getDocs(draftQ);
+        
+        if (!draftSnap.empty) {
+          setAssignments(draftSnap.docs[0].data().assignments || []);
         } else {
-          setAssignments([]);
+          // 2. Fallback to latest published roster
+          const publishQ = query(
+            collection(db, 'published_rosters'),
+            where('weekId', '==', selectedWeek),
+            where('office', '==', selectedOffice),
+            where('status', '==', 'active'),
+            orderBy('publishedAt', 'desc'),
+            limit(1)
+          );
+          const publishSnap = await getDocs(publishQ);
+          if (!publishSnap.empty) {
+            setAssignments(publishSnap.docs[0].data().assignments || []);
+          } else {
+            setAssignments([]);
+          }
         }
+      } catch (e) {
+        console.error("Assignment Pulse Failed:", e);
+      } finally {
+        setLoadingAssignments(false);
       }
     };
     fetchData();
@@ -295,7 +302,7 @@ export default function AvailabilitySummary() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {empLoading || bookLoading ? (
+                {empLoading || bookLoading || loadingAssignments ? (
                   Array(8).fill(0).map((_, i) => (
                     <TableRow key={i} className="border-b border-slate-100">
                       <TableCell colSpan={8} className="py-12 px-10"><Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /></TableCell>
