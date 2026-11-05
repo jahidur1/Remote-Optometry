@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -13,20 +14,18 @@ import {
   Zap, 
   Database,
   Search,
-  Filter,
+  CheckCircle2,
   Info,
   Clock,
   PlaneTakeoff,
   TrendingUp,
   CalendarDays,
-  UserX,
-  History,
   Lock,
   ArrowRightLeft
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDatesForWeek, isDateInRange, formatWeekId, displayWeekRange } from '@/lib/date-utils';
-import { format, addDays } from 'date-fns';
+import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
+import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -186,7 +185,6 @@ export default function AvailabilitySummary() {
         ))}
       </div>
 
-      {/* MASTER AVAILABILITY GRID (The "Calendar" View for all employees) */}
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
            <div className="flex items-center gap-6">
@@ -298,101 +296,6 @@ export default function AvailabilitySummary() {
            </div>
         </CardFooter>
       </Card>
-
-      {/* KPI Numerical Table */}
-      <div className="grid gap-8 lg:grid-cols-12">
-        <div className="lg:col-span-12">
-          <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary h-full">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
-              <div className="flex items-center gap-6">
-                <div className="size-16 rounded-[1.75rem] bg-primary flex items-center justify-center border border-slate-200 shadow-inner">
-                  <TrendingUp className="size-8 text-secondary" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-2xl font-black uppercase tracking-tight text-black leading-none">Cluster Capacity Pulse</CardTitle>
-                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                     Headcount summaries for high-level clinical orchestration.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto no-scrollbar">
-              <Table className="border-collapse">
-                <TableHeader className="bg-slate-50/30">
-                  <TableRow className="border-b border-slate-100">
-                    <TableHead className="w-[240px] pl-10 py-8 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100">Daily Unit</TableHead>
-                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Total Pool</TableHead>
-                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">Off-Duty</TableHead>
-                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 text-center">On Leave</TableHead>
-                    <TableHead className="text-right pr-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60">Net Capacity</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {empLoading || bookLoading ? (
-                    Array(7).fill(0).map((_, i) => (
-                      <TableRow key={i} className="border-b border-slate-100"><TableCell colSpan={5} className="py-12 px-10"><Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /></TableCell></TableRow>
-                    ))
-                  ) : stats?.map((s) => (
-                    <TableRow key={s.day} className="hover:bg-slate-50 transition-all duration-300 group border-b border-slate-100 last:border-0">
-                      <TableCell className="pl-10 py-8 border-r border-slate-100">
-                        <div className="flex flex-col gap-1.5">
-                          <span className="font-black text-[20px] text-black tracking-tighter group-hover:translate-x-1 transition-transform leading-none uppercase">{s.day}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{s.date}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-8 border-r border-slate-100 text-center">
-                        <span className="text-lg font-black text-black/60 tabular-nums">{s.totalActive}</span>
-                      </TableCell>
-                      <TableCell className="py-8 border-r border-slate-100 text-center">
-                        <Badge variant="outline" className="text-[11px] font-black text-secondary border-secondary/20 bg-secondary/5 px-5 py-1.5 rounded-xl tabular-nums">
-                          {s.offCount}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-8 border-r border-slate-100 text-center">
-                        <Badge variant="outline" className="text-[11px] font-black text-accent border-accent/20 bg-accent/5 px-5 py-1.5 rounded-xl tabular-nums">
-                          {s.onLeaveCount}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-10 py-8">
-                        <div className="flex flex-col items-end gap-1.5">
-                             <span className={cn(
-                               "text-3xl font-black tabular-nums transition-all duration-500",
-                               s.available > 0 ? "text-black" : "text-destructive"
-                             )}>{s.available}</span>
-                          <Badge 
-                            className={cn(
-                              "font-black text-[9px] uppercase tracking-[0.2em] px-3 py-1 rounded-full border-none shadow-md",
-                              s.percent < 70 ? 'bg-destructive text-white' : 'bg-emerald-500 text-white'
-                            )}
-                          >
-                            {s.percent}%
-                          </Badge>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 relative overflow-hidden group shadow-2xl">
-         <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><Database size={280} className="text-primary" /></div>
-         <div className="flex flex-col md:flex-row gap-10 items-start relative z-10">
-            <div className="size-16 rounded-2xl bg-secondary flex items-center justify-center shadow-2xl shadow-secondary/50 shrink-0">
-               <ShieldCheck className="size-8 text-white" />
-            </div>
-            <div className="space-y-4">
-               <p className="text-[11px] font-black uppercase text-secondary tracking-[0.4em]">Institutional Availability Hub</p>
-               <p className="text-lg font-bold text-black/80 leading-relaxed max-w-4xl tracking-tight">
-                  "The Master Availability Matrix provides Super Administrators with a definitive, per-professional view of clinical constraints. 
-                  Confirmed Week-Offs and Approved Leaves are treated as immutable mathematical locks for the Gemini generation pulse."
-               </p>
-            </div>
-         </div>
-      </div>
     </div>
   );
 }
