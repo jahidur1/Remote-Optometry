@@ -6,7 +6,7 @@ import {googleAI} from '@genkit-ai/google-genai';
  * Institutional AI Orchestrator
  * 
  * Configures Genkit 1.x with Google Gemini.
- * Required Env: GOOGLE_GENAI_API_KEY
+ * Model updated to stable identifier to resolve 404 Beta endpoint conflicts.
  */
 
 // Diagnostic Check: Alert administrative console if API connection is not configured
@@ -16,5 +16,6 @@ if (typeof window === 'undefined' && !process.env.GOOGLE_GENAI_API_KEY && !proce
 
 export const ai = genkit({
   plugins: [googleAI()],
+  // Use standard model ID to ensure compatibility with v1beta endpoints
   model: 'googleai/gemini-1.5-flash',
 });

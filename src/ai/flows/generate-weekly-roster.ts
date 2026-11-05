@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -121,13 +122,13 @@ export async function generateWeeklyRoster(input: {
       return {
         rosterAssignments: [],
         summary: `Quota Matrix Missing: Staffing requirements for ROC ${officeId} in Week ${weekId} have not been defined.`,
-        status: 'UNKNOWN' as const,
+        status: 'UNKNOWN',
         issuesEncountered: ["MISSING_QUOTA"],
         solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'error' }
       };
     }
 
-    // 3. Lean Registry Construction (User requested: only ID, Name, WeekOff)
+    // 3. Lean Registry Construction (Only ID, Name, WeekOff as requested)
     const bookingsMap = new Map();
     bookingsSnap.docs.forEach(d => {
       const b = d.data();
@@ -189,7 +190,7 @@ export async function generateWeeklyRoster(input: {
     return {
       rosterAssignments: resultAssignments,
       summary: !integrity.isValid ? "Critical rules violated. Conflict with clinical locks detected." : "Assignments synchronized with clinical registry.",
-      status: (!integrity.isValid ? 'INFEASIBLE' : 'FEASIBLE') as any,
+      status: !integrity.isValid ? 'INFEASIBLE' : 'FEASIBLE',
       issuesEncountered: integrity.issues.map(i => String(i)),
       solverMetadata: {
         solveTimeMs: Date.now() - start,
@@ -202,7 +203,7 @@ export async function generateWeeklyRoster(input: {
     return {
       rosterAssignments: [],
       summary: `Engine Conflict: ${e.message || 'SERIALIZATION_FAILURE'}`,
-      status: 'UNKNOWN' as const,
+      status: 'UNKNOWN',
       issuesEncountered: ["The generation pipeline encountered a serialization or timeout error."],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'none' }
     };
