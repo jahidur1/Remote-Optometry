@@ -110,6 +110,7 @@ export default function AvailabilitySummary() {
         hasActiveDraft = true;
       } else {
         hasActiveDraft = false;
+        draftData = [];
       }
       updateState();
     });
@@ -122,7 +123,8 @@ export default function AvailabilitySummary() {
 
     function updateState() {
       // Logic Priority: Show Draft if it's being worked on, otherwise show Published
-      setAssignments(hasActiveDraft ? draftData : activeData);
+      const finalAssignments = hasActiveDraft ? draftData : activeData;
+      setAssignments(finalAssignments);
       setLoadingAssignments(false);
     }
 
@@ -151,7 +153,7 @@ export default function AvailabilitySummary() {
 
   const handleAssignmentChange = (employeeId: string, day: string, shiftId: string, date: string) => {
     setAssignments(prev => {
-      const filtered = prev.filter(a => !(a.employeeId === employeeId && a.dayOfWeek === day));
+      const filtered = prev.filter(a => !(a.employeeId === employeeId && a.date === date));
       if (shiftId === 'none') return filtered;
       return [...filtered, { employeeId, dayOfWeek: day, shiftId, date }];
     });
@@ -341,7 +343,7 @@ export default function AvailabilitySummary() {
                         const date = weekDates[idx];
                         const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
                         const onLeave = leaves?.find(l => l.employeeId === emp.id && dateStr >= l.startDate && dateStr <= l.endDate);
-                        const currentAssignment = assignments.find(a => a.employeeId === emp.id && (a.date === dateStr || a.dayOfWeek === day));
+                        const currentAssignment = assignments.find(a => a.employeeId === emp.id && a.date === dateStr);
 
                         return (
                           <TableCell key={day} className="py-8 border-r border-slate-100 last:border-0 text-center px-4">

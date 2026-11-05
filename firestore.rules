@@ -116,7 +116,7 @@ service cloud.firestore {
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive() && (isSuperAdmin() || isMemberOf(resource.data.officeId));
+      allow read: if isUserActive() && (isSuperAdmin() || isMemberOf(request.resource.data.officeId));
       allow write: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.officeId));
     }
 

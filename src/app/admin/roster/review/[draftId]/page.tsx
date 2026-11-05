@@ -115,7 +115,7 @@ export default function RosterReviewWorkspace() {
 
   const applyAssignmentUpdate = (employeeId: string, day: string, shiftId: string, dateStr: string) => {
     setAssignments(prev => {
-      const filtered = prev.filter(a => !(a.employeeId === employeeId && a.dayOfWeek === day));
+      const filtered = prev.filter(a => !(a.employeeId === employeeId && a.date === dateStr));
       if (shiftId === 'none') return filtered;
       return [...filtered, { employeeId, dayOfWeek: day, shiftId, date: dateStr }];
     });
@@ -328,7 +328,7 @@ export default function RosterReviewWorkspace() {
                       const date = weekDates[idx];
                       const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
                       const status = getConstraintStatus(emp.id, day, idx);
-                      const assignment = assignments.find(a => a.employeeId === emp.id && (a.date === dateStr || a.dayOfWeek === day));
+                      const assignment = assignments.find(a => a.employeeId === emp.id && a.date === dateStr);
                       
                       return (
                         <TableCell key={day} className={cn(
