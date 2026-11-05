@@ -298,7 +298,7 @@ export default function AvailabilitySummary() {
             <Table className="border-collapse min-w-max">
               <TableHeader className="bg-slate-50/30">
                 <TableRow>
-                  <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 bg-white/95 backdrop-blur-md sticky left-0 z-20">Professional Identity</TableHead>
+                  <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 bg-white/95 backdrop-blur-md sticky left-0 z-20 shadow-[4px_0_10px_rgba(0,0,0,0.02)]">Professional Identity</TableHead>
                   {DAYS.map((day, idx) => (
                     <TableHead key={day} className="text-center w-[200px] border-r border-slate-100 last:border-0 py-8">
                        <div className="flex flex-col gap-1">
