@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -7,6 +6,8 @@
  * Implements a Strict POJO Protocol to ensure 100% JSON-serializable returns.
  * Optimized with Lean Data Protocol: Sends only essential clinical identities
  * and quotas to Gemini to prevent serialization/timeout conflicts.
+ * 
+ * NEXT.JS 15 COMPLIANCE: Only async functions are exported.
  */
 
 import { ai } from '@/ai/genkit';
@@ -16,7 +17,7 @@ import { getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
 
-// --- INTERNAL SCHEMAS (Not Exported to satisfy Next.js "use server" requirements) ---
+// --- SCHEMA DEFINITIONS (Internal only to satisfy Next.js "use server" exports) ---
 
 const RosterAssignmentSchema = z.object({
   employeeId: z.string(),
@@ -44,7 +45,7 @@ const LeanPromptInputSchema = z.object({
   })
 });
 
-// --- GEMINI PROMPT ---
+// --- AI PROMPT DEFINITION ---
 
 const aiPrompt = ai.definePrompt({
   name: 'generateWeeklyRosterAIPrompt',
@@ -71,7 +72,6 @@ MANDATORY EXECUTION RULES:
    - Respect these weekly occurrence ranges for EVERY professional:
 {{#each constraints.frequency}}
    - [{{@key}}]: must occur {{min}} to {{max}} times per professional.
-{{#unless @last}}, {{/unless}}
 {{/each}}
 
 4. TRANSITION INTEGRITY:
@@ -84,8 +84,12 @@ MANDATORY EXECUTION RULES:
 OUTPUT: Return ONLY a JSON array of assignment objects.`,
 });
 
-// --- FLOW IMPLEMENTATION ---
-
+/**
+ * generateWeeklyRoster
+ * 
+ * High-intensity orchestration pulse.
+ * Implements Lean Data Protocol: Strips PII and metadata before AI inference.
+ */
 export async function generateWeeklyRoster(input: {
   weekId: string;
   officeId: string;
@@ -100,12 +104,12 @@ export async function generateWeeklyRoster(input: {
   try {
     const { weekId, officeId, employeeIds, idToken, globalFrequencyLimits, globalPreOffShifts, globalPostOffShifts } = input;
 
-    // 1. Auth Pulse
+    // 1. Auth Pulse (Lightweight verification)
     const decoded = await adminAuth.verifyIdToken(idToken);
     const userRef = adminDb.collection('users').doc(decoded.uid);
     const userSnap = await userRef.get();
     
-    if (!userSnap.exists) throw new Error("ID_NOT_FOUND");
+    if (!userSnap.exists) throw new Error("IDENTITY_NOT_FOUND");
     await assertOfficeActive(officeId);
     
     // 2. Data Aggregation (Lean Fetching)
@@ -126,7 +130,7 @@ export async function generateWeeklyRoster(input: {
       };
     }
 
-    // 3. Lean Registry Construction
+    // 3. Lean Registry Construction (User requested: ID, Name, WeekOff only)
     const bookingsMap = new Map();
     bookingsSnap.docs.forEach(d => {
       const b = d.data();
@@ -161,6 +165,7 @@ export async function generateWeeklyRoster(input: {
     };
 
     // 4. Intelligence Pulse
+    // Calling the defined prompt which hits the configured model
     const { output } = await aiPrompt({
       weekId,
       officeId,
@@ -171,7 +176,7 @@ export async function generateWeeklyRoster(input: {
 
     const rawAssignments = output || [];
     
-    // 5. Secure Serialization Boundary
+    // 5. Secure Serialization Boundary (Absolute POJO mapping)
     const resultAssignments = rawAssignments.map(a => ({
         employeeId: String(a.employeeId),
         dayOfWeek: String(a.dayOfWeek),
@@ -199,9 +204,10 @@ export async function generateWeeklyRoster(input: {
 
   } catch (e: any) {
     console.error('Engine Conflict Debug:', e);
+    // Explicitly return a POJO error message to avoid Next.js serialization crash
     return {
       rosterAssignments: [],
-      summary: `Engine Conflict: ${e.message || 'SERIALIZATION_FAILURE'}`,
+      summary: `Engine Conflict: ${String(e.message || 'SERIALIZATION_FAILURE')}`,
       status: 'UNKNOWN',
       issuesEncountered: ["The generation pipeline encountered a connection or timeout error. Please verify your quota configuration."],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'none' }

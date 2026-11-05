@@ -1,4 +1,3 @@
-
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
@@ -16,6 +15,6 @@ if (typeof window === 'undefined' && !process.env.GOOGLE_GENAI_API_KEY && !proce
 
 export const ai = genkit({
   plugins: [googleAI()],
-  // Use standard stable model identifier
+  // Use standard stable model identifier for Google AI plugin
   model: 'googleai/gemini-1.5-flash',
 });
