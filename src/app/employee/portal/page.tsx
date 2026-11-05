@@ -30,7 +30,7 @@ import {
   type CarouselApi
 } from "@/components/ui/carousel"
 import { getMyRosterAction } from "@/services/roster-actions"
-import { displayWeekRange, getDatesForWeek } from "@/lib/date-utils";
+import { displayWeekRange, getDatesForWeek, getCurrentWeekId, formatWeekId } from "@/lib/date-utils";
 import { format, startOfISOWeek, subWeeks, addWeeks, addDays } from "date-fns";
 
 const DAYS_LIST = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -137,25 +137,19 @@ export default function EmployeePortal() {
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
 
+  const currentWeekId = useMemo(() => getCurrentWeekId(), []);
+
   const weeks = useMemo(() => {
     const now = new Date();
-    const currentStart = startOfISOWeek(now);
+    const monday = startOfISOWeek(now);
     
-    const generateId = (start: Date) => {
-      // Monday to Sunday cycle (7 days)
-      const end = addDays(start, 6);
-      return `${format(start, 'yyyyMMdd')}-${format(end, 'yyyyMMdd')}`;
-    };
-
     return [
-      subWeeks(currentStart, 2),
-      subWeeks(currentStart, 1),
-      currentStart,
-      addWeeks(currentStart, 1)
-    ].map(date => generateId(date));
+      subWeeks(monday, 2),
+      subWeeks(monday, 1),
+      monday,
+      addWeeks(monday, 1)
+    ].map(date => formatWeekId(date));
   }, []);
-
-  const currentWeekId = weeks[2];
 
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);

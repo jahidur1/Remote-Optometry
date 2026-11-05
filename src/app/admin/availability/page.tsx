@@ -78,17 +78,20 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  // Sync Assignments (Fetch current draft OR published for re-editing)
+  // Sync Assignments (Fetch current draft OR latest published)
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
     const fetchData = async () => {
+      setAssignments([]); // Clear state immediately on cycle change
       setLoadingAssignments(true);
       try {
+        // Priority 1: Current Manual Draft
         const draftQ = query(
           collection(db, 'roster_drafts'), 
           where('weekId', '==', selectedWeek), 
           where('office', '==', selectedOffice),
+          where('status', '==', 'draft'),
           orderBy('createdAt', 'desc'),
           limit(1)
         );
@@ -97,6 +100,7 @@ export default function AvailabilitySummary() {
         if (!draftSnap.empty) {
           setAssignments(draftSnap.docs[0].data().assignments || []);
         } else {
+          // Priority 2: Latest Published Version
           const publishQ = query(
             collection(db, 'published_rosters'),
             where('weekId', '==', selectedWeek),
@@ -108,8 +112,6 @@ export default function AvailabilitySummary() {
           const publishSnap = await getDocs(publishQ);
           if (!publishSnap.empty) {
             setAssignments(publishSnap.docs[0].data().assignments || []);
-          } else {
-            setAssignments([]);
           }
         }
       } catch (e) {
@@ -191,6 +193,10 @@ export default function AvailabilitySummary() {
         publisherId: profile?.uid,
         status: 'active'
       });
+
+      // Clear draft status on publish to satisfy Priority logic
+      const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
+      await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
       logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', versionId, { weekId: selectedWeek, office: selectedOffice });
       toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated. Any previous versions updated." });

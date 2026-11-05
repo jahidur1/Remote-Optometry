@@ -4,7 +4,7 @@ import { addDays, format, parse, isValid, startOfISOWeek, endOfISOWeek } from 'd
 /**
  * Institutional Date Registry Helpers
  * 
- * Manages the transition from ISO Week IDs to strict 7-day range identifiers.
+ * Manages the transition to strict 7-day range identifiers.
  * Format: YYYYMMDD-YYYYMMDD (Strictly Monday to Sunday)
  */
 
@@ -47,7 +47,7 @@ export function getDatesForWeek(weekId: string): Date[] {
  */
 export function formatWeekId(date: Date): string {
   const monday = startOfISOWeek(date);
-  const sunday = addDays(monday, 6); // 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+  const sunday = addDays(monday, 6); 
   return `${format(monday, 'yyyyMMdd')}-${format(sunday, 'yyyyMMdd')}`;
 }
 
