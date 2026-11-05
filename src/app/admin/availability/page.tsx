@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { collection, query, where, orderBy } from 'firebase/firestore';
-import { useFirestore, useCollection, useUser } from '@/firebase';
+import { useState, useMemo, useEffect } from 'react';
+import { collection, query, where, orderBy, doc, setDoc, limit, getDocs } from 'firebase/firestore';
+import { useFirestore, useCollection, useUser, useAuth } from '@/firebase';
 import { useOffice } from '@/context/office-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,7 +18,11 @@ import {
   CalendarDays,
   Lock,
   PlaneTakeoff,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Save,
+  Send,
+  Loader2,
+  AlertTriangle
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange } from '@/lib/date-utils';
@@ -27,17 +31,25 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from '@/lib/utils';
 import { DemoBadge } from '@/components/ui/demo-badge';
+import { logAudit } from '@/lib/audit';
+import { useToast } from '@/hooks/use-toast';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function AvailabilitySummary() {
   const db = useFirestore();
+  const auth = useAuth();
   const { profile } = useUser();
   const { selectedOffice } = useOffice();
+  const { toast } = useToast();
   const [selectedWeek, setSelectedWeek] = useState('20241230-20250105');
   const [searchTerm, setSearchTerm] = useState('');
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // STABLE AUTHORITATIVE FETCHES
   const empQuery = useMemo(() => {
@@ -45,52 +57,56 @@ export default function AvailabilitySummary() {
     const q = collection(db, 'employees');
     const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
     
-    if (profile.role === 'super_admin' && !selectedOffice) {
-      return query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'));
-    }
-    
     if (!targetOffice) return null;
     return query(q, where('office', '==', targetOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
   }, [db, profile, selectedOffice]);
 
   const bookQuery = useMemo(() => {
-    if (!profile || !selectedWeek) return null;
+    if (!profile || !selectedWeek || !selectedOffice) return null;
     const q = collection(db, 'weekoff_bookings');
-    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
-
-    if (profile.role === 'super_admin' && !selectedOffice) {
-      return query(q, where('weekId', '==', selectedWeek));
-    }
-    
-    if (!targetOffice) return null;
-    return query(q, where('weekId', '==', selectedWeek), where('office', '==', targetOffice));
+    return query(q, where('weekId', '==', selectedWeek), where('office', '==', selectedOffice));
   }, [db, selectedWeek, profile, selectedOffice]);
 
   const leaveQuery = useMemo(() => {
-    if (!profile) return null;
+    if (!profile || !selectedOffice) return null;
     const q = collection(db, 'employee_leaves');
-    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
-
-    if (profile.role === 'super_admin' && !selectedOffice) {
-      return query(q, where('status', '==', 'approved'));
-    }
-    
-    if (!targetOffice) return null;
-    return query(q, where('office', '==', targetOffice), where('status', '==', 'approved'));
+    return query(q, where('office', '==', selectedOffice), where('status', '==', 'approved'));
   }, [db, profile, selectedOffice]);
+
+  const shiftsQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: bookings, loading: bookLoading } = useCollection(bookQuery);
   const { data: leaves } = useCollection(leaveQuery);
+  const { data: shifts } = useCollection(shiftsQuery);
+
+  // Fetch current draft to populate assignments
+  useEffect(() => {
+    if (!db || !selectedWeek || !selectedOffice) return;
+    
+    const fetchDraft = async () => {
+      const q = query(
+        collection(db, 'roster_drafts'), 
+        where('weekId', '==', selectedWeek), 
+        where('office', '==', selectedOffice),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        setAssignments(snap.docs[0].data().assignments || []);
+      } else {
+        setAssignments([]);
+      }
+    };
+    fetchDraft();
+  }, [db, selectedWeek, selectedOffice]);
 
   const weekDates = useMemo(() => getDatesForWeek(selectedWeek), [selectedWeek]);
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
-    
-    const empList = Array.isArray(employees) ? employees : [];
-    
-    return empList.map(e => ({
+    return employees.map(e => ({
         id: String(e.id || ''),
         fullName: String(e.fullName || 'Unmapped Identity'),
         office: String(e.office || ''),
@@ -106,6 +122,63 @@ export default function AvailabilitySummary() {
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
     setSelectedWeek(formatWeekId(date));
+  };
+
+  const handleAssignmentChange = (employeeId: string, day: string, shiftId: string) => {
+    setAssignments(prev => {
+      const filtered = prev.filter(a => !(a.employeeId === employeeId && a.dayOfWeek === day));
+      if (shiftId === 'none') return filtered;
+      return [...filtered, { employeeId, dayOfWeek: day, shiftId }];
+    });
+  };
+
+  const handleSaveDraft = async () => {
+    if (!selectedOffice || !selectedWeek) return;
+    setSaving(true);
+    try {
+      const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
+      await setDoc(doc(db, 'roster_drafts', draftId), {
+        id: draftId,
+        weekId: selectedWeek,
+        office: selectedOffice,
+        assignments,
+        status: 'draft',
+        updatedAt: new Date().toISOString(),
+        actorId: profile?.uid,
+        generationMethod: 'manual'
+      }, { merge: true });
+
+      logAudit(db, profile?.uid || 'system', 'SAVE_MANUAL_ROSTER_DRAFT', draftId, { weekId: selectedWeek, office: selectedOffice });
+      toast({ title: "Draft Synchronized", description: "Manual assignments secured in clinical registry." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!selectedOffice || !selectedWeek) return;
+    setPublishing(true);
+    try {
+      const versionId = `${selectedWeek}_v${Date.now()}`;
+      await setDoc(doc(db, 'published_rosters', versionId), {
+        weekId: selectedWeek,
+        office: selectedOffice,
+        version: Date.now(),
+        assignments,
+        publishedAt: new Date().toISOString(),
+        publisherId: profile?.uid,
+        status: 'active'
+      });
+
+      logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', versionId, { weekId: selectedWeek, office: selectedOffice });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Meta Cloud API Center." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -143,12 +216,24 @@ export default function AvailabilitySummary() {
                 </PopoverContent>
               </Popover>
            </div>
-           <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Hub</label>
-              <div className="flex items-center gap-2">
-                 <Database className="size-3 text-secondary" />
-                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
-              </div>
+           <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                className="bg-white border-2 border-slate-100 text-black h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-slate-50"
+                onClick={handleSaveDraft}
+                disabled={saving || publishing || !selectedOffice}
+              >
+                {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
+                Save Draft
+              </Button>
+              <Button 
+                className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
+                onClick={handlePublish}
+                disabled={saving || publishing || !selectedOffice}
+              >
+                {publishing ? <Loader2 className="size-4 animate-spin mr-2" /> : <Send className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
+                Rollout Roster
+              </Button>
            </div>
         </div>
       </div>
@@ -162,7 +247,7 @@ export default function AvailabilitySummary() {
               <div className="space-y-1">
                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Master Availability Matrix</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Visual registry of all professionals and their clinical constraints.
+                    Direct shift assignment and clinical constraint auditing hub.
                  </CardDescription>
               </div>
            </div>
@@ -183,7 +268,7 @@ export default function AvailabilitySummary() {
                 <TableRow>
                   <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 bg-white/95 backdrop-blur-md sticky left-0 z-20">Professional Identity</TableHead>
                   {DAYS.map((day, idx) => (
-                    <TableHead key={day} className="text-center w-[160px] border-r border-slate-100 last:border-0 py-8">
+                    <TableHead key={day} className="text-center w-[200px] border-r border-slate-100 last:border-0 py-8">
                        <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-black uppercase tracking-widest text-primary/30">{day.substring(0,3)}</span>
                           <span className="text-[12px] font-black text-black/20 tabular-nums">
@@ -221,22 +306,42 @@ export default function AvailabilitySummary() {
                         const date = weekDates[idx];
                         const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
                         const onLeave = leaves?.find(l => l.employeeId === emp.id && dateStr >= l.startDate && dateStr <= l.endDate);
+                        const currentAssignment = assignments.find(a => a.employeeId === emp.id && a.dayOfWeek === day);
 
                         return (
-                          <TableCell key={day} className="py-8 border-r border-slate-100 last:border-0 text-center">
+                          <TableCell key={day} className="py-8 border-r border-slate-100 last:border-0 text-center px-4">
                              {isOff ? (
                                <div className="flex flex-col items-center gap-2 animate-in zoom-in-95">
-                                  <Badge className="bg-secondary text-white font-black text-[10px] uppercase px-4 py-1.5 rounded-xl shadow-lg shadow-secondary/20">WEEK-OFF</Badge>
+                                  <Badge className="bg-secondary text-white font-black text-[9px] uppercase px-4 py-1 rounded-xl shadow-lg shadow-secondary/20">WEEK-OFF</Badge>
                                   <Lock className="size-3 text-secondary opacity-30" />
                                </div>
                              ) : onLeave ? (
                                <div className="flex flex-col items-center gap-2 animate-in zoom-in-95">
-                                  <Badge className="bg-accent text-primary font-black text-[10px] uppercase px-4 py-1.5 rounded-xl border border-primary/10">LEAVE</Badge>
+                                  <Badge className="bg-accent text-primary font-black text-[9px] uppercase px-4 py-1 rounded-xl border border-primary/10">LEAVE</Badge>
                                   <PlaneTakeoff className="size-3 text-accent" />
                                </div>
                              ) : (
-                               <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <CheckCircle2 className="size-4 text-emerald-500/20" />
+                               <div className="flex flex-col gap-2 items-center">
+                                 <Select 
+                                   value={currentAssignment?.shiftId || 'none'} 
+                                   onValueChange={(val) => handleAssignmentChange(emp.id, day, val)}
+                                 >
+                                   <SelectTrigger className={cn(
+                                     "h-10 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                                     currentAssignment ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600 shadow-sm" : "bg-slate-50 border-2 border-dashed border-slate-200 text-slate-300"
+                                   )}>
+                                     <SelectValue placeholder="-" />
+                                   </SelectTrigger>
+                                   <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                                      <SelectItem value="none" className="font-bold text-[10px] uppercase">UNASSIGNED</SelectItem>
+                                      {shifts?.map(s => (
+                                        <SelectItem key={s.id} value={s.id} className="font-bold text-[10px] uppercase py-2.5">
+                                          {s.id} <span className="opacity-30 ml-2 text-[8px]">[{s.startTime.split(' ')[0]}]</span>
+                                        </SelectItem>
+                                      ))}
+                                   </SelectContent>
+                                 </Select>
+                                 {currentAssignment && <CheckCircle2 className="size-3 text-emerald-500/40" />}
                                </div>
                              )}
                           </TableCell>
@@ -249,7 +354,7 @@ export default function AvailabilitySummary() {
             </Table>
           </div>
         </CardContent>
-        <CardFooter className="bg-slate-50/50 p-8 border-t border-slate-100 flex items-center gap-10">
+        <CardFooter className="bg-slate-50/50 p-8 border-t border-slate-100 flex flex-wrap items-center gap-10">
            <div className="flex items-center gap-4">
               <div className="size-3 rounded-full bg-secondary shadow-[0_0_10px_blue]" />
               <span className="text-[10px] font-black uppercase text-black/40 tracking-widest">Confirmed Week-Off</span>
@@ -257,6 +362,10 @@ export default function AvailabilitySummary() {
            <div className="flex items-center gap-4">
               <div className="size-3 rounded-full bg-accent border border-primary/10" />
               <span className="text-[10px] font-black uppercase text-black/40 tracking-widest">Approved Leave</span>
+           </div>
+           <div className="flex items-center gap-4">
+              <div className="size-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40" />
+              <span className="text-[10px] font-black uppercase text-black/40 tracking-widest">Shift Assigned</span>
            </div>
            <div className="ml-auto flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="size-4" />
