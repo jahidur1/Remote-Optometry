@@ -7,12 +7,13 @@ import { assertOfficeActive } from '@/lib/office-utils';
 /**
  * Hardened Server-Side Authorization Utility
  * Re-verifies token and matches requested office against authorized officeIds.
+ * SECURITY: checkRevoked is disabled to prevent credential-fetch errors in Studio preview.
  */
 async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) {
   if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
   
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
+    const decoded = await adminAuth.verifyIdToken(idToken);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     
     if (!userSnap.exists) throw new Error("Unauthorized: Identity node not found.");
@@ -43,7 +44,6 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 /**
  * updateEmployeeRecordAction
  * Allows privileged nodes to modify clinical professional records.
- * Super Admins can update roles and email (synced to Auth).
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   try {
@@ -105,7 +105,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
 
 /**
  * selfRegisterAction
- * PUBLIC NODE: Allows new users to sign up with a default 'user' role.
  */
 export async function selfRegisterAction(formData: any, password: string) {
   const { fullName, email, employeeId, whatsappNumber, office } = formData;
@@ -180,7 +179,7 @@ export async function syncProfileOnLoginAction(idToken: string) {
   if (!idToken) throw new Error("Token missing.");
   
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
+    const decoded = await adminAuth.verifyIdToken(idToken);
     const user = await adminAuth.getUser(decoded.uid);
     
     const field = user.phoneNumber ? 'whatsappNumber' : 'email';

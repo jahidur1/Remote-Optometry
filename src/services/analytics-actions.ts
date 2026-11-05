@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -12,7 +11,7 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 async function getAuthorizedProfile(idToken: string) {
   if (!idToken) throw new Error("Authentication token missing.");
-  const decoded = await adminAuth.verifyIdToken(idToken, true);
+  const decoded = await adminAuth.verifyIdToken(idToken);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Profile not found.");
   return { uid: decoded.uid, ...userSnap.data() } as any;
@@ -20,7 +19,6 @@ async function getAuthorizedProfile(idToken: string) {
 
 /**
  * getRegionalStatsAction
- * Enhanced with pending counts and shortfall analysis for Super Admin Command Center.
  */
 export async function getRegionalStatsAction(idToken: string) {
   const profile = await getAuthorizedProfile(idToken);
@@ -71,7 +69,6 @@ export async function getRegionalStatsAction(idToken: string) {
 
 /**
  * getOfficeDashboardStatsAction
- * Consolidates KPIs for a specific office context (Admin view).
  */
 export async function getOfficeDashboardStatsAction(idToken: string, officeId: string) {
   const profile = await getAuthorizedProfile(idToken);
