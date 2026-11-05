@@ -165,7 +165,6 @@ export async function generateWeeklyRoster(input: {
     };
 
     // 4. Intelligence Pulse
-    // Calling the defined prompt which hits the configured model
     const { output } = await aiPrompt({
       weekId,
       officeId,
