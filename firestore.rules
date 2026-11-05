@@ -69,7 +69,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow write: if false; 
+      allow write: if false; // Only handled by Trusted Server Actions
     }
 
     match /employees/{employeeId} {
@@ -88,7 +88,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // --- OPERATIONS ---
+    // --- OPERATIONS (Hardened for Singleton Protocol) ---
 
     match /weekoff_configs/{configId} {
       allow read: if isUserActive() && (isSuperAdmin() || resource == null || isMemberOf(resource.data.office));
@@ -111,22 +111,22 @@ service cloud.firestore {
     }
 
     match /published_rosters/{versionId} { 
-      allow read: if isUserActive() && (isAdmin() || (resource != null && isMemberOf(resource.data.office))); 
+      allow read: if isUserActive() && (isSuperAdmin() || (resource != null && isMemberOf(resource.data.office))); 
       allow write: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office));
     }
     
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive() && (isAdmin() || (resource != null && isMemberOf(resource.data.officeId)));
+      allow read: if isUserActive() && (isSuperAdmin() || (resource != null && isMemberOf(resource.data.officeId)));
       allow write: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.officeId));
     }
 
     match /roster_drafts/{draftId} { 
-      allow read: if isAdmin() && (isSuperAdmin() || isMemberOf(resource.data.office)); 
+      allow read: if isAdmin() && (isSuperAdmin() || (resource != null && isMemberOf(resource.data.office))); 
       allow write: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office)); 
     }
 
     match /shift_adjacency_rules/{ruleId} {
-      allow read: if isAdmin() && (isSuperAdmin() || isMemberOf(resource.data.office));
+      allow read: if isAdmin() && (isSuperAdmin() || (resource != null && isMemberOf(resource.data.office)));
       allow write: if isAdmin() && (isSuperAdmin() || isMemberOf(request.resource.data.office));
     }
 
@@ -182,13 +182,13 @@ service cloud.firestore {
     
     match /otp_registry/{phone} {
       allow read: if isSuperAdmin();
-      allow write: if true; 
+      allow write: if true; // Public access required for login pulse tracking before sign-in
     }
 
     match /sessions/{sessionId} {
-      allow read: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid || isSuperAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && (isAdmin() || request.auth.uid == resource.data.uid);
+      allow update: if isSignedIn() && (isSuperAdmin() || request.auth.uid == resource.data.uid);
     }
   }
 }
