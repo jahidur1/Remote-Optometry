@@ -395,7 +395,7 @@ export default function RosterReviewWorkspace() {
                     return (
                       <div key={day} className={cn(
                           "px-6 md:px-10 py-3 md:py-5 rounded-[1.5rem] md:rounded-[2rem] border-2 flex flex-col items-center min-w-[130px] md:min-w-[170px] transition-all duration-700",
-                          allOk ? "bg-emerald-500/10 border-emerald-500/30" : "bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+                          allOk ? "bg-emerald-50/10 border-emerald-500/30" : "bg-destructive/10 border-destructive/30 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.2)]"
                       )}>
                          <span className="text-[9px] md:text-[11px] font-black uppercase mb-2 md:mb-3 tracking-[0.2em] md:tracking-[0.3em] text-white/50">{day.substring(0,3)}</span>
                          <div className="flex items-center gap-2 md:gap-4">
