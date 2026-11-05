@@ -16,7 +16,7 @@ import { getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
 
-// --- SCHEMA DEFINITIONS ---
+// --- INTERNAL SCHEMAS (Not Exported to satisfy Next.js "use server" requirements) ---
 
 const RosterAssignmentSchema = z.object({
   employeeId: z.string(),
@@ -24,16 +24,13 @@ const RosterAssignmentSchema = z.object({
   shiftId: z.string(),
 });
 
-/**
- * Lean Prompt Input: Only the essential data needed for the solve.
- */
 const LeanPromptInputSchema = z.object({
   weekId: z.string(),
   officeId: z.string(),
   employees: z.array(z.object({
     id: z.string(),
     name: z.string(),
-    weekOffDay: z.string().nullable(), // The critical lock
+    weekOffDay: z.string().nullable(),
   })),
   quotas: z.array(z.object({
     day: z.string(),
@@ -65,7 +62,7 @@ MANDATORY EXECUTION RULES:
 {{/each}}
 
 2. STAFFING QUOTAS (MINIMUM):
-   - You MUST satisfy the following headcount requirements. Over-staffing is allowed, under-staffing is forbidden.
+   - You MUST satisfy the following headcount requirements.
 {{#each quotas}}
    - {{day}} | {{shiftId}} | Required: {{count}}
 {{/each}}
@@ -74,6 +71,7 @@ MANDATORY EXECUTION RULES:
    - Respect these weekly occurrence ranges for EVERY professional:
 {{#each constraints.frequency}}
    - [{{@key}}]: must occur {{min}} to {{max}} times per professional.
+{{#unless @last}}, {{/unless}}
 {{/each}}
 
 4. TRANSITION INTEGRITY:
@@ -102,7 +100,7 @@ export async function generateWeeklyRoster(input: {
   try {
     const { weekId, officeId, employeeIds, idToken, globalFrequencyLimits, globalPreOffShifts, globalPostOffShifts } = input;
 
-    // 1. Auth Pulse (Lightweight verification)
+    // 1. Auth Pulse
     const decoded = await adminAuth.verifyIdToken(idToken);
     const userRef = adminDb.collection('users').doc(decoded.uid);
     const userSnap = await userRef.get();
@@ -128,7 +126,7 @@ export async function generateWeeklyRoster(input: {
       };
     }
 
-    // 3. Lean Registry Construction (Only ID, Name, WeekOff as requested)
+    // 3. Lean Registry Construction
     const bookingsMap = new Map();
     bookingsSnap.docs.forEach(d => {
       const b = d.data();
@@ -152,7 +150,7 @@ export async function generateWeeklyRoster(input: {
     const frequencyConstraints: Record<string, { min: number, max: number }> = {};
     if (globalFrequencyLimits) {
       Object.entries(globalFrequencyLimits).forEach(([sid, lim]) => {
-        frequencyConstraints[sid] = { min: lim.min, max: lim.max };
+        frequencyConstraints[sid] = { min: Number(lim.min), max: Number(lim.max) };
       });
     }
 
@@ -200,11 +198,12 @@ export async function generateWeeklyRoster(input: {
     };
 
   } catch (e: any) {
+    console.error('Engine Conflict Debug:', e);
     return {
       rosterAssignments: [],
       summary: `Engine Conflict: ${e.message || 'SERIALIZATION_FAILURE'}`,
       status: 'UNKNOWN',
-      issuesEncountered: ["The generation pipeline encountered a serialization or timeout error."],
+      issuesEncountered: ["The generation pipeline encountered a connection or timeout error. Please verify your quota configuration."],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'none' }
     };
   }

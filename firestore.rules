@@ -100,7 +100,7 @@ service cloud.firestore {
       allow read: if isUserActive() && (resource == null || isMemberOf(resource.data.office));
       allow create: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
       allow update: if (isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office))
-                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office) 
+                    || (isUserActive() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office) 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked', 'updatedAt']));
       allow delete: if isSuperAdmin();
     }
@@ -114,7 +114,6 @@ service cloud.firestore {
       allow read: if isUserActive() && (resource == null || resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
       allow create: if (isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office))
                     || isSuperAdmin();
-      // HARDENED: Only Super Admin can modify or delete confirmed week-off bookings
       allow delete, update: if isSuperAdmin();
     }
 

@@ -16,6 +16,6 @@ if (typeof window === 'undefined' && !process.env.GOOGLE_GENAI_API_KEY && !proce
 
 export const ai = genkit({
   plugins: [googleAI()],
-  // Use standard model ID to ensure compatibility with v1beta endpoints
+  // Use standard stable model identifier
   model: 'googleai/gemini-1.5-flash',
 });
