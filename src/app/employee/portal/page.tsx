@@ -147,6 +147,7 @@ export default function EmployeePortal() {
     
     const now = new Date();
     const monday = startOfISOWeek(now);
+    // Unique Week ID Protocol: strictly 7-day Monday-to-Sunday chunks
     const calculatedWeeks = [
       subWeeks(monday, 2),
       subWeeks(monday, 1),

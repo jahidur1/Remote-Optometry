@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { collection, query, where, orderBy, doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { useFirestore, useUser, useAuth } from '@/firebase';
+import { useFirestore, useUser, useAuth, useCollection } from '@/firebase';
 import { useOffice } from '@/context/office-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -51,6 +51,7 @@ export default function AvailabilitySummary() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
+  // Hydration-Safe Week Initialization
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
   }, []);
@@ -83,36 +84,48 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  // REAL-TIME REGISTRY LINK (Unique Week ID Protocol)
+  /**
+   * REAL-TIME REGISTRY LINK (Unique Week ID Protocol)
+   * Hardened to monitor both Draft and Published statuses simultaneously.
+   */
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
     setLoadingAssignments(true);
-    
-    // Deterministic IDs for direct sync
     const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
-    const activeRosterId = `active_${selectedWeek}_${selectedOffice}`;
+    const activeId = `active_${selectedWeek}_${selectedOffice}`;
 
-    // 1. First listen for manual draft pulse
-    const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (draftSnap) => {
-      if (draftSnap.exists() && draftSnap.data().status === 'draft') {
-        setAssignments(draftSnap.data().assignments || []);
-        setLoadingAssignments(false);
+    let draftData: any[] = [];
+    let activeData: any[] = [];
+    let hasDraft = false;
+
+    // 1. Listen for Manual Draft Pulse
+    const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (snap) => {
+      if (snap.exists() && snap.data().status === 'draft') {
+        draftData = snap.data().assignments || [];
+        hasDraft = true;
       } else {
-        // 2. Fallback to Published Pulse
-        const unsubActive = onSnapshot(doc(db, 'published_rosters', activeRosterId), (activeSnap) => {
-          if (activeSnap.exists()) {
-            setAssignments(activeSnap.data().assignments || []);
-          } else {
-            setAssignments([]);
-          }
-          setLoadingAssignments(false);
-        });
-        return () => unsubActive();
+        hasDraft = false;
       }
+      updateState();
     });
 
-    return () => unsubDraft();
+    // 2. Listen for Published Registry Pulse
+    const unsubActive = onSnapshot(doc(db, 'published_rosters', activeId), (snap) => {
+      activeData = snap.exists() ? (snap.data().assignments || []) : [];
+      updateState();
+    });
+
+    function updateState() {
+      // Prioritize Draft for manual editing, otherwise show Published
+      setAssignments(hasDraft ? draftData : activeData);
+      setLoadingAssignments(false);
+    }
+
+    return () => {
+      unsubDraft();
+      unsubActive();
+    };
   }, [db, selectedWeek, selectedOffice]);
 
   const weekDates = useMemo(() => selectedWeek ? getDatesForWeek(selectedWeek) : [], [selectedWeek]);
@@ -163,7 +176,7 @@ export default function AvailabilitySummary() {
       });
 
       logAudit(db, profile?.uid || 'system', 'SAVE_MANUAL_ROSTER_DRAFT', draftId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Draft Synchronized", description: "Roster details secured with Week ID protocol." });
+      toast({ title: "Draft Synchronized", description: "Manual assignments secured in registry." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -187,12 +200,12 @@ export default function AvailabilitySummary() {
         status: 'active'
       });
 
-      // Clear draft status on publish
+      // Clear draft status on publish to transition priority
       const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
       logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', activeId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Week ID protocol." });
+      toast({ title: "Clinical Roster Live", description: "Shift data released to professional portals." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
     } finally {
@@ -266,7 +279,7 @@ export default function AvailabilitySummary() {
               <div className="space-y-1">
                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Master Availability Matrix</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Direct shift assignment and clinical Week ID synchronization hub.
+                    Direct shift assignment and clinical Unique Week-ID synchronization hub.
                  </CardDescription>
               </div>
            </div>
@@ -391,7 +404,7 @@ export default function AvailabilitySummary() {
            </div>
            <div className="ml-auto flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="size-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Atomic Week-ID Synchronized</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Unique Week-ID Link Verified</span>
            </div>
         </CardFooter>
       </Card>
