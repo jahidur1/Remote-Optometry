@@ -72,7 +72,7 @@ export default function WeekOffLedger() {
     const q = collection(db, 'employees');
     return profile.role === 'super_admin' 
       ? query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'))
-      : query(q, where('office', '==', profile.office), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+      : query(q, where('office', '==', profile.office || ''), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
   }, [db, profile]);
 
   const bookQuery = useMemo(() => {
@@ -80,7 +80,7 @@ export default function WeekOffLedger() {
     const q = collection(db, 'weekoff_bookings');
     return profile.role === 'super_admin'
       ? query(q, where('weekId', '==', selectedWeek))
-      : query(q, where('weekId', '==', selectedWeek), where('office', '==', profile.office));
+      : query(q, where('weekId', '==', selectedWeek), where('office', '==', profile.office || ''));
   }, [db, selectedWeek, profile]);
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
@@ -97,8 +97,8 @@ export default function WeekOffLedger() {
         timestamp: booking?.timestamp
       };
     }).filter(e => {
-      const name = (e.fullName || '').toLowerCase();
-      const id = (e.id || '').toLowerCase();
+      const name = (e.fullName || '').toString().toLowerCase();
+      const id = (e.id || '').toString().toLowerCase();
       const search = searchTerm.toLowerCase();
       return name.includes(search) || id.includes(search);
     });
@@ -132,19 +132,15 @@ export default function WeekOffLedger() {
         const configData = configSnap.data();
         const bookedMap = configData.booked || {};
 
-        // 1. Decrement old day if exists
         if (selectedEmp.weekOff) {
           const oldDay = selectedEmp.weekOff;
           bookedMap[oldDay] = Math.max(0, (bookedMap[oldDay] || 1) - 1);
         }
 
-        // 2. Increment new day
         bookedMap[newDay] = (bookedMap[newDay] || 0) + 1;
 
-        // 3. Update Config
         transaction.update(configRef, { booked: bookedMap, updatedAt: serverTimestamp() });
 
-        // 4. Update/Set Booking
         transaction.set(bookingRef, {
           id: bookingId,
           weekId: selectedWeek,
@@ -327,7 +323,6 @@ export default function WeekOffLedger() {
         </CardContent>
       </Card>
       
-      {/* Footer Governance Hub */}
       <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 relative overflow-hidden group shadow-2xl">
          <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:scale-110 transition-transform duration-[2s]"><Database size={280} className="text-primary" /></div>
          <div className="flex flex-col md:flex-row gap-10 items-start relative z-10">
