@@ -18,7 +18,7 @@ import { getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
 
-// --- SCHEMA DEFINITIONS (Internal only to satisfy Next.js "use server" exports) ---
+// --- SCHEMA DEFINITIONS ---
 
 const RosterAssignmentSchema = z.object({
   employeeId: z.string(),
@@ -63,8 +63,8 @@ MANDATORY EXECUTION RULES:
    - {{name}} ({{id}}) is OFF on: {{#if weekOffDay}}{{weekOffDay}}{{else}}None{{/if}}.
 {{/each}}
 
-2. STAFFING QUOTAS (MINIMUM):
-   - You MUST satisfy the following headcount requirements.
+2. STAFFING QUOTAS (MINIMUM Headcount):
+   - You MUST satisfy the following daily requirements.
 {{#each quotas}}
    - {{day}} | {{shiftId}} | Required: {{count}}
 {{/each}}
@@ -75,12 +75,8 @@ MANDATORY EXECUTION RULES:
    - [{{@key}}]: must occur {{min}} to {{max}} times per professional.
 {{/each}}
 
-4. TRANSITION INTEGRITY:
-   - On days before a weekOffDay, only assign shifts from: [{{#each constraints.preOffShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
-   - On days after a weekOffDay, only assign shifts from: [{{#each constraints.postOffShifts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}].
-
-5. UTILIZATION:
-   - Every professional who is NOT off must be assigned exactly one shift per day to maximize clinic capacity.
+4. UTILIZATION:
+   - Every professional who is NOT off should be assigned exactly one shift per day to maximize clinic capacity.
 
 OUTPUT: Return ONLY a JSON array of assignment objects.`,
 });
@@ -111,6 +107,14 @@ export async function generateWeeklyRoster(input: {
     const userSnap = await userRef.get();
     
     if (!userSnap.exists) throw new Error("IDENTITY_NOT_FOUND");
+    const userProfile = userSnap.data()!;
+    
+    // Ensure the caller is authorized for this office
+    const authorizedOffices = userProfile.officeIds || (userProfile.office ? [userProfile.office] : []);
+    if (userProfile.role !== 'super_admin' && !authorizedOffices.includes(officeId)) {
+      throw new Error("Unauthorized: Office access restricted.");
+    }
+
     await assertOfficeActive(officeId);
     
     // 2. Data Aggregation (Lean Fetching)
@@ -124,7 +128,7 @@ export async function generateWeeklyRoster(input: {
     if (!quotaSnap.exists) {
       return {
         rosterAssignments: [],
-        summary: `Quota Matrix Missing: Staffing requirements for ROC ${officeId} in Week ${weekId} have not been defined.`,
+        summary: `Quota Matrix Missing: Staffing quotas for ROC ${officeId} in Week ${weekId} have not been defined.`,
         status: 'UNKNOWN',
         issuesEncountered: ["MISSING_QUOTA"],
         solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'error' }
@@ -204,12 +208,11 @@ export async function generateWeeklyRoster(input: {
 
   } catch (e: any) {
     console.error('Engine Conflict Debug:', e);
-    // Explicitly return a POJO error message to avoid Next.js serialization crash
     return {
       rosterAssignments: [],
       summary: `Engine Conflict: ${String(e.message || 'SERIALIZATION_FAILURE')}`,
       status: 'UNKNOWN',
-      issuesEncountered: ["The generation pipeline encountered a connection or timeout error. Please verify your quota configuration."],
+      issuesEncountered: [String(e.message)],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'none' }
     };
   }

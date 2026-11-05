@@ -4,6 +4,7 @@
 import { useState, useMemo } from 'react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
+import { useOffice } from '@/context/office-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -11,16 +12,12 @@ import {
   Users, 
   Activity, 
   ShieldCheck, 
-  Zap, 
   Database,
   Search,
   CheckCircle2,
-  Info,
-  Clock,
-  PlaneTakeoff,
-  TrendingUp,
   CalendarDays,
   Lock,
+  PlaneTakeoff,
   ArrowRightLeft
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +35,7 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 export default function AvailabilitySummary() {
   const db = useFirestore();
   const { profile } = useUser();
+  const { selectedOffice } = useOffice();
   const [selectedWeek, setSelectedWeek] = useState('20241230-20250105');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -45,26 +43,38 @@ export default function AvailabilitySummary() {
   const empQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employees');
-    return profile.role === 'super_admin' 
-      ? query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'))
-      : query(q, where('office', '==', profile.office), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
-  }, [db, profile]);
+    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
+    
+    if (profile.role === 'super_admin' && !selectedOffice) {
+      return query(q, where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+    }
+    
+    return query(q, where('office', '==', targetOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+  }, [db, profile, selectedOffice]);
 
   const bookQuery = useMemo(() => {
     if (!profile || !selectedWeek) return null;
     const q = collection(db, 'weekoff_bookings');
-    return profile.role === 'super_admin'
-      ? query(q, where('weekId', '==', selectedWeek))
-      : query(q, where('weekId', '==', selectedWeek), where('office', '==', profile.office));
-  }, [db, selectedWeek, profile]);
+    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
+
+    if (profile.role === 'super_admin' && !selectedOffice) {
+      return query(q, where('weekId', '==', selectedWeek));
+    }
+    
+    return query(q, where('weekId', '==', selectedWeek), where('office', '==', targetOffice));
+  }, [db, selectedWeek, profile, selectedOffice]);
 
   const leaveQuery = useMemo(() => {
     if (!profile) return null;
     const q = collection(db, 'employee_leaves');
-    return profile.role === 'super_admin'
-      ? query(q, where('status', '==', 'approved'))
-      : query(q, where('office', '==', profile.office), where('status', '==', 'approved'));
-  }, [db, profile]);
+    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
+
+    if (profile.role === 'super_admin' && !selectedOffice) {
+      return query(q, where('status', '==', 'approved'));
+    }
+    
+    return query(q, where('office', '==', targetOffice), where('status', '==', 'approved'));
+  }, [db, profile, selectedOffice]);
 
   const { data: employees, loading: empLoading } = useCollection(empQuery);
   const { data: bookings, loading: bookLoading } = useCollection(bookQuery);
@@ -75,8 +85,8 @@ export default function AvailabilitySummary() {
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
     return employees.filter(e => {
-      const name = (e.fullName || '').toLowerCase();
-      const id = (e.id || '').toLowerCase();
+      const name = (e.fullName || '').toString().toLowerCase();
+      const id = (e.id || '').toString().toLowerCase();
       const search = searchTerm.toLowerCase();
       return name.includes(search) || id.includes(search);
     });
@@ -130,36 +140,6 @@ export default function AvailabilitySummary() {
               </div>
            </div>
         </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Authorized Pool', value: employees?.length || 0, sub: 'Active Registry', icon: Users, color: 'text-primary' },
-          { label: 'Secured Offs', value: bookings?.length || 0, sub: 'Cycle Reservations', icon: CalendarDays, color: 'text-secondary' },
-          { label: 'Active Absences', value: leaves?.filter(l => {
-              const start = new Date(l.startDate);
-              const end = new Date(l.endDate);
-              const weekStart = weekDates[0];
-              const weekEnd = weekDates[6];
-              return (weekStart <= end && weekEnd >= start);
-          }).length || 0, sub: 'Leave Registry', icon: PlaneTakeoff, color: 'text-accent' },
-          { label: 'Sync Integrity', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
-        ].map((kpi, i) => (
-          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
-              <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
-            </CardHeader>
-            <CardContent>
-              {empLoading ? <Skeleton className="h-10 w-full rounded-xl opacity-10 bg-slate-200" /> : (
-                <>
-                  <div className="text-5xl font-black text-black tracking-tighter tabular-nums">{kpi.value}</div>
-                  <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        ))}
       </div>
 
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
