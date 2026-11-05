@@ -85,7 +85,7 @@ service cloud.firestore {
       }
 
       allow get: if isSignedIn() && (isAdmin() || getEmployeeId() == employeeId);
-      allow list: if isAdmin() && (isSuperAdmin() || isMemberOf(resource.data.office));
+      allow list: if isAdmin();
       allow create: if false; 
       allow update: if isUserActive() && (
         (isAdmin() && isMemberOf(resource.data.office)) ||
@@ -100,7 +100,7 @@ service cloud.firestore {
       allow read: if isUserActive() && (resource == null || isMemberOf(resource.data.office));
       allow create: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
       allow update: if (isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office))
-                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(request.resource.data.office) 
+                    || (isUserActive() && isMemberOf(resource.data.office) && isOfficeActive(resource.data.office) 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked', 'updatedAt']));
       allow delete: if isSuperAdmin();
     }
@@ -112,7 +112,8 @@ service cloud.firestore {
       }
 
       allow read: if isUserActive() && (resource == null || resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office));
-      allow create: if isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
+      allow create: if (isUserActive() && request.resource.data.employeeId == getEmployeeId() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office))
+                    || isSuperAdmin();
       // HARDENED: Only Super Admin can modify or delete confirmed week-off bookings
       allow delete, update: if isSuperAdmin();
     }
@@ -128,12 +129,12 @@ service cloud.firestore {
     }
 
     match /roster_drafts/{draftId} { 
-      allow read: if isAdmin() && isMemberOf(resource.data.office); 
+      allow read: if isAdmin() && (resource == null || isMemberOf(resource.data.office)); 
       allow write: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office); 
     }
 
     match /shift_adjacency_rules/{ruleId} {
-      allow read: if isAdmin() && isMemberOf(resource.data.office);
+      allow read: if isAdmin() && (resource == null || isMemberOf(resource.data.office));
       allow write: if isAdmin() && isMemberOf(request.resource.data.office) && isOfficeActive(request.resource.data.office);
     }
 
@@ -144,7 +145,7 @@ service cloud.firestore {
       }
 
       allow read: if isUserActive() && (isAdmin() || (resource != null && (resource.data.employeeId == getEmployeeId() || isMemberOf(resource.data.office))));
-      allow write: if isAdmin() && isMemberOf(resource.data.office);
+      allow write: if isAdmin() && isMemberOf(request.resource.data.office);
     }
 
     match /shift_swaps/{swapId} {
@@ -162,7 +163,7 @@ service cloud.firestore {
         ))
       );
       allow create: if isUserActive() && request.resource.data.requesterId == getEmployeeId() && isMemberOf(request.resource.data.office);
-      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getEmployeeId() || (isAdmin() && isMemberOf(request.resource.data.office)));
+      allow update: if isUserActive() && (request.resource.data.targetEmployeeId == getEmployeeId() || (isAdmin() && isMemberOf(resource.data.office)));
     }
 
     match /employee_preferences/{prefId} {
