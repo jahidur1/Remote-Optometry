@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -136,6 +135,7 @@ export default function RosterSolver() {
       const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) throw new Error("Session pulse failed.");
 
+      // CRITICAL: Ensure return is treated as plain object
       const result = await generateWeeklyRoster({
         weekId,
         officeId: selectedOffice,
@@ -176,7 +176,7 @@ export default function RosterSolver() {
       setStatus("success");
     } catch (e: any) {
       setStatus("conflict");
-      toast({ variant: "destructive", title: "Engine Conflict", description: String(e.message) });
+      toast({ variant: "destructive", title: "Engine Conflict", description: "The generation pipeline encountered a serialization or timeout error." });
     }
   };
 
@@ -211,12 +211,14 @@ export default function RosterSolver() {
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Hub</label>
               <Select value={selectedOffice} onValueChange={setSelectedOffice}>
-                <SelectTrigger className="h-6 w-48 font-black border-none bg-transparent p-0 text-[14px]">
+                <SelectTrigger className="h-6 w-48 font-black border-none bg-transparent p-0 text-[14px] focus:ring-0">
                   <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Center..."} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl bg-white p-2 border-none shadow-2xl">
                   {authorizedOffices.map(o => (
-                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-2 uppercase text-[10px]">{o.officeName}</SelectItem>
+                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold py-2 uppercase text-[10px] rounded-lg">
+                        {o.officeName}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -242,7 +244,7 @@ export default function RosterSolver() {
       </div>
 
       {status === 'config' ? (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4">
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
            <div className="flex items-center justify-between">
               <Button variant="ghost" onClick={() => setStatus('idle')} className="font-black uppercase text-[10px] tracking-widest hover:bg-slate-100"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Pulse</Button>
               <div className="flex items-center gap-4 px-6 py-2 bg-secondary/5 rounded-xl border border-secondary/10">
@@ -264,7 +266,7 @@ export default function RosterSolver() {
                  </CardHeader>
                  <CardContent className="p-10 space-y-10">
                     <div className="space-y-6">
-                       <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Shift Adjacency eligibility</Label>
+                       <label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Shift Adjacency Eligibility</label>
                        <div className="space-y-6">
                           <div className="space-y-3">
                              <p className="text-[9px] font-bold text-white/40 uppercase flex items-center gap-2"><Zap className="size-3" /> Pre-Off Options:</p>
@@ -298,7 +300,7 @@ export default function RosterSolver() {
                     </div>
 
                     <div className="space-y-6 pt-8 border-t border-white/5">
-                       <Label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Weekly Frequency ranges</Label>
+                       <label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Weekly Frequency Ranges</label>
                        <div className="grid grid-cols-2 gap-4">
                           {shifts?.map(s => (
                              <div key={s.id} className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-secondary/30 transition-all group">

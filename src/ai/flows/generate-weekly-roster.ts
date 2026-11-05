@@ -1,10 +1,11 @@
-
 'use server';
 
 /**
- * @fileOverview Trusted Coordinator Flow for Clinical Roster Generation.
- * Hardened: Gemini AI Exclusive Protocol with Global Constraints enforcement.
- * Ensures 100% serializable data returns to prevent Next.js render conflicts.
+ * @fileOverview Hardened AI Roster Orchestrator.
+ * 
+ * Implements a strict POJO protocol to ensure all returned data is JSON-serializable,
+ * preventing Next.js Server Action serialization conflicts.
+ * Enforces global clinical constraints and selective professional enrollment.
  */
 
 import { ai } from '@/ai/genkit';
@@ -83,7 +84,7 @@ const aiPrompt = ai.definePrompt({
   output: { schema: z.array(RosterAssignmentSchema) },
   prompt: `You are an institutional scheduling orchestrator. Generate a clinical roster for Week {{{weekId}}} and Hub {{{officeId}}}.
 
-MANDATORY EXECUTION RULES:
+MANDATORY EXECUTION RULES (STRICT COMPLIANCE REQUIRED):
 
 1. VACANCY LOCKS (ABSOLUTE):
 The following professionals are OFF on specific days. You MUST NOT assign any shift to these professionals on these days:
@@ -92,7 +93,7 @@ The following professionals are OFF on specific days. You MUST NOT assign any sh
 {{/each}}
 
 2. STAFFING QUOTAS (MINIMUM REQUIREMENT):
-You MUST assign AT LEAST the following number of professionals to each shift. Over-staffing is acceptable if extra staff are available:
+You MUST assign AT LEAST the following number of professionals to each shift. Over-staffing is acceptable, but REDUCTION IS FORBIDDEN:
 {{#each weeklyQuotas}}
 - Day: {{dayOfWeek}} | Shift: {{shiftId}} | Minimum Required: {{requiredStaff}}
 {{/each}}
@@ -125,15 +126,16 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
   const weekDates = getDatesForWeek(weekId);
 
   try {
-    if (!idToken) throw new Error("Access Denied: Authentication token missing.");
+    if (!idToken) throw new Error("Access Denied: Authentication pulse missing.");
     
-    // Ensure project identity context
+    // 1. Authorization Pulse
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const adminSnap = await adminDb.collection('users').doc(decoded.uid).get();
-    if (!adminSnap.exists) throw new Error("Access Denied: Profile not found.");
+    if (!adminSnap.exists) throw new Error("Access Denied: Identity node not found.");
     
     await assertOfficeActive(officeId);
     
+    // 2. Data Aggregation
     const [empSnap, quotaSnap, bookingsSnap, leavesSnap] = await Promise.all([
       adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
       adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).get(),
@@ -144,13 +146,14 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     if (!quotaSnap.exists) {
       return {
         rosterAssignments: [],
-        summary: `Pipeline Blocked: Staffing Quotas for Hub ${officeId} in Week ${weekId} are unset.`,
+        summary: `Pipeline Blocked: Quotas for Hub ${officeId} in Cycle ${weekId} are unset.`,
         status: 'UNKNOWN',
         issuesEncountered: [`MISSING_QUOTA: ${weekId}_${officeId}`],
         solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'none' }
       };
     }
 
+    // 3. Selective Professional Enrollment (Strictly 'user' role)
     const employees = empSnap.docs
       .map(d => {
         const data = d.data();
@@ -164,10 +167,10 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       .filter(e => employeeIds.includes(e.id));
 
     if (employees.length === 0) {
-      throw new Error("Pipeline Blocked: No professionals selected for generation.");
+      throw new Error("Pipeline Blocked: No authorized professionals selected for enrollment.");
     }
 
-    // SANITIZE DATA FOR PROMPT & NEXTJS BOUNDARY
+    // 4. Constraint Cluster Sanitization (POJO Only)
     const bookings = bookingsSnap.docs.map(d => {
         const data = d.data();
         return { 
@@ -220,7 +223,7 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
       postOffShifts: globalPostOffShifts || [],
     };
 
-    // GEMINI INFERENCE PULSE
+    // 5. Gemini Intelligence Pulse
     const { output } = await aiPrompt({ 
         weekId, 
         officeId, 
@@ -231,17 +234,24 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
         adjacencies 
     });
 
-    const resultAssignments = output || [];
+    const rawAssignments = output || [];
     const solveTimeMs = Date.now() - start;
     
+    // Explicit POJO Mapping for output assignments
+    const resultAssignments = rawAssignments.map(a => ({
+        employeeId: String(a.employeeId),
+        dayOfWeek: String(a.dayOfWeek),
+        shiftId: String(a.shiftId)
+    }));
+
     const integrity = verifyRosterIntegrity(resultAssignments, bookings, leaves, weekDates);
 
-    // RETURN POJO ONLY FOR NEXTJS BOUNDARY
+    // 6. Secure Return Boundary
     return {
-      rosterAssignments: resultAssignments.map(a => ({ ...a })),
+      rosterAssignments: resultAssignments,
       summary: !integrity.isValid 
-        ? "CRITICAL INTEGRITY FAILURE: AI violated clinical locks. Check Adjacency Matrix." 
-        : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol for ${employees.length} selected professionals.`,
+        ? "CRITICAL INTEGRITY FAILURE: Engine violated clinical locks. Check Adjacency Matrix." 
+        : `Registry Synchronized: Cycle ${weekId} generated for ${employees.length} selected professionals.`,
       status: !integrity.isValid ? 'UNKNOWN' : 'FEASIBLE',
       issuesEncountered: integrity.issues.map(i => String(i)),
       solverMetadata: {
@@ -252,13 +262,13 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     };
 
   } catch (e: any) {
-    console.error('Roster Generation Conflict:', e);
-    // Hardened POJO return for Error state
+    console.error('Roster Engine Critical Failure:', e);
+    // Absolute POJO fallback for error states
     return {
       rosterAssignments: [],
-      summary: `Pipeline Conflict: ${e.message}`,
+      summary: `Pipeline Conflict: ${e.message || 'INTERNAL_ERROR'}`,
       status: 'UNKNOWN',
-      issuesEncountered: [String(e.message)],
+      issuesEncountered: [String(e.message || 'Rendering context mismatch')],
       solverMetadata: { solveTimeMs: 0, constraintsChecked: 0, runId: 'error' }
     };
   }
