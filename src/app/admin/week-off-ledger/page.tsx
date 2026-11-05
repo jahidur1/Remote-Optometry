@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -38,12 +37,11 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 
 /**
  * Resilient Timestamp Formatter
- * Prevents client-side crashes when dealing with inconsistent temporal data.
+ * Prevents client-side crashes when dealing with inconsistent temporal data from Firestore.
  */
 function formatTimestamp(ts: any): string {
   if (!ts) return '---';
   try {
-    // Robust Firestore Timestamp check (SDK independent)
     if (typeof ts.toDate === 'function') return ts.toDate().toLocaleTimeString();
     if (ts.seconds !== undefined) return new Date(ts.seconds * 1000).toLocaleTimeString();
     if (ts instanceof Date) return ts.toLocaleTimeString();
@@ -114,9 +112,9 @@ export default function WeekOffLedger() {
         timestamp: booking?.timestamp || null
       };
     }).filter(e => {
-      const name = e.fullName.toLowerCase();
-      const id = e.id.toLowerCase();
-      const search = searchTerm.toLowerCase();
+      const name = (e.fullName || '').toLowerCase();
+      const id = (e.id || '').toLowerCase();
+      const search = (searchTerm || '').toLowerCase();
       return name.includes(search) || id.includes(search);
     });
   }, [employees, bookings, searchTerm]);
@@ -171,7 +169,7 @@ export default function WeekOffLedger() {
         });
       });
 
-      logAudit(db, profile?.uid || 'system', 'SUPER_ADMIN_OVERRIDE_WEEKOFF', selectedEmp.id, { weekId: selectedWeek, newDay });
+      logAudit(db, profile?.uid || 'system', 'SUPER_ADMIN_OVERRIDE_WEEKOFF', selectedEmp.id, { weekId: selectedWeek, newDay, office: selectedEmp.office });
       toast({ title: "Institutional Override Applied", description: `Week-off for ${selectedEmp.fullName} set to ${newDay}.` });
       setOverrideDialogOpen(false);
     } catch (e: any) {

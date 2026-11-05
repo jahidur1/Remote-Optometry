@@ -4,8 +4,8 @@ import { googleAI, gemini15Flash } from '@genkit-ai/google-genai';
 /**
  * Institutional AI Orchestrator
  * 
- * Configures Genkit with Google Gemini Flash.
- * Updated to use the official plugin model object to ensure correct API mapping.
+ * Configures Genkit with Google Gemini 1.5 Flash.
+ * Uses the exported model object to ensure correct API mapping and resolve 404 errors.
  */
 
 if (typeof window === 'undefined' && !process.env.GOOGLE_GENAI_API_KEY && !process.env.GOOGLE_API_KEY) {
