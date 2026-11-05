@@ -195,7 +195,7 @@ export default function QuotaConfiguration() {
               <TableBody>
                 {shiftsLoading ? (
                   Array(6).fill(0).map((_, i) => (
-                    <TableRow key={i}><TableCell colSpan={8} className="p-10"><Skeleton className="h-10 w-full" /></TableCell></TableRow>
+                    <TableRow key={i}><TableCell colSpan={7} className="p-10"><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                   ))
                 ) : shifts?.map((shift) => (
                   <TableRow key={shift.id} className="hover:bg-slate-50 border-b last:border-0 transition-colors">
