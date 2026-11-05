@@ -22,7 +22,6 @@ import {
   AlertTriangle,
   Zap,
   Target,
-  ArrowRightLeft,
   Users
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -99,7 +98,6 @@ export default function RosterSolver() {
     }
   }, [authorizedOffices, selectedOffice]);
 
-  // STRICT FILTER: Display only professionals with 'user' role
   const rosterEligibleUsers = useMemo(() => employees?.filter(e => e.role === 'user') || [], [employees]);
 
   useEffect(() => {
@@ -135,7 +133,6 @@ export default function RosterSolver() {
       const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) throw new Error("Session pulse failed.");
 
-      // CRITICAL: Ensure return is treated as plain object
       const result = await generateWeeklyRoster({
         weekId,
         officeId: selectedOffice,
@@ -329,7 +326,7 @@ export default function RosterSolver() {
                       <CardTitle className="text-2xl font-black uppercase tracking-tight">Professional Enrollment</CardTitle>
                       <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">Selecting clinical staff for generation pulse.</CardDescription>
                    </div>
-                   <div className="relative w-full max-w-sm">
+                   <div className="relative w-full max-sm:max-w-none max-w-sm">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
                       <Input placeholder="Search Identity..." className="pl-12 h-12 rounded-xl text-[12px] font-bold" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                    </div>
