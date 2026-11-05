@@ -22,7 +22,7 @@ import {
   ShieldCheck
 } from "lucide-react"
 import Link from "next/link"
-import { cn } from "@/utils"
+import { cn } from "@/lib/utils"
 import {
   Carousel,
   CarouselContent,
@@ -45,9 +45,9 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
 
   if (userBooking) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-emerald-500/10 border-2 border-emerald-500/20 space-y-2 md:space-y-3">
-        <p className="text-[8px] md:text-[10px] font-black uppercase text-emerald-500 tracking-widest">FCFS Confirmed</p>
-        <p className="text-3xl md:text-4xl font-black text-emerald-600 uppercase tracking-tighter italic leading-none">{userBooking.dayOfWeek}</p>
+      <div className="p-8 rounded-[2rem] bg-emerald-500/10 border-2 border-emerald-500/20 space-y-3">
+        <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">FCFS Confirmed</p>
+        <p className="text-4xl font-black text-emerald-600 uppercase tracking-tighter italic leading-none">{userBooking.dayOfWeek}</p>
         <p className="text-[9px] text-black/20 uppercase font-black tracking-widest">Locked for Cycle {displayWeekRange(weekId)}</p>
       </div>
     );
@@ -55,7 +55,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
 
   if (!config) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
+      <div className="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
         <p className="text-[10px] font-black uppercase text-black/30 tracking-[0.2em] leading-relaxed">No live week-off preference pool available</p>
       </div>
     );
@@ -68,7 +68,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
 
   if (now > closeTime) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
+      <div className="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 text-center">
         <p className="text-[10px] font-black uppercase text-black/30 tracking-[0.2em]">Matrix Cycle Closed</p>
       </div>
     );
@@ -76,14 +76,14 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
 
   if (now >= openTime) {
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-secondary/5 border-2 border-secondary/20 space-y-4">
-        <p className="text-[8px] md:text-[10px] font-black uppercase text-secondary tracking-[0.3em] flex items-center gap-2">
+      <div className="p-8 rounded-[2rem] bg-secondary/5 border-2 border-secondary/20 space-y-4">
+        <p className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] flex items-center gap-2">
           <Zap className="size-3 fill-secondary" /> Pulse Live
         </p>
         <div className="space-y-2">
            <p className="text-[11px] font-bold text-black uppercase tracking-tight">Window Open for Cycle {displayWeekRange(config.weekId)}.</p>
            <Link href="/employee/book-off" className="block">
-              <Button className="w-full bg-secondary text-white font-black uppercase text-[10px] tracking-[0.15em] rounded-lg md:rounded-xl h-12 shadow-[0_10px_30px_-10px_rgba(59,130,246,0.5)] hover:scale-[1.02] transition-all">
+              <Button className="w-full bg-secondary text-white font-black uppercase text-[10px] tracking-[0.15em] rounded-xl h-12 shadow-[0_10px_30px_-10px_rgba(59,130,246,0.5)] hover:scale-[1.02] transition-all">
                 Enter Matrix Hub
               </Button>
            </Link>
@@ -97,8 +97,8 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return (
-      <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-amber-500/5 border-2 border-amber-500/20 text-center space-y-4">
-        <p className="text-[8px] md:text-[10px] font-black uppercase text-amber-600 tracking-[0.4em] animate-pulse">Pool Live In</p>
+      <div className="p-8 rounded-[2rem] bg-amber-500/5 border-2 border-amber-500/20 text-center space-y-4">
+        <p className="text-[10px] font-black uppercase text-amber-600 tracking-[0.4em] animate-pulse">Pool Live In</p>
         <p className="text-4xl font-black text-amber-600 tabular-nums tracking-tighter leading-none">
           {mins}:{secs.toString().padStart(2, '0')}
         </p>
@@ -115,7 +115,7 @@ function WeekOffMatrixStatus({ config, userBooking, weekId }: { config: any, use
   });
 
   return (
-    <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-slate-50 border border-slate-100 text-center space-y-3">
+    <div className="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 text-center space-y-3">
        <p className="text-[9px] font-black uppercase text-black/30 tracking-[0.3em]">Institutional Pulse</p>
        <p className="text-[12px] font-bold text-black uppercase tracking-tight leading-relaxed">
           Live pool available at <br />
@@ -223,8 +223,8 @@ export default function EmployeePortal() {
   if (userLoading || rosterLoading) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
-        <Loader2 className="size-12 md:size-14 animate-spin text-secondary opacity-30" />
-        <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.4em] text-black/40">Syncing System Link</p>
+        <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
+        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40">Syncing System Link</p>
       </div>
     );
   }
@@ -236,30 +236,30 @@ export default function EmployeePortal() {
   const todayBooking = userBookings?.find(b => b.weekId === currentWeekId && b.dayOfWeek === today);
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8 md:space-y-12 pb-32 md:pb-40 px-2 sm:px-6 pt-4 md:pt-6 animate-in text-black">
+    <div className="max-w-[1400px] mx-auto space-y-12 pb-40 px-6 pt-6 animate-in text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div className="flex items-center gap-4">
-          <div className="size-12 md:size-14 rounded-2xl bg-primary flex items-center justify-center shadow-xl shrink-0">
-             <User className="size-6 md:size-7 text-white" />
+          <div className="size-14 rounded-2xl bg-primary flex items-center justify-center shadow-xl shrink-0">
+             <User className="size-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl md:text-4xl font-black tracking-tighter uppercase leading-none truncate max-w-[200px] md:max-w-none">
+            <h1 className="text-4xl font-black tracking-tighter uppercase leading-none">
               {profile?.displayName?.split(' ')[0] || 'Professional'}
             </h1>
-            <Badge className="bg-secondary text-white border-none font-black text-[7px] md:text-[9px] uppercase tracking-widest py-1 px-3 rounded-full mt-2 shadow-lg">
+            <Badge className="bg-secondary text-white border-none font-black text-[9px] uppercase tracking-widest py-1 px-3 rounded-full mt-2 shadow-lg">
               {profile?.office?.replace('_', ' ')} Center
             </Badge>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-8 md:gap-10 lg:grid-cols-12">
+      <div className="grid gap-10 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-10">
-          <Card className="border-none bg-[#0F172A] text-white shadow-2xl rounded-[2rem] md:rounded-[3rem] overflow-hidden relative group">
-             <div className="absolute top-0 right-0 p-12 opacity-10 transform group-hover:scale-110 duration-1000 hidden md:block"><Zap size={260} /></div>
-             <CardContent className="p-8 md:p-14 relative z-10 text-center md:text-left">
+          <Card className="border-none bg-[#0F172A] text-white shadow-2xl rounded-[3rem] overflow-hidden relative group">
+             <div className="absolute top-0 right-0 p-12 opacity-10 transform group-hover:scale-110 duration-1000"><Zap size={260} /></div>
+             <CardContent className="p-14 relative z-10">
                 <p className="text-[9px] font-black uppercase tracking-[0.3em] text-secondary">Today's Pulse</p>
-                <h2 className="text-4xl md:text-7xl font-black uppercase tracking-tighter leading-none italic mt-2">{today}</h2>
+                <h2 className="text-7xl font-black uppercase tracking-tighter leading-none italic mt-2">{today}</h2>
                 {todayBooking ? (
                    <div className="flex items-center gap-3 mt-6">
                       <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase px-8 py-3 rounded-xl shadow-2xl">
@@ -267,7 +267,7 @@ export default function EmployeePortal() {
                       </Badge>
                    </div>
                 ) : todayShift ? (
-                   <div className="flex flex-col md:flex-row items-center gap-3 mt-6">
+                   <div className="flex items-center gap-3 mt-6">
                       <Badge className="bg-secondary text-white text-[10px] font-black uppercase px-6 py-2 rounded-xl">
                          {todayShiftDetails?.name || todayShift.shiftId}
                       </Badge>
