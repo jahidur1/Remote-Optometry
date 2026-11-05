@@ -101,7 +101,7 @@ export async function generateWeeklyRoster(input: {
   try {
     const { weekId, officeId, employeeIds, idToken, globalFrequencyLimits, globalPreOffShifts, globalPostOffShifts } = input;
 
-    // 1. Auth Pulse (Lightweight verification)
+    // 1. Auth Pulse (Lightweight verification - removed checkRevoked for development stability)
     const decoded = await adminAuth.verifyIdToken(idToken);
     const userRef = adminDb.collection('users').doc(decoded.uid);
     const userSnap = await userRef.get();
