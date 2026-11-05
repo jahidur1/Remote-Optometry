@@ -87,6 +87,7 @@ export default function AvailabilitySummary() {
   /**
    * REAL-TIME REGISTRY LINK (Unique Week ID Protocol)
    * Hardened to monitor both Draft and Published statuses simultaneously.
+   * Singleton document format ensures overwrites instead of duplicates.
    */
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
@@ -99,7 +100,7 @@ export default function AvailabilitySummary() {
     let activeData: any[] = [];
     let hasDraft = false;
 
-    // 1. Listen for Manual Draft Pulse
+    // 1. Listen for Manual Draft Singleton
     const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (snap) => {
       if (snap.exists() && snap.data().status === 'draft') {
         draftData = snap.data().assignments || [];
@@ -110,7 +111,7 @@ export default function AvailabilitySummary() {
       updateState();
     });
 
-    // 2. Listen for Published Registry Pulse
+    // 2. Listen for Published Singleton Pulse
     const unsubActive = onSnapshot(doc(db, 'published_rosters', activeId), (snap) => {
       activeData = snap.exists() ? (snap.data().assignments || []) : [];
       updateState();
@@ -188,6 +189,7 @@ export default function AvailabilitySummary() {
     if (!selectedOffice || !selectedWeek) return;
     setPublishing(true);
     try {
+      // SINGLETON ID PROTOCOL: strictly overwrites active week/office document
       const activeId = `active_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'published_rosters', activeId), {
         id: activeId,
@@ -404,7 +406,7 @@ export default function AvailabilitySummary() {
            </div>
            <div className="ml-auto flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="size-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Unique Week-ID Link Verified</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Unique Week-ID Singleton Verified</span>
            </div>
         </CardFooter>
       </Card>

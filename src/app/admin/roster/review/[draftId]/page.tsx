@@ -183,7 +183,7 @@ export default function RosterReviewWorkspace() {
 
     setPublishing(true);
     try {
-      // UNIQUE WEEK ID PROTOCOL
+      // SINGLETON ID PROTOCOL: strictly overwrites active week/office document
       const activeId = `active_${weekId}_${officeId}`;
       await setDoc(doc(db, 'published_rosters', activeId), {
         id: activeId,
@@ -199,7 +199,7 @@ export default function RosterReviewWorkspace() {
       await updateDoc(doc(db, 'roster_drafts', draftId), { status: 'published' });
       
       logAudit(db, profile.uid, 'PUBLISH_ROSTER', activeId, { weekId, office: officeId });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Week ID protocol." });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Singleton ID protocol." });
       router.push('/admin/roster');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -416,10 +416,10 @@ export default function RosterReviewWorkspace() {
            
            <div className="flex flex-col justify-center bg-white/5 p-8 rounded-3xl border border-white/10 text-right shrink-0">
               <div className="flex items-center justify-end gap-4 text-[13px] font-black text-secondary uppercase tracking-[0.3em]">
-                 <Server className="size-5" /> UNIQUE_ID_SYNC
+                 <Server className="size-5" /> SINGLETON_SYNC
               </div>
               <p className="text-[11px] text-white/30 font-bold leading-relaxed mt-4 uppercase tracking-tighter max-w-[260px]">
-                 Automated rollout via unique week ID protocol ensures professional visibility.
+                 Automated rollout via Singleton ID protocol ensures professional visibility and prevents registry clutter.
               </p>
            </div>
         </div>

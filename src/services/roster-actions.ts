@@ -8,13 +8,13 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
  * 
  * Access Control: Role-based (EMPLOYEE restricted to own data)
  * Privacy: Server-side projection (Zero exposure of peer schedules)
- * Protocol: Uses Unique Week ID (active_{weekId}_{officeId})
+ * Protocol: Uses Singleton Unique Week ID (active_{weekId}_{officeId})
  */
 
 /**
  * getMyRosterAction
  * Retrieves the published assignments for the authenticated professional for a specific week.
- * Now uses deterministic Week ID lookup for 100% reliability.
+ * Uses deterministic Singleton ID lookup for 100% reliability and overwrite consistency.
  */
 export async function getMyRosterAction(idToken: string, weekId: string) {
   if (!idToken) throw new Error("Authentication token missing.");
@@ -30,7 +30,7 @@ export async function getMyRosterAction(idToken: string, weekId: string) {
 
     if (!employeeId || !office) throw new Error("Registry Error: Profile incomplete.");
 
-    // Fetch via Unique Week ID Protocol
+    // Fetch via Singleton Unique Week ID Protocol
     const activeId = `active_${weekId}_${office}`;
     const rosterSnap = await adminDb.collection('published_rosters').doc(activeId).get();
 
