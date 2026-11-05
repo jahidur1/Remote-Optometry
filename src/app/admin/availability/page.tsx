@@ -72,31 +72,6 @@ export default function AvailabilitySummary() {
 
   const weekDates = useMemo(() => getDatesForWeek(selectedWeek), [selectedWeek]);
 
-  const stats = useMemo(() => {
-    if (!employees || !selectedWeek || weekDates.length === 0) return null;
-
-    return DAYS.map((day, index) => {
-      const date = weekDates[index];
-      const offCount = bookings?.filter(b => b.dayOfWeek === day).length || 0;
-      
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const onLeaveCount = leaves?.filter(l => dateStr >= l.startDate && dateStr <= l.endDate).length || 0;
-      
-      const totalActive = employees.length;
-      const netAvailable = totalActive - offCount - onLeaveCount;
-
-      return {
-        day,
-        date: dateStr,
-        totalActive,
-        offCount,
-        onLeaveCount,
-        available: netAvailable,
-        percent: totalActive > 0 ? Math.round((netAvailable / totalActive) * 100) : 0
-      };
-    });
-  }, [employees, bookings, leaves, selectedWeek, weekDates]);
-
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
     return employees.filter(e => 
@@ -164,7 +139,7 @@ export default function AvailabilitySummary() {
               const end = new Date(l.endDate);
               const weekStart = weekDates[0];
               const weekEnd = weekDates[6];
-              return (start <= weekEnd && end >= weekStart);
+              return (weekStart <= end && weekEnd >= start);
           }).length || 0, sub: 'Leave Registry', icon: PlaneTakeoff, color: 'text-accent' },
           { label: 'Sync Integrity', value: '100%', sub: 'Logic Verified', icon: ShieldCheck, color: 'text-black' }
         ].map((kpi, i) => (
