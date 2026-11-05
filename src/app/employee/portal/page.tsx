@@ -224,7 +224,7 @@ export default function EmployeePortal() {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
-        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40">Syncing System Link</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-black/40 animate-pulse">Establishing Secure System Link</p>
       </div>
     );
   }
@@ -233,9 +233,9 @@ export default function EmployeePortal() {
   const todayName = format(now, 'EEEE');
   const todayDateStr = format(now, 'yyyy-MM-dd');
   
-  // Find current week roster and specific today's shift by date
+  // Find current week roster and today's shift matching by exact date string
   const currentRoster = rosterData[currentWeekId] || { assignments: [], published: false };
-  const todayShift = currentRoster.assignments.find(a => a.date === todayDateStr || a.dayOfWeek === todayName);
+  const todayShift = currentRoster.assignments.find(a => a.date === todayDateStr);
   const todayShiftDetails = shifts?.find(s => s.id === todayShift?.shiftId);
   const todayBooking = userBookings?.find(b => b.weekId === currentWeekId && b.dayOfWeek === todayName);
 
@@ -349,7 +349,6 @@ export default function EmployeePortal() {
                <CarouselContent>
                  {weeks.map((week) => {
                    const weekData = rosterData[week] || { assignments: [], published: false };
-                   const isCurrent = week === currentWeekId;
                    const weekDates = getDatesForWeek(week);
                    
                    return (
@@ -360,15 +359,15 @@ export default function EmployeePortal() {
                            const dateFullStr = date ? format(date, 'yyyy-MM-dd') : '';
                            const dateDisplayStr = date ? format(date, 'MMM dd') : '-- --';
                            
-                           // Check by specific date first, then fallback to day name for current cycle
-                           const assignment = weekData.assignments.find(a => a.date === dateFullStr || (isCurrent && a.dayOfWeek === day));
+                           // Atomic Temporal Lookup: Match by specific calendar date
+                           const assignment = weekData.assignments.find(a => a.date === dateFullStr);
                            const shift = shifts?.find(s => s.id === assignment?.shiftId);
                            const isOff = userBookings?.some(b => b.weekId === week && b.dayOfWeek === day);
 
                            return (
                              <Card key={day} className={cn(
                                "border-none shadow-md overflow-hidden rounded-2xl bg-white transition-all group hover:scale-[1.01] hover:shadow-xl",
-                               isCurrent && assignment ? "border-l-4 border-l-secondary" : "",
+                               assignment ? "border-l-4 border-l-secondary" : "",
                                isOff ? "bg-emerald-50/30" : ""
                              )}>
                                <CardContent className="p-5 flex items-center justify-between">

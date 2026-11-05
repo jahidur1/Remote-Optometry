@@ -1,12 +1,11 @@
-
 'use server';
 
 /**
- * @fileOverview Hardened AI Roster Orchestrator with Lean Data Protocol.
+ * @fileOverview Hardened AI Roster Orchestrator with Atomic Temporal Protocol.
  * 
  * Implements a Strict POJO Protocol to ensure 100% JSON-serializable returns.
- * Optimized with Lean Data Protocol: Sends only essential clinical identities
- * and quotas to Gemini to prevent serialization/timeout conflicts.
+ * Optimized with Lean Data Protocol: Sends only essential clinical identities.
+ * Atomic Temporal Protocol: Enforces specific dates (yyyy-MM-dd) for every assignment.
  * 
  * NEXT.JS 15 COMPLIANCE: Only async functions are exported.
  */
@@ -17,8 +16,11 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getDatesForWeek } from '@/lib/date-utils';
 import { verifyRosterIntegrity } from '@/lib/integrity-checker';
 import { assertOfficeActive } from '@/lib/office-utils';
+import { format } from 'date-fns';
 
-// --- SCHEMA DEFINITIONS (Internal only to satisfy Next.js 15 requirements) ---
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// --- SCHEMA DEFINITIONS ---
 
 const RosterAssignmentSchema = z.object({
   employeeId: z.string(),
@@ -85,7 +87,6 @@ OUTPUT: Return ONLY a JSON array of assignment objects.`,
  * generateWeeklyRoster
  * 
  * High-intensity orchestration pulse.
- * Implements Lean Data Protocol: Strips PII and metadata before AI inference.
  */
 export async function generateWeeklyRoster(input: {
   weekId: string;
@@ -101,7 +102,7 @@ export async function generateWeeklyRoster(input: {
   try {
     const { weekId, officeId, employeeIds, idToken, globalFrequencyLimits, globalPreOffShifts, globalPostOffShifts } = input;
 
-    // 1. Auth Pulse (Lightweight verification - removed checkRevoked for development stability)
+    // 1. Auth Pulse
     const decoded = await adminAuth.verifyIdToken(idToken);
     const userRef = adminDb.collection('users').doc(decoded.uid);
     const userSnap = await userRef.get();
@@ -109,7 +110,6 @@ export async function generateWeeklyRoster(input: {
     if (!userSnap.exists) throw new Error("IDENTITY_NOT_FOUND");
     const userProfile = userSnap.data()!;
     
-    // Ensure the caller is authorized for this office
     const authorizedOffices = userProfile.officeIds || (userProfile.office ? [userProfile.office] : []);
     if (userProfile.role !== 'super_admin' && !authorizedOffices.includes(officeId)) {
       throw new Error("Unauthorized: Office access restricted.");
@@ -117,7 +117,7 @@ export async function generateWeeklyRoster(input: {
 
     await assertOfficeActive(officeId);
     
-    // 2. Data Aggregation (Lean Fetching)
+    // 2. Data Aggregation
     const [empSnap, quotaSnap, bookingsSnap, leavesSnap] = await Promise.all([
       adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
       adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).get(),
@@ -135,7 +135,15 @@ export async function generateWeeklyRoster(input: {
       };
     }
 
-    // 3. Lean Registry Construction (User requested: ID, Name, WeekOff only)
+    // 3. Date Mapping for Atomic Temporal Protocol
+    const weekDates = getDatesForWeek(weekId);
+    const dateMap: Record<string, string> = {};
+    DAYS.forEach((day, idx) => {
+      if (weekDates[idx]) {
+        dateMap[day] = format(weekDates[idx], 'yyyy-MM-dd');
+      }
+    });
+
     const bookingsMap = new Map();
     bookingsSnap.docs.forEach(d => {
       const b = d.data();
@@ -180,18 +188,19 @@ export async function generateWeeklyRoster(input: {
 
     const rawAssignments = output || [];
     
-    // 5. Secure Serialization Boundary (Absolute POJO mapping)
+    // 5. Secure Serialization with Atomic Date Mapping
     const resultAssignments = rawAssignments.map(a => ({
         employeeId: String(a.employeeId),
         dayOfWeek: String(a.dayOfWeek),
-        shiftId: String(a.shiftId)
+        shiftId: String(a.shiftId),
+        date: dateMap[String(a.dayOfWeek)] || ''
     }));
 
     const integrity = verifyRosterIntegrity(
       resultAssignments, 
       bookingsSnap.docs.map(d => ({ employeeId: d.data().employeeId, dayOfWeek: d.data().dayOfWeek })), 
       leavesSnap.docs.map(d => ({ employeeId: d.data().employeeId, startDate: d.data().startDate, endDate: d.data().endDate })), 
-      getDatesForWeek(weekId)
+      weekDates
     );
 
     return {

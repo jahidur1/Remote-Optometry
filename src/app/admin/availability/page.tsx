@@ -90,7 +90,7 @@ export default function AvailabilitySummary() {
 
   /**
    * DETERMINISTIC SINGLETON REGISTRY LINK
-   * Simultaneously monitors the specific Draft and Published documents for the week/office.
+   * Atomic Temporal Protocol: Enforces date mapping upon retrieval and overwrite.
    */
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
@@ -225,7 +225,7 @@ export default function AvailabilitySummary() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Master Matrix</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Deterministic Registry Link <Activity className="size-3 text-secondary animate-pulse" />
+                  Atomic Temporal Registry <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -279,7 +279,7 @@ export default function AvailabilitySummary() {
               <div className="space-y-1">
                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Pulse</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Direct shift assignment and deterministic registry synchronization.
+                    Direct shift assignment with date-specific clinical synchronization.
                  </CardDescription>
               </div>
            </div>
@@ -341,7 +341,7 @@ export default function AvailabilitySummary() {
                         const date = weekDates[idx];
                         const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
                         const onLeave = leaves?.find(l => l.employeeId === emp.id && dateStr >= l.startDate && dateStr <= l.endDate);
-                        const currentAssignment = assignments.find(a => a.employeeId === emp.id && a.dayOfWeek === day);
+                        const currentAssignment = assignments.find(a => a.employeeId === emp.id && (a.date === dateStr || a.dayOfWeek === day));
 
                         return (
                           <TableCell key={day} className="py-8 border-r border-slate-100 last:border-0 text-center px-4">
@@ -404,7 +404,7 @@ export default function AvailabilitySummary() {
            </div>
            <div className="ml-auto flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="size-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Singleton ID Registry Verified</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Atomic Temporal Pulse Secured</span>
            </div>
         </CardFooter>
       </Card>
