@@ -127,6 +127,7 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
   try {
     if (!idToken) throw new Error("Access Denied: Authentication token missing.");
     
+    // Ensure project identity context
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const adminSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!adminSnap.exists) throw new Error("Access Denied: Profile not found.");
@@ -197,9 +198,11 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     const adjacencies = bookings.flatMap((booking: any) => {
       const res: any[] = [];
       const idx = DAYS.indexOf(booking.dayOfWeek);
+      // Pre-Off Constraint
       if (idx > 0 && globalPreOffShifts && globalPreOffShifts.length > 0) {
         res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx - 1], restrictedToShifts: globalPreOffShifts });
       }
+      // Post-Off Constraint
       if (idx < 6 && globalPostOffShifts && globalPostOffShifts.length > 0) {
         res.push({ employeeId: booking.employeeId, dayOfWeek: DAYS[idx + 1], restrictedToShifts: globalPostOffShifts });
       }
@@ -233,8 +236,9 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
     
     const integrity = verifyRosterIntegrity(resultAssignments, bookings, leaves, weekDates);
 
+    // RETURN POJO ONLY FOR NEXTJS BOUNDARY
     return {
-      rosterAssignments: resultAssignments,
+      rosterAssignments: resultAssignments.map(a => ({ ...a })),
       summary: !integrity.isValid 
         ? "CRITICAL INTEGRITY FAILURE: AI violated clinical locks. Check Adjacency Matrix." 
         : `Registry Synchronized: Week ${weekId} generated via GENAI Protocol for ${employees.length} selected professionals.`,
@@ -249,6 +253,7 @@ export async function generateWeeklyRoster(input: GenerateWeeklyRosterInput): Pr
 
   } catch (e: any) {
     console.error('Roster Generation Conflict:', e);
+    // Hardened POJO return for Error state
     return {
       rosterAssignments: [],
       summary: `Pipeline Conflict: ${e.message}`,

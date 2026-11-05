@@ -1,4 +1,6 @@
 
+import { format, isValid } from 'date-fns';
+
 /**
  * @fileOverview Institutional Integrity Guard.
  * 
@@ -41,8 +43,8 @@ export function verifyRosterIntegrity(
 
     // 3. Absence Protection: No assignments during approved leave window
     const dayIdx = DAYS.indexOf(a.dayOfWeek);
-    if (dayIdx !== -1 && weekDates[dayIdx]) {
-      const dateStr = weekDates[dayIdx].toISOString().split('T')[0];
+    if (dayIdx !== -1 && weekDates[dayIdx] && isValid(weekDates[dayIdx])) {
+      const dateStr = format(weekDates[dayIdx], 'yyyy-MM-dd');
       const onLeave = leaves.some(l => 
         l.employeeId === a.employeeId && 
         dateStr >= l.startDate && 
@@ -66,6 +68,6 @@ export function verifyRosterIntegrity(
 
   return {
     isValid: issues.length === 0,
-    issues
+    issues: issues.map(i => String(i)) // Explicit string cast for serialization
   };
 }

@@ -16,6 +16,7 @@ function getAdminApp(): App {
   if (getApps().length > 0) {
     return getApp();
   }
+  // Initialize with the standard web config's project ID
   return initializeApp({
     projectId: firebaseConfig.projectId,
   });

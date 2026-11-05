@@ -440,13 +440,13 @@ export default function RosterSolver() {
           {solverResult && (
             <Card className={cn(
                 "shadow-2xl border-none overflow-hidden rounded-[3rem] animate-in slide-in-from-bottom-8 duration-700",
-                status === 'success' ? 'bg-white' : 'bg-destructive/5'
+                status === 'success' ? "bg-white" : "bg-destructive/5"
             )}>
-               <div className={cn("h-4", status === 'success' ? 'bg-emerald-500' : 'bg-destructive')} />
+               <div className={cn("h-4", status === 'success' ? "bg-emerald-500" : "bg-destructive")} />
                <CardContent className="p-12 md:p-20 flex flex-col md:flex-row gap-16 items-start">
                   <div className={cn(
                       "size-32 rounded-[2.5rem] flex items-center justify-center shrink-0 shadow-3xl transform -rotate-6",
-                      status === 'success' ? 'bg-emerald-500 text-white' : 'bg-destructive text-white'
+                      status === 'success' ? "bg-emerald-500 text-white" : "bg-destructive text-white"
                   )}>
                      {status === 'success' ? <ShieldCheck className="size-16" /> : <AlertTriangle className="size-16" />}
                   </div>

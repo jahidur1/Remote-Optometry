@@ -1,5 +1,5 @@
 
-import { addDays, format, parse, isValid, startOfISOWeek, endOfISOWeek, differenceInDays } from 'date-fns';
+import { addDays, format, parse, isValid, startOfISOWeek, endOfISOWeek } from 'date-fns';
 
 /**
  * Institutional Date Registry Helpers
@@ -59,7 +59,8 @@ export function displayWeekRange(weekId: string): string {
 /**
  * Checks if a date falls within a range inclusive.
  */
-export function isDateInRange(date: Date, startStr: string, endStr: string): boolean {
+export function isDateInRange(date: Date | undefined, startStr: string, endStr: string): boolean {
+  if (!date || !isValid(date)) return false;
   const d = format(date, 'yyyy-MM-dd');
   return d >= startStr && d <= endStr;
 }
