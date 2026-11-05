@@ -67,6 +67,7 @@
       "fields": [
         { "fieldPath": "weekId", "order": "ASCENDING" },
         { "fieldPath": "office", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },

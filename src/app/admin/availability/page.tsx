@@ -19,7 +19,8 @@ import {
   ArrowRightLeft,
   Save,
   Send,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
@@ -42,12 +43,20 @@ export default function AvailabilitySummary() {
   const { profile } = useUser();
   const { selectedOffice } = useOffice();
   const { toast } = useToast();
-  const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekId());
+  
+  // Hydration-safe initial state
+  const [selectedWeek, setSelectedWeek] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [refreshPulse, setRefreshPulse] = useState(0);
+
+  // Initialize week hydration-safely
+  useEffect(() => {
+    setSelectedWeek(getCurrentWeekId());
+  }, []);
 
   // STABLE AUTHORITATIVE FETCHES
   const empQuery = useMemo(() => {
@@ -83,7 +92,6 @@ export default function AvailabilitySummary() {
     if (!db || !selectedWeek || !selectedOffice) return;
     
     const fetchData = async () => {
-      setAssignments([]); // Clear state immediately on cycle change
       setLoadingAssignments(true);
       try {
         // Priority 1: Current Manual Draft
@@ -112,18 +120,21 @@ export default function AvailabilitySummary() {
           const publishSnap = await getDocs(publishQ);
           if (!publishSnap.empty) {
             setAssignments(publishSnap.docs[0].data().assignments || []);
+          } else {
+            setAssignments([]); // No clinical data found
           }
         }
-      } catch (e) {
-        console.error("Assignment Pulse Failed:", e);
+      } catch (e: any) {
+        console.error("Registry Sync Failed:", e.message);
+        toast({ variant: "destructive", title: "Sync Conflict", description: "Failed to fetch assignments from registry." });
       } finally {
         setLoadingAssignments(false);
       }
     };
     fetchData();
-  }, [db, selectedWeek, selectedOffice]);
+  }, [db, selectedWeek, selectedOffice, refreshPulse, toast]);
 
-  const weekDates = useMemo(() => getDatesForWeek(selectedWeek), [selectedWeek]);
+  const weekDates = useMemo(() => selectedWeek ? getDatesForWeek(selectedWeek) : [], [selectedWeek]);
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
@@ -171,7 +182,8 @@ export default function AvailabilitySummary() {
       }, { merge: true });
 
       logAudit(db, profile?.uid || 'system', 'SAVE_MANUAL_ROSTER_DRAFT', draftId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Draft Synchronized", description: "Manual assignments secured in clinical registry." });
+      toast({ title: "Draft Synchronized" });
+      setRefreshPulse(prev => prev + 1);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -199,7 +211,8 @@ export default function AvailabilitySummary() {
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
       logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', versionId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated. Any previous versions updated." });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated." });
+      setRefreshPulse(prev => prev + 1);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
     } finally {
@@ -234,7 +247,7 @@ export default function AvailabilitySummary() {
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[14px] uppercase">{displayWeekRange(selectedWeek)}</span>
+                    <span className="text-[14px] uppercase">{selectedWeek ? displayWeekRange(selectedWeek) : 'Select Start'}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
@@ -247,7 +260,7 @@ export default function AvailabilitySummary() {
                 variant="outline"
                 className="bg-white border-2 border-slate-100 text-black h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-slate-50"
                 onClick={handleSaveDraft}
-                disabled={saving || publishing || !selectedOffice}
+                disabled={saving || publishing || !selectedOffice || !selectedWeek}
               >
                 {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
                 Save Draft
@@ -255,7 +268,7 @@ export default function AvailabilitySummary() {
               <Button 
                 className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
                 onClick={handlePublish}
-                disabled={saving || publishing || !selectedOffice}
+                disabled={saving || publishing || !selectedOffice || !selectedWeek}
               >
                 {publishing ? <Loader2 className="size-4 animate-spin mr-2" /> : <Send className="size-4 mr-2 group-hover:rotate-12 transition-transform" />}
                 Rollout Roster

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/carousel"
 import { getMyRosterAction } from "@/services/roster-actions"
 import { displayWeekRange, getDatesForWeek, getCurrentWeekId, formatWeekId } from "@/lib/date-utils";
-import { format, startOfISOWeek, subWeeks, addWeeks, addDays } from "date-fns";
+import { format, startOfISOWeek, subWeeks, addWeeks } from "date-fns";
 
 const DAYS_LIST = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -136,26 +136,31 @@ export default function EmployeePortal() {
   const [rosterData, setRosterData] = useState<Record<string, { assignments: any[], published: boolean }>>({});
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
+  
+  // Hydration-safe states
+  const [currentWeekId, setCurrentWeekIdState] = useState<string>('');
+  const [weeks, setWeeks] = useState<string[]>([]);
 
-  const currentWeekId = useMemo(() => getCurrentWeekId(), []);
-
-  const weeks = useMemo(() => {
+  useEffect(() => {
+    const cid = getCurrentWeekId();
+    setCurrentWeekIdState(cid);
+    
     const now = new Date();
     const monday = startOfISOWeek(now);
-    
-    return [
+    const calculatedWeeks = [
       subWeeks(monday, 2),
       subWeeks(monday, 1),
       monday,
       addWeeks(monday, 1)
     ].map(date => formatWeekId(date));
+    setWeeks(calculatedWeeks);
   }, []);
 
   const shiftQuery = useMemo(() => query(collection(db, 'shift_master'), orderBy('displayOrder')), [db]);
   const { data: shifts } = useCollection(shiftQuery);
   
   const bookingsQuery = useMemo(() => {
-    if (!profile?.employeeId) return null;
+    if (!profile?.employeeId || weeks.length === 0) return null;
     return query(
       collection(db, 'weekoff_bookings'), 
       where('employeeId', '==', profile.employeeId),
@@ -183,7 +188,7 @@ export default function EmployeePortal() {
 
   useEffect(() => {
     async function syncRosters() {
-      if (!auth.currentUser) return;
+      if (!auth.currentUser || weeks.length === 0) return;
       setRosterLoading(true);
       try {
         const idToken = await auth.currentUser.getIdToken(true);
@@ -215,7 +220,7 @@ export default function EmployeePortal() {
     }
   }, [api, weeks]);
 
-  if (userLoading || rosterLoading) {
+  if (userLoading || rosterLoading || weeks.length === 0) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
@@ -302,7 +307,7 @@ export default function EmployeePortal() {
                          {currentIndex < 2 ? "History Cycle" : currentIndex === 2 ? "Current Hub Cycle" : "Upcoming Cycle"}
                       </p>
                       <p className="text-[13px] font-black uppercase text-black tracking-tighter">
-                         {displayWeekRange(weeks[currentIndex])}
+                         {weeks[currentIndex] ? displayWeekRange(weeks[currentIndex]) : '---'}
                       </p>
                    </div>
                    {currentIndex !== 2 && (
