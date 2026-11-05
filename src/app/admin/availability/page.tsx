@@ -85,28 +85,28 @@ export default function AvailabilitySummary() {
   const { data: shifts } = useCollection(shiftsQuery);
 
   /**
-   * REAL-TIME REGISTRY LINK (Unique Week ID Protocol)
-   * Hardened to monitor both Draft and Published statuses simultaneously.
+   * REAL-TIME REGISTRY LINK (Singleton ID Protocol)
+   * Monitors both the current unified Draft and the Published version.
    * Singleton document format ensures overwrites instead of duplicates.
    */
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
     setLoadingAssignments(true);
-    const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
+    const draftId = `draft_${selectedWeek}_${selectedOffice}`;
     const activeId = `active_${selectedWeek}_${selectedOffice}`;
 
     let draftData: any[] = [];
     let activeData: any[] = [];
-    let hasDraft = false;
+    let hasActiveDraft = false;
 
-    // 1. Listen for Manual Draft Singleton
+    // 1. Listen for Unified Draft Singleton
     const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (snap) => {
       if (snap.exists() && snap.data().status === 'draft') {
         draftData = snap.data().assignments || [];
-        hasDraft = true;
+        hasActiveDraft = true;
       } else {
-        hasDraft = false;
+        hasActiveDraft = false;
       }
       updateState();
     });
@@ -119,7 +119,7 @@ export default function AvailabilitySummary() {
 
     function updateState() {
       // Prioritize Draft for manual editing, otherwise show Published
-      setAssignments(hasDraft ? draftData : activeData);
+      setAssignments(hasActiveDraft ? draftData : activeData);
       setLoadingAssignments(false);
     }
 
@@ -163,7 +163,7 @@ export default function AvailabilitySummary() {
     if (!selectedOffice || !selectedWeek) return;
     setSaving(true);
     try {
-      const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
+      const draftId = `draft_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
         weekId: selectedWeek,
@@ -203,7 +203,7 @@ export default function AvailabilitySummary() {
       });
 
       // Clear draft status on publish to transition priority
-      const draftId = `draft_manual_${selectedWeek}_${selectedOffice}`;
+      const draftId = `draft_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
       logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', activeId, { weekId: selectedWeek, office: selectedOffice });

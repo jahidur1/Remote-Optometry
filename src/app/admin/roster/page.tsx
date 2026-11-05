@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -34,7 +35,7 @@ import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from '@/lib/utils';
-import { formatWeekId, displayWeekRange } from '@/lib/date-utils';
+import { formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
 
 const FREQUENCY_RANGES = [
   { label: '0-1', min: 0, max: 1 },
@@ -65,6 +66,11 @@ export default function RosterSolver() {
   const auth = useAuth();
   const { profile } = useUser();
   const { toast } = useToast();
+
+  // Hydration-Safe Week Selection
+  useEffect(() => {
+    setWeekId(getCurrentWeekId());
+  }, []);
 
   const registryQuery = useMemo(() => query(collection(db, 'offices'), where('status', '==', 'Active')), [db]);
   const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
@@ -151,7 +157,8 @@ export default function RosterSolver() {
         return;
       }
 
-      const draftId = `draft_${weekId}_${Date.now()}`;
+      // SINGLETON ID PROTOCOL: strictly overwrites current week/office draft
+      const draftId = `draft_${weekId}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), {
         id: draftId,
         weekId,
