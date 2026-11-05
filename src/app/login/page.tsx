@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -23,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Phone, Key, ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Loader2, Phone, Key, ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createOrUpdateSession } from '@/lib/session-utils';
 import { logAudit } from '@/lib/audit';
@@ -159,7 +158,7 @@ export default function LoginPage() {
       setConfirmationResult(result);
       setStep('otp');
       toast({ title: "Verification Initiated", description: "Security code dispatched." });
-      setLoading(false);
+      setLoading(false); // Fix: Ensure loading state is reset after OTP dispatch
     } catch (error: any) {
       toast({ variant: "destructive", title: "Access Denied", description: error.message });
       setLoading(false);

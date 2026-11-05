@@ -1,12 +1,12 @@
-
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
+import { googleAI, gemini15Flash } from '@genkit-ai/google-genai';
 
 /**
  * Institutional AI Orchestrator
  * 
  * Configures Genkit with Google Gemini 1.5 Flash.
- * Uses explicit string mapping to ensure reliable API routing and resolve 404 conflicts.
+ * Uses the explicit model object from the plugin to ensure reliable API routing 
+ * and resolve 404 conflicts associated with v1beta endpoints.
  */
 
 if (typeof window === 'undefined' && !process.env.GOOGLE_GENAI_API_KEY && !process.env.GOOGLE_API_KEY) {
@@ -15,5 +15,5 @@ if (typeof window === 'undefined' && !process.env.GOOGLE_GENAI_API_KEY && !proce
 
 export const ai = genkit({
   plugins: [googleAI()],
-  model: 'googleai/gemini-1.5-flash',
+  model: gemini15Flash,
 });

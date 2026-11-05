@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -80,26 +79,41 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  // Fetch current draft to populate assignments
+  // Fetch current draft OR published to populate assignments for re-editing
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
-    const fetchDraft = async () => {
-      const q = query(
+    const fetchData = async () => {
+      // 1. Check for latest draft
+      const draftQ = query(
         collection(db, 'roster_drafts'), 
         where('weekId', '==', selectedWeek), 
         where('office', '==', selectedOffice),
         orderBy('createdAt', 'desc'),
         limit(1)
       );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        setAssignments(snap.docs[0].data().assignments || []);
+      const draftSnap = await getDocs(draftQ);
+      
+      if (!draftSnap.empty) {
+        setAssignments(draftSnap.docs[0].data().assignments || []);
       } else {
-        setAssignments([]);
+        // 2. Fallback to latest published roster for "Re-Edit" functionality
+        const publishQ = query(
+          collection(db, 'published_rosters'),
+          where('weekId', '==', selectedWeek),
+          where('office', '==', selectedOffice),
+          orderBy('publishedAt', 'desc'),
+          limit(1)
+        );
+        const publishSnap = await getDocs(publishQ);
+        if (!publishSnap.empty) {
+          setAssignments(publishSnap.docs[0].data().assignments || []);
+        } else {
+          setAssignments([]);
+        }
       }
     };
-    fetchDraft();
+    fetchData();
   }, [db, selectedWeek, selectedOffice]);
 
   const weekDates = useMemo(() => getDatesForWeek(selectedWeek), [selectedWeek]);
@@ -144,6 +158,7 @@ export default function AvailabilitySummary() {
         assignments,
         status: 'draft',
         updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         actorId: profile?.uid,
         generationMethod: 'manual'
       }, { merge: true });
@@ -173,7 +188,7 @@ export default function AvailabilitySummary() {
       });
 
       logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', versionId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated via Meta Cloud API Center." });
+      toast({ title: "Clinical Roster Live", description: "Schedule broadcast initiated. Any previous versions updated." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
     } finally {
@@ -294,7 +309,10 @@ export default function AvailabilitySummary() {
                   </TableRow>
                 ) : (
                   filteredEmployees.map((emp) => (
-                    <TableRow key={emp.id} className="hover:bg-slate-50 transition-all duration-300 group border-b border-slate-100 last:border-0">
+                    <TableRow key={emp.id} className={cn(
+                      "hover:bg-slate-50 transition-all duration-300 group border-b border-slate-100 last:border-0",
+                      emp.status !== 'Active' && "opacity-40 grayscale"
+                    )}>
                       <TableCell className="pl-10 py-8 border-r border-slate-100 bg-white group-hover:bg-slate-50 transition-colors sticky left-0 z-10 shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
                          <div className="flex flex-col gap-1.5">
                             <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
