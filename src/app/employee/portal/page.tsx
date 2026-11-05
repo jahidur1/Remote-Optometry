@@ -228,7 +228,8 @@ export default function EmployeePortal() {
     );
   }
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const now = new Date();
+  const today = format(now, 'EEEE');
   const todayShift = rosterData[currentWeekId]?.assignments.find(a => a.dayOfWeek === today);
   const todayShiftDetails = shifts?.find(s => s.id === todayShift?.shiftId);
   const todayBooking = userBookings?.find(b => b.weekId === currentWeekId && b.dayOfWeek === today);
