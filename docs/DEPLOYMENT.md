@@ -14,10 +14,13 @@ This guide outlines the mandatory infrastructure setup and security configuratio
 ## 2. Meta Developer Portal Setup
 1.  Verify the WhatsApp Business Phone Number: `1143569695505848`.
 2.  Ensure the template `roc_two_day_roster_notification` is **ACTIVE**.
+    *   **Category**: Utility
+    *   **Header**: Image
+    *   **Body**: "Hello {{1}}..." (mapping to Professional Name)
 3.  Generate a **Permanent System User Token** with `whatsapp_business_messaging` and `whatsapp_business_management` permissions.
 
 ## 3. Secret Configuration (Terminal)
-Execute these commands to securely provision Meta credentials to the Cloud Functions environment:
+Execute these commands to securely provision Meta credentials to the Cloud Functions and Next.js server environment:
 
 ```bash
 # Set Meta Access Token (EAASX...)
@@ -26,7 +29,7 @@ firebase functions:secrets:set WHATSAPP_ACCESS_TOKEN
 # Set Phone Number ID (1143569695505848)
 firebase functions:secrets:set WHATSAPP_PHONE_NUMBER_ID
 
-# Set Internal Trigger Key (Match INTERNAL_TRIGGER_KEY in .env)
+# Set Internal Trigger Key (Must match INTERNAL_TRIGGER_KEY in environment)
 firebase functions:secrets:set INTERNAL_TRIGGER_KEY
 ```
 
@@ -44,8 +47,8 @@ firebase deploy --only firestore:indexes
 firebase deploy --only functions
 ```
 
-## 5. Environment Variables (.env)
-Populate your production environment (e.g., App Hosting or .env.local):
+## 5. Environment Variables (App Hosting / .env.local)
+Populate your production environment with these keys. **NEVER** expose the Access Token in a `NEXT_PUBLIC_` variable.
 
 | Variable | Purpose | Value Source |
 | :--- | :--- | :--- |
@@ -54,6 +57,7 @@ Populate your production environment (e.g., App Hosting or .env.local):
 | `WHATSAPP_ACCESS_TOKEN` | Meta API Token | Meta Developer Portal |
 | `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` | App Check Identity | Google Cloud Console |
 | `INTERNAL_TRIGGER_KEY` | Pulse Authorization | Custom Random String |
+| `APP_URL` | Deployment Base URL | The URL of your web app |
 
 ## 6. Verification Trace
 *   **Test Dispatch**: Use the "Dispatch WhatsApp" button in the **Master Matrix** dashboard to verify end-to-end media synthesis.

@@ -1,4 +1,3 @@
-
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { format, addDays } from 'date-fns';
@@ -12,7 +11,7 @@ admin.initializeApp();
  * Orchestrates: Identity fetching, Roster lookup, and Dispatch initiation.
  */
 export const dailyRosterBriefing = functions.region('asia-south1').runWith({
-  secrets: ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'],
+  secrets: ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'INTERNAL_TRIGGER_KEY'],
   timeoutSeconds: 300,
   memory: '1GB'
 }).pubsub
