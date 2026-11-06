@@ -62,7 +62,6 @@ const navGroups = [
     label: "Operations",
     items: [
       { title: "Roster Solver", url: "/admin/roster", icon: Calendar, roles: ["super_admin", "admin"] },
-      { title: "Shift Quotas", url: "/admin/quotas", icon: Target, roles: ["super_admin", "admin"] },
       { title: "Shift Master", url: "/admin/shifts", icon: Clock, roles: ["super_admin", "admin"] },
     ]
   },
