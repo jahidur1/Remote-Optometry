@@ -7,6 +7,7 @@
  * Implements the official Media API workflow:
  * 1. Upload binary buffer to Meta Media endpoint.
  * 2. Dispatch Template Message using the returned Media ID.
+ * 3. Handles Indian mobile number normalization.
  */
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -66,15 +67,17 @@ export async function sendWhatsAppShiftBriefingWithImage(
     const mediaId = await uploadToMetaMedia(imageBuffer, fileName);
 
     // 2. Template Dispatch
+    // Normalize Indian phone numbers: remove non-digits and ensure 91 prefix
     let formattedTo = to.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
+    if (formattedTo.length === 12 && formattedTo.startsWith('0')) formattedTo = formattedTo.substring(1);
 
     const payload = {
       messaging_product: 'whatsapp',
       to: formattedTo,
       type: 'template',
       template: {
-        name: 'shift_briefing_with_image', // Ensure this template is approved in Meta Manager
+        name: 'shift_briefing_with_image', // This template must be approved in Meta Business Manager
         language: { code: 'en_US' },
         components: [
           {
@@ -109,6 +112,7 @@ export async function sendWhatsAppShiftBriefingWithImage(
     };
 
   } catch (err: any) {
+    console.error('WhatsApp Dispatch Failure:', err.message);
     return { success: false, error: err.message };
   }
 }

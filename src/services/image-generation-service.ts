@@ -141,6 +141,7 @@ export async function generateRosterImage(input: {
   };
 
   // RECURSIVE QUALITY LOOP: Progressively reduce fidelity to hit strict 60KB limit
+  // Start at full scale, reduce by 0.1 until byte weight <= 61440 bytes (60KB)
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
   
@@ -154,7 +155,6 @@ export async function generateRosterImage(input: {
     const pngData = resvg.render();
     const currentBuffer = pngData.asPng();
     
-    // Check constraint (60KB = 61440 bytes)
     if (currentBuffer.length <= 61440) {
         finalBuffer = currentBuffer;
         break;
