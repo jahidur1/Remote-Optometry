@@ -8,129 +8,157 @@ import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
 
 /**
- * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE
+ * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE v7.0
  * 
  * Orchestrates:
- * 1. Data Aggregation (T+1, T+2 shifts)
- * 2. Image Synthesis
- * 3. Meta API Dispatch
- * 4. Storage Purge (48h Lifecycle)
+ * 1. Governance Check (Master Toggle)
+ * 2. Data Aggregation (T+1, T+2 shifts)
+ * 3. Atomic Image Synthesis (< 60KB)
+ * 4. Private Storage Persistence
+ * 5. Meta API Dispatch
+ * 6. Storage Purge (48h Lifecycle)
  */
 
 export async function runManualRosterBriefingAction(idToken: string) {
+  const executionId = `run_${Date.now()}`;
+  const start = Date.now();
+  let successCount = 0;
+  let failCount = 0;
+
   try {
     const decoded = await adminAuth.verifyIdToken(idToken);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') throw new Error("Unauthorized.");
 
+    // 1. Governance Logic
     const settingsSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
+    const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
+    
     const settings = settingsSnap.data();
-    if (!settings?.whatsappEnabled) throw new Error("WhatsApp pulse is currently disabled in governance settings.");
+    const automation = autoSnap.data();
+    
+    if (!automation?.masterEnabled) throw new Error("AUTOMATION_DISABLED: Master toggle is OFF.");
+    if (!settings?.whatsappEnabled) throw new Error("META_API_DISABLED: WhatsApp connectivity is OFF.");
 
-    // Aggregation Pool
+    // 2. Data Pool Aggregation
     const empSnap = await adminDb.collection('employees').where('status', '==', 'Active').get();
-    const activeEmployees = empSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
     const shiftsSnap = await adminDb.collection('shift_master').get();
     const shiftsMap = new Map();
     shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
 
     const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
     const dayAfter = format(addDays(new Date(), 2), 'yyyy-MM-dd');
-
-    let count = 0;
     const bucket = getStorage().bucket();
 
-    for (const emp of activeEmployees as any) {
+    for (const empDoc of empSnap.docs) {
+      const emp = empDoc.data();
       if (!emp.whatsappNumber) continue;
 
-      // Fetch assignments for both days from Singleton ID rosters
-      // We look at all office rosters for simplicity in this loop
-      const rostersSnap = await adminDb.collection('published_rosters')
-        .where('office', '==', emp.office)
-        .get();
+      try {
+        // Fetch specific rosters for this professional's office
+        const tomorrowRoster = await adminDb.collection('published_rosters')
+          .doc(`active_${format(addDays(new Date(), 1), 'yyyyMMdd-yyyyMMdd')}_${emp.office}`).get();
+        const dayAfterRoster = await adminDb.collection('published_rosters')
+          .doc(`active_${format(addDays(new Date(), 2), 'yyyyMMdd-yyyyMMdd')}_${emp.office}`).get();
 
-      const assignments: any[] = [];
-      rostersSnap.docs.forEach(r => {
-        const list = r.data().assignments || [];
-        const found = list.filter((a: any) => a.employeeId === emp.id && (a.date === tomorrow || a.date === dayAfter));
-        assignments.push(...found);
-      });
-
-      const nextTwoDays = [tomorrow, dayAfter].map(date => {
-        const assign = assignments.find(a => a.date === date);
-        const shift = assign ? shiftsMap.get(assign.shiftId) : null;
-        return {
-          date: format(new Date(date), 'dd MMM'),
-          day: format(new Date(date), 'EEEE'),
-          shift: shift ? shift.name : (assign?.shiftId === 'none' ? 'WEEK-OFF' : 'NOT ASSIGNED'),
-          time: shift ? `${shift.startTime} - ${shift.endTime}` : '--:--'
+        const findShift = (rosterSnap: any, date: string) => {
+          if (!rosterSnap.exists) return null;
+          return rosterSnap.data().assignments?.find((a: any) => a.employeeId === empDoc.id && a.date === date);
         };
-      });
 
-      // 1. Generate PNG
-      const pngBuffer = await generateRosterImage({
-        employeeName: emp.fullName,
-        employeeId: emp.id,
-        logoBase64: settings.logoBase64,
-        nextTwoDays
-      });
+        const nextTwoDays = [tomorrow, dayAfter].map((date, i) => {
+          const assign = findShift(i === 0 ? tomorrowRoster : dayAfterRoster, date);
+          const shift = assign ? shiftsMap.get(assign.shiftId) : null;
+          return {
+            date: format(new Date(date), 'dd MMM'),
+            day: format(new Date(date), 'EEEE'),
+            shift: shift ? shift.name : (assign?.shiftId === 'none' ? 'WEEK-OFF' : 'TBD'),
+            time: shift ? `${shift.startTime} - ${shift.endTime}` : '--:--'
+          };
+        });
 
-      // 2. Upload to Firebase Storage
-      const fileName = `roster_images/${emp.id}_${Date.now()}.png`;
-      const file = bucket.file(fileName);
-      await file.save(pngBuffer, {
-        contentType: 'image/png',
-        metadata: {
-          firebaseStorageDownloadTokens: crypto.randomUUID()
+        // 3. Image Synthesis Node
+        const pngBuffer = await generateRosterImage({
+          employeeName: emp.fullName,
+          employeeId: empDoc.id,
+          logoBase64: settings.logoBase64,
+          nextTwoDays
+        });
+
+        // 4. Atomic Private Storage
+        const filePath = `whatsapp-roster-images/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.png`;
+        const file = bucket.file(filePath);
+        
+        await file.save(pngBuffer, {
+          contentType: 'image/png',
+          metadata: {
+            metadata: {
+              employeeId: empDoc.id,
+              executionId,
+              expiresAt: addDays(new Date(), 2).toISOString()
+            }
+          }
+        });
+
+        // 5. Meta API Dispatch
+        const result = await sendWhatsAppShiftBriefingWithImage(
+          emp.whatsappNumber,
+          emp.fullName,
+          await file.getSignedUrl({ action: 'read', expires: Date.now() + 60000 }).then(urls => urls[0]),
+          `Hi ${emp.fullName}, here is your clinical schedule for the next 2 days at Hub ${emp.office}. Wishing you a productive day ahead!`
+        );
+
+        if (result.success) {
+          successCount++;
+          await adminDb.collection('whatsapp_logs').add({
+            executionId,
+            employeeId: empDoc.id,
+            status: 'success',
+            imgSize: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
+            timestamp: new Date().toISOString(),
+            messageId: result.messageId
+          });
+        } else {
+          throw new Error(result.error);
         }
-      });
 
-      // Make public for WhatsApp download (or use signed URL)
-      await file.makePublic();
-      const imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-
-      // 3. Dispatch WhatsApp
-      const result = await sendWhatsAppShiftBriefingWithImage(
-        emp.whatsappNumber,
-        emp.fullName,
-        imageUrl,
-        `Hi ${emp.fullName}, here is your clinical schedule for the next 2 days. Please follow your shift timings and report to Hub ${emp.office}. See you soon!`
-      );
-
-      if (result.success) {
-        count++;
-        // Mask for audit
-        const maskedPhone = emp.whatsappNumber.replace(/(\d{2})(\d{6})(\d{2})/, '$1******$3');
+      } catch (err: any) {
+        failCount++;
         await adminDb.collection('whatsapp_logs').add({
-          employeeId: emp.id,
-          maskedPhone,
-          status: 'success',
-          timestamp: new Date().toISOString(),
-          type: 'roster_image_briefing'
+          executionId,
+          employeeId: empDoc.id,
+          status: 'failed',
+          error: err.message,
+          timestamp: new Date().toISOString()
         });
       }
     }
 
-    // 4. Trigger Automatic Purge Pulse (Clean files older than 48h)
+    // 6. Cleanup & Stats Pulse
+    await adminDb.collection('system_settings').doc('whatsapp_automation').update({
+      lastRun: new Date().toISOString(),
+      lastStats: { success: successCount, fail: failCount, total: successCount + failCount },
+      updatedAt: new Date().toISOString()
+    });
+
     await purgeOldRosterImages();
 
-    return { success: true, count };
+    return { success: true, count: successCount, failed: failCount };
   } catch (e: any) {
-    console.error('Roster Briefing Critical Failure:', e.message);
+    console.error('CRITICAL_BRIEFING_FAILURE:', e.message);
     return { success: false, error: e.message };
   }
 }
 
 async function purgeOldRosterImages() {
   const bucket = getStorage().bucket();
-  const [files] = await bucket.getFiles({ prefix: 'roster_images/' });
-  const cutoff = addDays(new Date(), -2);
+  const [files] = await bucket.getFiles({ prefix: 'whatsapp-roster-images/' });
+  const now = new Date();
 
   for (const file of files) {
     const [metadata] = await file.getMetadata();
-    const created = new Date(metadata.timeCreated);
-    if (created < cutoff) {
+    const expiresAt = metadata.metadata?.expiresAt;
+    if (expiresAt && new Date(expiresAt) < now) {
       await file.delete();
     }
   }

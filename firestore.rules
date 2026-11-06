@@ -35,6 +35,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSuperAdmin();
     }
+    
+    match /system_settings/whatsapp_automation {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
 
     // --- REGISTRY & ROSTERS ---
 
@@ -94,6 +99,11 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isSuperAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && (isSuperAdmin() || request.auth.uid == resource.data.uid);
+    }
+    
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn();
     }
   }
 }
