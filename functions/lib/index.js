@@ -57,7 +57,6 @@ exports.dailyRosterBriefing = functions.region('asia-south1').runWith({
         return null;
     }
     console.log('ROC_PULSE_INIT: Orchestrating daily clinical briefings...');
-    const fetch = require('node-fetch');
     const APP_URL = process.env.APP_URL || 'https://studio-9087637488-aa952.web.app';
     const SECRET_KEY = process.env.INTERNAL_TRIGGER_KEY || 'roc_internal_pulse';
     try {
