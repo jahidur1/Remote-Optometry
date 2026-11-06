@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -32,7 +33,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { updateAccountStatusAction } from '@/services/identity-actions';
-import Link from 'next/link';
 
 export default function UserDetailsManagement() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,6 +82,11 @@ export default function UserDetailsManagement() {
     setIsDialogOpen(true);
   };
 
+  const handleCreate = () => {
+    setSelectedUser(null);
+    setIsDialogOpen(true);
+  };
+
   const toggleStatus = async (user: any) => {
     const targetId = user.employeeId || user.uid;
     const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
@@ -123,12 +128,13 @@ export default function UserDetailsManagement() {
         </div>
 
         <div className="flex items-center gap-4">
-           <Link href="/register">
-             <Button className="bg-primary text-white shadow-xl shadow-primary/20 h-14 px-10 font-black uppercase text-[11px] tracking-[0.2em] transition-all hover:scale-105 active:scale-95 rounded-2xl group">
+             <Button 
+                onClick={handleCreate}
+                className="bg-primary text-white shadow-xl shadow-primary/20 h-14 px-10 font-black uppercase text-[11px] tracking-[0.2em] transition-all hover:scale-105 active:scale-95 rounded-2xl group"
+             >
               <UserPlus className="size-5 mr-3 group-hover:rotate-12 transition-transform" />
               PROVISION PROFILE
              </Button>
-           </Link>
         </div>
       </div>
 
