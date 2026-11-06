@@ -123,11 +123,6 @@ export default function Home() {
                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
               </Button>
             </Link>
-            <Link href="/user_registration_roc_lenskart_2026" className="w-full sm:w-auto">
-               <Button variant="ghost" className="w-full sm:w-72 h-20 text-[13px] font-black uppercase tracking-[0.2em] rounded-2xl border-2 border-slate-100 hover:bg-slate-50 transition-all">
-                  Self-Enrollment
-               </Button>
-            </Link>
           </div>
         </section>
 
