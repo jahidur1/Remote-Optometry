@@ -1,3 +1,4 @@
+
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { format, addDays } from 'date-fns';
@@ -41,11 +42,11 @@ export const dailyRosterBriefing = functions.region('asia-south1').runWith({
      * We use a fetch pulse to the main application's secure endpoint 
      * to reuse the complex image generation (Satori/Resvg) logic.
      */
-    const fetch = require('node-fetch');
     const APP_URL = process.env.APP_URL || 'https://studio-9087637488-aa952.web.app';
     const SECRET_KEY = process.env.INTERNAL_TRIGGER_KEY || 'roc_internal_pulse';
 
     try {
+      // Using built-in fetch available in Node 18+
       const response = await fetch(`${APP_URL}/api/cron/roster-briefing`, {
         method: 'POST',
         headers: {
@@ -83,8 +84,7 @@ export const storageCleanupPulse = functions.region('asia-south1').pubsub
       const [metadata] = await file.getMetadata();
       const expiresAtStr = metadata.metadata?.expiresAt;
 
-      // Type guard: Date constructor requires string, number, or Date.
-      // Firebase Storage metadata values can be interpreted as string | number | boolean.
+      // Type guard: Ensure we have a string to prevent Date constructor errors
       if (expiresAtStr && typeof expiresAtStr === 'string') {
         const expiresAt = new Date(expiresAtStr);
         if (now > expiresAt) {
