@@ -12,17 +12,87 @@ import { formatWeekId } from '@/lib/date-utils';
  * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE (PART 2)
  * 
  * Orchestrates image synthesis, Storage lifecycle, and Meta API dispatch.
- * Strictly enforces 60KB image size and 48H retention.
+ * STRICT REQUIREMENT: Final image size MUST be <= 60KB.
  */
+
+async function assertSuperAdmin(idToken: string) {
+  if (!idToken) throw new Error("Unauthorized.");
+  const decoded = await adminAuth.verifyIdToken(idToken, true);
+  const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
+  if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
+    throw new Error("Unauthorized.");
+  }
+  return decoded.uid;
+}
+
+/**
+ * Generates a base64 preview of a professional's roster for the dashboard.
+ * Does not send or save to storage permanently.
+ */
+export async function previewEmployeeRosterAction(idToken: string, employeeId: string) {
+  try {
+    await assertSuperAdmin(idToken);
+    
+    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
+    if (!empSnap.exists) throw new Error("Professional not found in registry.");
+    const emp = empSnap.data()!;
+
+    const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
+    const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
+
+    const shiftSnap = await adminDb.collection('shift_master').get();
+    const shiftsMap = new Map();
+    shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
+
+    const tomorrow = addDays(new Date(), 1);
+    const dayAfter = addDays(new Date(), 2);
+    const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
+    const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
+
+    const tomRosterId = `active_${weekIds[0]}_${emp.office}`;
+    const datRosterId = `active_${weekIds[1]}_${emp.office}`;
+
+    const [r1, r2] = await Promise.all([
+      adminDb.collection('published_rosters').doc(tomRosterId).get(),
+      adminDb.collection('published_rosters').doc(datRosterId).get()
+    ]);
+
+    const findAssignment = (snap: any, date: string) => 
+      snap.exists ? snap.data().assignments?.find((a: any) => a.employeeId === employeeId && a.date === date) : null;
+
+    const nextTwoDays = dates.map((date, idx) => {
+      const assign = findAssignment(idx === 0 ? r1 : r2, date);
+      const shift = assign ? shiftsMap.get(assign.shiftId) : null;
+      const isOff = assign?.shiftId === 'none' || !assign;
+
+      return {
+        date: format(new Date(date), 'dd MMM yyyy'),
+        day: format(new Date(date), 'EEEE'),
+        shift: isOff ? 'WEEK-OFF' : (shift?.name || 'UNASSIGNED'),
+        time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`
+      };
+    });
+
+    const pngBuffer = await generateRosterImage({
+      employeeName: emp.fullName,
+      employeeId: employeeId,
+      logoBase64,
+      nextTwoDays
+    });
+
+    return { 
+      success: true, 
+      base64: `data:image/png;base64,${pngBuffer.toString('base64')}`,
+      size: `${(pngBuffer.length / 1024).toFixed(1)} KB`
+    };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
 
 export async function runManualRosterBriefingAction(idToken: string) {
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
-    const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
-    if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
-      throw new Error("Unauthorized: Super Admin credentials required for automation pulse.");
-    }
-
+    await assertSuperAdmin(idToken);
     return await runAutomatedRosterBriefing();
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -35,18 +105,16 @@ export async function runAutomatedRosterBriefing() {
   let failCount = 0;
 
   try {
-    // 1. Governance Verification
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
-    const config = configSnap.exists ? configSnap.data() : { whatsappEnabled: false };
-    const automation = autoSnap.exists ? autoSnap.data() : { masterEnabled: false };
+    const config = configSnap.data();
+    const automation = autoSnap.data();
     
     if (!config?.whatsappEnabled || !automation?.masterEnabled) {
-      throw new Error("AUTOMATION_SUSPENDED: Pulse is globally OFF.");
+      throw new Error("AUTOMATION_SUSPENDED: Master Pulse is OFF.");
     }
 
-    // 2. Data Aggregation
     const empSnap = await adminDb.collection('employees').where('status', '==', 'Active').get();
     const shiftSnap = await adminDb.collection('shift_master').get();
     const shiftsMap = new Map();
@@ -54,13 +122,11 @@ export async function runAutomatedRosterBriefing() {
 
     const tomorrow = addDays(new Date(), 1);
     const dayAfter = addDays(new Date(), 2);
-    
     const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
     const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
 
     const bucket = getStorage().bucket();
 
-    // 3. Orchestration Loop
     for (const empDoc of empSnap.docs) {
       const emp = empDoc.data();
       if (!emp.whatsappNumber) continue;
@@ -98,7 +164,6 @@ export async function runAutomatedRosterBriefing() {
           };
         });
 
-        // 4. Deterministic Image Synthesis (< 60KB enforced)
         const pngBuffer = await generateRosterImage({
           employeeName: emp.fullName,
           employeeId: empDoc.id,
@@ -106,7 +171,6 @@ export async function runAutomatedRosterBriefing() {
           nextTwoDays
         });
 
-        // 5. Private Registry Pulse
         const year = format(new Date(), 'yyyy');
         const month = format(new Date(), 'MM');
         const storagePath = `whatsapp-roster-images/${year}/${month}/${empDoc.id}/${executionId}.png`;
@@ -123,7 +187,6 @@ export async function runAutomatedRosterBriefing() {
           }
         });
 
-        // 6. Meta API Dispatch
         const dispatch = await sendWhatsAppShiftBriefingWithImage(
           emp.whatsappNumber,
           emp.fullName,
@@ -158,7 +221,6 @@ export async function runAutomatedRosterBriefing() {
       }
     }
 
-    // 7. Telemetry Registry Sync
     await adminDb.collection('system_settings').doc('whatsapp_automation').update({
       lastRun: new Date().toISOString(),
       lastStats: { success: successCount, fail: failCount, total: successCount + failCount },
@@ -166,7 +228,6 @@ export async function runAutomatedRosterBriefing() {
     });
 
     await purgeExpiredRosterMedia();
-
     return { success: true, count: successCount, total: successCount + failCount };
 
   } catch (globalErr: any) {

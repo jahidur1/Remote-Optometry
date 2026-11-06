@@ -11,6 +11,16 @@ import { logAuditServer } from './audit-service';
  * Restricts modifications to active Super Admin nodes.
  */
 
+async function assertSuperAdmin(idToken: string) {
+  if (!idToken) throw new Error("Unauthorized: Identity link missing.");
+  const decoded = await adminAuth.verifyIdToken(idToken, true);
+  const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
+  if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
+    throw new Error("Unauthorized: Super Admin pulse required.");
+  }
+  return decoded.uid;
+}
+
 export async function getWhatsAppSettingsAction() {
   try {
     const snap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
@@ -36,28 +46,23 @@ export async function getWhatsAppSettingsAction() {
 
 export async function updateWhatsAppSettingsAction(idToken: string, updates: { enabled?: boolean, logoBase64?: string, masterEnabled?: boolean }) {
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
-    const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
-    if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
-      throw new Error("Unauthorized: SUPER_ADMIN credentials required.");
-    }
-
+    const uid = await assertSuperAdmin(idToken);
     const batch = adminDb.batch();
     const now = new Date().toISOString();
     
-    // 1. Update Core API Status
+    // 1. Update Core API Status (whatsapp_config)
     if (updates.enabled !== undefined) {
       batch.set(adminDb.collection('system_settings').doc('whatsapp_config'), {
         whatsappEnabled: updates.enabled,
         updatedAt: now,
-        updatedBy: decoded.uid
+        updatedBy: uid
       }, { merge: true });
     }
 
-    // 2. Update Automation Governance
+    // 2. Update Automation Governance (whatsapp_automation)
     const autoUpdates: any = {
       updatedAt: now,
-      updatedBy: decoded.uid
+      updatedBy: uid
     };
     if (updates.masterEnabled !== undefined) autoUpdates.masterEnabled = updates.masterEnabled;
     if (updates.logoBase64 !== undefined) {
@@ -68,7 +73,7 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: { e
     batch.set(adminDb.collection('system_settings').doc('whatsapp_automation'), autoUpdates, { merge: true });
 
     await batch.commit();
-    await logAuditServer(decoded.uid, 'ADMIN_UPDATE_WHATSAPP_GOVERNANCE', 'system', { 
+    await logAuditServer(uid, 'ADMIN_UPDATE_WHATSAPP_GOVERNANCE', 'system', { 
         enabled: updates.enabled, 
         master: updates.masterEnabled,
         logoUpdated: !!updates.logoBase64
