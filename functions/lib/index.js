@@ -87,7 +87,7 @@ exports.storageCleanupPulse = functions.region('asia-south1').pubsub
     for (const file of files) {
         const [metadata] = await file.getMetadata();
         const expiresAtStr = metadata.metadata?.expiresAt;
-        if (expiresAtStr) {
+        if (expiresAtStr && typeof expiresAtStr === 'string') {
             const expiresAt = new Date(expiresAtStr);
             if (now > expiresAt) {
                 try {
