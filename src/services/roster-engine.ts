@@ -4,11 +4,11 @@
  * @fileOverview Institutional Pure-Logic Roster Orchestration Engine.
  * Implements a deterministic constraint satisfaction algorithm in TypeScript.
  * 
- * PROTOCOL v4.0: 
+ * PROTOCOL v5.0: 
  * 1. MANDATORY FLOOR: Strictly satisfies 'Assignment Matrix' headcount requirements.
  * 2. 100% UTILIZATION: Every available professional MUST be assigned a shift.
- * 3. NO REDUCTION: Clinical floor is the absolute minimum; excess staff distributed safely.
- * 4. SHORTFALL PROTECTION: Blocks generation if available headcount < required floor.
+ * 3. CAPACITY HEURISTIC: Prioritizes staff with highest remaining frequency budget to prevent Sunday exhaustion.
+ * 4. PRE-FLIGHT AUDIT: Validates global shift capacity before initiating loop.
  */
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -50,6 +50,8 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       .filter(d => employeeIds.includes(d.id))
       .map(d => ({ id: d.id, ...d.data() }));
 
+    if (employees.length === 0) throw new Error("Registry Alert: No active professionals selected for generation.");
+
     const masterShifts = shiftSnap.docs.map(d => d.data());
     const allShiftIds = masterShifts.map(s => s.id);
 
@@ -60,7 +62,19 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
     const weekDates = getDatesForWeek(weekId);
     const dateStrings = weekDates.map(d => format(d, 'yyyy-MM-dd'));
 
-    // 3. Logic Execution (Atomic Date Mapping)
+    // 3. Pre-Flight Global Capacity Audit
+    // Ensures the quotas entered don't mathematically exceed what the selected staff can physically work
+    for (const sId of allShiftIds) {
+        const weeklyQuotaForShift = DAYS.reduce((sum, day) => sum + (Number(quotas[`${day}_${sId}`]) || 0), 0);
+        const maxAllowedPerStaff = globalFreq[sId]?.max ?? 7;
+        const totalCapacity = employees.length * maxAllowedPerStaff;
+
+        if (weeklyQuotaForShift > totalCapacity) {
+            throw new Error(`Mathematical Impossibility: Your total requirement for ${sId} (${weeklyQuotaForShift} slots) exceeds the maximum possible staff capacity (${totalCapacity} slots). Increase Frequency Limits or enroll more professionals.`);
+        }
+    }
+
+    // 4. Logic Execution
     const assignments: any[] = [];
     const empShiftCounts = new Map<string, Record<string, number>>(); 
 
@@ -73,7 +87,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       const dateStr = dateStrings[dayIdx];
       const assignedToday = new Set<string>();
 
-      // Filter people truly available today
+      // Filter truly available today (Not on Week-Off, Not on Leave)
       const availableToday = employees.filter(emp => {
           if (bookingsMap.get(emp.id) === dayName) return false;
           const onLeave = leaves.some(l => emp.id === l.employeeId && dateStr >= l.startDate && dateStr <= l.endDate);
@@ -92,9 +106,9 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
 
       const totalRequiredHeadcount = dailyRequirements.reduce((sum, r) => sum + r.required, 0);
 
-      // SHORTFALL PROTECTION: ensure we have enough staff to meet the floor
+      // SHORTFALL PROTECTION: Absolute Floor
       if (availableToday.length < totalRequiredHeadcount) {
-          throw new Error(`Staffing Shortfall on ${dayName}: Required headcount is ${totalRequiredHeadcount}, but only ${availableToday.length} professionals are available.`);
+          throw new Error(`Staffing Shortfall on ${dayName}: Your matrix requires ${totalRequiredHeadcount} professionals, but only ${availableToday.length} are available (after accounting for week-offs and leave).`);
       }
 
       // PHASE A: Fulfill Mandatory Quota Floors
@@ -107,10 +121,12 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
         const candidates = availableToday.filter(emp => {
           if (assignedToday.has(emp.id)) return false;
 
+          // Frequency Check
           const currentCount = empShiftCounts.get(emp.id)?.[shift.id] || 0;
           const maxAllowed = globalFreq[shift.id]?.max ?? 7;
           if (currentCount >= maxAllowed) return false;
 
+          // Adjacency Guards
           const tomorrowIsOff = dayIdx < 6 && bookingsMap.get(emp.id) === DAYS[dayIdx + 1];
           if (tomorrowIsOff && globalPreOff.length > 0 && !globalPreOff.includes(shift.id)) return false;
 
@@ -120,11 +136,14 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
           return true;
         });
 
-        // Heuristic: Prefer people with fewest current assignments of THIS shift to keep it fair
+        // HEURISTIC: Prioritize staff with MOST remaining frequency budget for THIS shift.
+        // This prevents Sunday exhaustion by saving capacity for people who haven't worked this shift yet.
         candidates.sort((a, b) => {
-          const countA = empShiftCounts.get(a.id)?.[shift.id] || 0;
-          const countB = empShiftCounts.get(b.id)?.[shift.id] || 0;
-          return countA - countB;
+          const maxA = globalFreq[shift.id]?.max ?? 7;
+          const maxB = globalFreq[shift.id]?.max ?? 7;
+          const remA = maxA - (empShiftCounts.get(a.id)?.[shift.id] || 0);
+          const remB = maxB - (empShiftCounts.get(b.id)?.[shift.id] || 0);
+          return remB - remA; // Descending remaining capacity
         });
 
         while (assignedCount < shift.required && candidates.length > 0) {
@@ -143,7 +162,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
         }
         
         if (assignedCount < shift.required) {
-            throw new Error(`Constraint Conflict: Could not satisfy mandatory floor for ${shift.id} on ${dayName} due to frequency or adjacency limits.`);
+            throw new Error(`Constraint Conflict: Could not satisfy mandatory floor for ${shift.id} on ${dayName} (${assignedCount}/${shift.required} filled). This is usually due to restrictive Adjacency rules or reaching Weekly Frequency limits. Try increasing frequency max or expanding pre/post off options.`);
         }
       }
 
@@ -166,7 +185,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
           });
 
           if (eligibleShifts.length > 0) {
-              // Prefer assigning to a shift that is part of the daily requirements to balance pods
+              // Prefer assigning to a shift that is part of the daily requirements to maintain pod balance
               const preferredShift = dailyRequirements.find(r => eligibleShifts.includes(r.id))?.id || eligibleShifts[0];
               
               assignments.push({
@@ -183,7 +202,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       });
     }
 
-    // 4. Persistence (Singleton ID Protocol)
+    // 5. Persistence (Singleton ID Protocol)
     const draftId = `draft_${weekId}_${officeId}`;
     await adminDb.collection('roster_drafts').doc(draftId).set({
       id: draftId,
@@ -194,11 +213,11 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       actorId: decoded.uid,
-      generationMethod: 'deterministic_engine_v4_full_utilization',
+      generationMethod: 'deterministic_engine_v5_capacity_aware',
       solverMetadata: {
         solveTimeMs: Date.now() - start,
         assignmentsCreated: assignments.length,
-        engine: 'ROC_TypeScript_Solver_v4'
+        engine: 'ROC_TypeScript_Solver_v5'
       }
     });
 
