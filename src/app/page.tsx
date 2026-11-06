@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -84,7 +85,7 @@ export default function Home() {
             )}
             <div className="flex flex-col leading-none">
               <span className="text-xl font-black uppercase tracking-tighter">Remote <span className="text-secondary">Optometry</span></span>
-              <span className="text-[8px] font-black uppercase tracking-[0.4em] text-black/30 mt-1">Institutional Node</span>
+              <span className="text-[8px] font-black uppercase tracking-[0.4em] text-black/30 mt-1">Institutional Standard</span>
             </div>
           </div>
           <Link href="/login">
@@ -99,9 +100,11 @@ export default function Home() {
         {/* Hero Section */}
         <section className="container mx-auto px-6 pt-24 pb-32 text-center space-y-12 animate-in">
           <div className="space-y-6">
-            <Badge variant="outline" className="px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-[0.3em] border-secondary/20 text-secondary bg-secondary/5 mb-4 shadow-inner">
-               Professional Workforce Grid v6.0
-            </Badge>
+            {logo && (
+              <div className="relative size-24 mx-auto mb-8 animate-in duration-1000 zoom-in-95">
+                <Image src={logo.imageUrl} alt="Remote Optometry" fill className="object-contain" priority />
+              </div>
+            )}
             <h1 className="text-5xl md:text-8xl font-black tracking-[-0.05em] uppercase leading-[0.85] max-w-5xl mx-auto">
               Precision <br /> 
               <span className="text-primary italic">Orchestration</span> for <br /> 
