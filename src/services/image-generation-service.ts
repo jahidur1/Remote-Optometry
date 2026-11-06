@@ -9,7 +9,8 @@ import React from 'react';
  * ROC WORKFORCE — DYNAMIC IMAGE ORCHESTRATOR
  * 
  * Generates personalized 700x400 roster images.
- * Optimized for WhatsApp delivery with progressive compression (Strict < 60KB).
+ * STRICT REQUIREMENT: Final image size MUST be <= 60KB.
+ * PROGRESSIVE COMPRESSION: Recursively reduces quality/scale until constraint is met.
  */
 
 type RosterDay = {
@@ -27,7 +28,7 @@ export async function generateRosterImage(input: {
 }): Promise<Buffer> {
   const { employeeName, employeeId, logoBase64, nextTwoDays } = input;
 
-  // Satori SVG Rendering
+  // Satori SVG Rendering (Deterministic React-to-SVG)
   const renderSvg = async (scale = 1) => {
     return await satori(
       React.createElement(
@@ -39,13 +40,13 @@ export async function generateRosterImage(input: {
             display: 'flex',
             flexDirection: 'column',
             backgroundColor: '#FFFFFF',
-            padding: `${40 * scale}px`,
+            padding: `${32 * scale}px`,
             fontFamily: 'sans-serif',
-            border: `${12 * scale}px solid #0F172A`,
-            borderRadius: `${40 * scale}px`,
+            border: `${10 * scale}px solid #0F172A`,
+            borderRadius: `${32 * scale}px`,
           },
         },
-        // Header
+        // Header Hub
         React.createElement(
           'div',
           {
@@ -53,7 +54,7 @@ export async function generateRosterImage(input: {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: `${40 * scale}px`,
+              marginBottom: `${32 * scale}px`,
             },
           },
           React.createElement(
@@ -61,26 +62,26 @@ export async function generateRosterImage(input: {
             { style: { display: 'flex', flexDirection: 'column' } },
             React.createElement(
               'span',
-              { style: { fontSize: `${28 * scale}px`, fontWeight: 900, color: '#0F172A', textTransform: 'uppercase' } },
+              { style: { fontSize: `${24 * scale}px`, fontWeight: 900, color: '#0F172A', textTransform: 'uppercase' } },
               employeeName
             ),
             React.createElement(
               'span',
-              { style: { fontSize: `${14 * scale}px`, fontWeight: 700, color: '#3B82F6', marginTop: `${4 * scale}px`, letterSpacing: '2px' } },
+              { style: { fontSize: `${12 * scale}px`, fontWeight: 700, color: '#3B82F6', marginTop: `${4 * scale}px`, letterSpacing: '1px' } },
               `ID: ${employeeId}`
             )
           ),
           logoBase64 ? React.createElement('img', {
             src: logoBase64,
-            style: { height: `${50 * scale}px`, objectFit: 'contain' }
+            style: { height: `${40 * scale}px`, objectFit: 'contain' }
           }) : React.createElement('div', {
-            style: { fontSize: `${20 * scale}px`, fontWeight: 900, color: '#3B82F6' }
-          }, 'ROC WORKFORCE')
+            style: { fontSize: `${18 * scale}px`, fontWeight: 900, color: '#3B82F6' }
+          }, 'ROC')
         ),
-        // Grid
+        // Clinical Grid
         React.createElement(
           'div',
-          { style: { display: 'flex', gap: `${20 * scale}px` } },
+          { style: { display: 'flex', gap: `${16 * scale}px` } },
           nextTwoDays.map((d, i) => 
             React.createElement(
               'div',
@@ -90,45 +91,45 @@ export async function generateRosterImage(input: {
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
-                  padding: `${24 * scale}px`,
+                  padding: `${20 * scale}px`,
                   backgroundColor: i === 0 ? '#F8FAFC' : '#FFFFFF',
                   border: `${2 * scale}px solid #F1F5F9`,
-                  borderRadius: `${24 * scale}px`,
+                  borderRadius: `${20 * scale}px`,
                 },
               },
               React.createElement(
                 'span',
-                { style: { fontSize: `${12 * scale}px`, fontWeight: 900, color: '#64748B', textTransform: 'uppercase' } },
+                { style: { fontSize: `${10 * scale}px`, fontWeight: 900, color: '#64748B', textTransform: 'uppercase' } },
                 `${d.day} • ${d.date}`
               ),
               React.createElement(
                 'span',
-                { style: { fontSize: `${24 * scale}px`, fontWeight: 900, color: '#3B82F6', marginTop: `${12 * scale}px`, textTransform: 'uppercase' } },
+                { style: { fontSize: `${20 * scale}px`, fontWeight: 900, color: '#3B82F6', marginTop: `${10 * scale}px`, textTransform: 'uppercase' } },
                 d.shift
               ),
               React.createElement(
                 'span',
-                { style: { fontSize: `${14 * scale}px`, fontWeight: 700, color: '#94A3B8', marginTop: `${4 * scale}px` } },
+                { style: { fontSize: `${12 * scale}px`, fontWeight: 700, color: '#94A3B8', marginTop: `${4 * scale}px` } },
                 d.time
               )
             )
           )
         ),
-        // Footer
+        // Institutional Footer
         React.createElement(
           'div',
           {
             style: {
               marginTop: 'auto',
               display: 'flex',
-              paddingTop: `${20 * scale}px`,
+              paddingTop: `${16 * scale}px`,
               borderTop: `${1 * scale}px solid #F1F5F9`,
             },
           },
           React.createElement(
             'span',
-            { style: { fontSize: `${11 * scale}px`, fontWeight: 600, color: '#64748B', fontStyle: 'italic', textAlign: 'center', width: '100%' } },
-            'Have a great day at ROC! Please arrive on time and coordinate with your team.'
+            { style: { fontSize: `${9 * scale}px`, fontWeight: 600, color: '#94A3B8', textAlign: 'center', width: '100%', lineHeight: 1.4 } },
+            'Arrive on time, follow shift timings, and coordinate with your team. Wishing you a productive day!'
           )
         )
       ),
@@ -139,9 +140,9 @@ export async function generateRosterImage(input: {
     );
   };
 
-  // Progressive Quality Loop
+  // RECURSIVE QUALITY LOOP: Progressively reduce fidelity to hit strict 60KB limit
   let qualityScale = 1.0;
-  let finalBuffer: Buffer;
+  let finalBuffer: Buffer | null = null;
   
   while (qualityScale > 0.4) {
     const svg = await renderSvg(qualityScale);
@@ -151,13 +152,19 @@ export async function generateRosterImage(input: {
     });
     
     const pngData = resvg.render();
-    finalBuffer = pngData.asPng();
+    const currentBuffer = pngData.asPng();
     
-    if (finalBuffer.length <= 61440) { // 60KB
-        return finalBuffer;
+    // Check constraint (60KB = 61440 bytes)
+    if (currentBuffer.length <= 61440) {
+        finalBuffer = currentBuffer;
+        break;
     }
-    qualityScale -= 0.1; // Reduce fidelity to meet strict size requirement
+    qualityScale -= 0.1; 
   }
 
-  throw new Error("IMAGE_SIZE_CONSTRAINT_VIOLATION: Could not optimize roster image below 60KB.");
+  if (!finalBuffer) {
+    throw new Error("IMAGE_OPTIMIZATION_FAILURE: Could not compress roster image below 60KB threshold while maintaining legibility.");
+  }
+
+  return finalBuffer;
 }
