@@ -102,7 +102,7 @@ export default function Home() {
             <Badge variant="outline" className="px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-[0.3em] border-secondary/20 text-secondary bg-secondary/5 mb-4 shadow-inner">
                Professional Workforce Grid v6.0
             </Badge>
-            <h1 className="text-5xl md:text-8xl font-black tracking-[ -0.05em] uppercase leading-[0.85] max-w-5xl mx-auto">
+            <h1 className="text-5xl md:text-8xl font-black tracking-[-0.05em] uppercase leading-[0.85] max-w-5xl mx-auto">
               Precision <br /> 
               <span className="text-primary italic">Orchestration</span> for <br /> 
               Clinical Hubs
@@ -170,46 +170,27 @@ export default function Home() {
 
         {/* Protocol Grid */}
         <section className="container mx-auto px-6 py-32 space-y-24">
-           <div className="flex flex-col lg:flex-row items-center justify-between gap-20">
-              <div className="lg:w-1/2 space-y-10">
-                 <div className="space-y-4">
-                    <p className="text-secondary font-black uppercase text-[11px] tracking-[0.5em]">Institutional Standard</p>
-                    <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-[0.95]">Deterministic <br /> Roster Governance</h2>
-                 </div>
-                 <div className="space-y-8">
-                    {[
-                      { icon: Target, label: "Assignment Floors", sub: "Strictly satisfy minimum clinical headcount requirements." },
-                      { icon: Activity, label: "100% Utilization", sub: "Automatically distribute excess professionals to maximize capacity." },
-                      { icon: Lock, label: "Singleton Registry", sub: "Prevent data duplication via deterministic unique week identifiers." }
-                    ].map((item, i) => (
-                      <div key={i} className="flex gap-6 items-start group">
-                         <div className="size-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 group-hover:bg-secondary group-hover:text-white transition-all">
-                            <item.icon className="size-5" />
-                         </div>
-                         <div className="space-y-1">
-                            <p className="font-black text-lg uppercase tracking-tight leading-none">{item.label}</p>
-                            <p className="text-slate-400 font-medium uppercase text-[10px] tracking-widest leading-relaxed">{item.sub}</p>
-                         </div>
-                      </div>
-                    ))}
-                 </div>
+           <div className="max-w-5xl mx-auto space-y-16">
+              <div className="space-y-6 text-center">
+                 <p className="text-secondary font-black uppercase text-[11px] tracking-[0.5em]">Institutional Standard</p>
+                 <h2 className="text-4xl md:text-7xl font-black uppercase tracking-tighter leading-[0.95]">Deterministic <br /> Roster Governance</h2>
               </div>
-              
-              <div className="lg:w-1/2 w-full">
-                 <div className="relative aspect-[4/3] rounded-[3.5rem] overflow-hidden shadow-3xl border-8 border-white group">
-                    <Image 
-                      src={PlaceHolderImages.find(img => img.id === 'hero-dashboard')?.imageUrl || ''} 
-                      alt="Workforce Grid" 
-                      fill 
-                      className="object-cover group-hover:scale-105 transition-transform duration-[3s]"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-primary/60 to-transparent flex items-end p-12">
-                       <div className="space-y-2">
-                          <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">Live Interface Trace</p>
-                          <p className="text-white text-2xl font-black uppercase tracking-tight">Master Availability Matrix v2.0</p>
-                       </div>
-                    </div>
-                 </div>
+              <div className="grid gap-8 md:grid-cols-3">
+                 {[
+                   { icon: Target, label: "Assignment Floors", sub: "Strictly satisfy minimum clinical headcount requirements." },
+                   { icon: Activity, label: "100% Utilization", sub: "Automatically distribute excess professionals to maximize capacity." },
+                   { icon: Lock, label: "Singleton Registry", sub: "Prevent data duplication via deterministic unique week identifiers." }
+                 ].map((item, i) => (
+                   <div key={i} className="flex flex-col items-center text-center gap-6 group p-8 rounded-[2.5rem] bg-slate-50/50 border border-transparent hover:border-slate-100 hover:bg-white transition-all">
+                      <div className="size-16 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0 group-hover:bg-secondary group-hover:text-white transition-all group-hover:scale-110">
+                         <item.icon className="size-7" />
+                      </div>
+                      <div className="space-y-3">
+                         <p className="font-black text-xl uppercase tracking-tight leading-none">{item.label}</p>
+                         <p className="text-slate-400 font-medium uppercase text-[10px] tracking-widest leading-relaxed">{item.sub}</p>
+                      </div>
+                   </div>
+                 ))}
               </div>
            </div>
         </section>
