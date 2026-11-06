@@ -1,11 +1,10 @@
+
 'use server';
 
-import { checkSolverHealth } from '@/lib/solver-client';
-
 /**
- * Server action to safely check solver health from client components
- * without exposing Node.js internal logic.
+ * DECOMMISSIONED: External solver actions have been deprecated in favor of 
+ * the ROC local deterministic orchestration engine.
  */
 export async function getSolverHealthAction() {
-  return checkSolverHealth();
+  return { status: 'decommissioned' };
 }

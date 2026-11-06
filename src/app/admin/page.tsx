@@ -17,7 +17,6 @@ import {
   Loader2
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getSolverHealthAction } from "@/services/solver-actions"
 import { getRegionalStatsAction, getOfficeDashboardStatsAction } from "@/services/analytics-actions"
 import { cn } from "@/lib/utils"
 
@@ -26,7 +25,6 @@ export default function AdminDashboard() {
   const { profile } = useUser();
   const { selectedOffice, authorizedOffices } = useOffice();
   
-  const [solverHealth, setSolverHealth] = useState<{ status: string } | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,9 +34,6 @@ export default function AdminDashboard() {
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
-
-        const health = await getSolverHealthAction();
-        setSolverHealth({ status: health.status });
 
         if (profile?.role === 'super_admin') {
           const res = await getRegionalStatsAction(idToken);
@@ -77,17 +72,6 @@ export default function AdminDashboard() {
     ];
   }, [stats, isSuperAdmin]);
 
-  const solverIndicator = useMemo(() => {
-    const status = solverHealth?.status;
-    if (status === 'healthy') {
-      return { label: 'ONLINE', color: 'bg-emerald-500 shadow-[0_0_10px_emerald]', pulse: false };
-    }
-    if (status === 'unconfigured') {
-      return { label: 'AWAITING SETUP', color: 'bg-slate-300', pulse: false };
-    }
-    return { label: 'OFFLINE', color: 'bg-destructive shadow-[0_0_10px_destructive]', pulse: true };
-  }, [solverHealth]);
-
   return (
     <div className="space-y-6 md:space-y-10 animate-in max-w-[1600px] mx-auto pb-24 md:pb-40 px-2 sm:px-4">
       {/* Header Pulse */}
@@ -102,7 +86,7 @@ export default function AdminDashboard() {
                 {isSuperAdmin ? "Regional Command" : "Command Center"}
               </h1>
               <div className="flex items-center gap-2 md:gap-3 mt-1.5 md:mt-2">
-                <p className="text-muted-foreground font-black uppercase text-[8px] md:text-[10px] tracking-[0.2em] md:tracking-[0.25em] flex items-center gap-2">
+                <p className="text-muted-foreground font-black uppercase text-[8px] md:text-[10px] tracking-widest flex items-center gap-2">
                   {isSuperAdmin ? "Governance Hub" : `${officeName} Pulse`} <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
               </div>
@@ -112,12 +96,10 @@ export default function AdminDashboard() {
 
         <div className="flex flex-wrap items-center gap-3 md:gap-4 bg-white p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-slate-200 shadow-xl w-full lg:w-auto">
            <div className="px-4 md:px-6 py-1 border-r border-slate-100 flex-1 lg:flex-none">
-              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">System Status</label>
+              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Operational Status</label>
               <div className="flex items-center gap-2">
-                 <div className={cn("size-2 rounded-full", solverIndicator.color, solverIndicator.pulse && "animate-pulse")} />
-                 <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">
-                   {solverIndicator.label}
-                 </span>
+                 <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
+                 <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">ENFORCED</span>
               </div>
            </div>
            <div className="px-4 md:px-6 py-1 flex-1 lg:flex-none">
