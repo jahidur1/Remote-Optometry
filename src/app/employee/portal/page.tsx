@@ -136,7 +136,6 @@ export default function EmployeePortal() {
   const [rosterLoading, setRosterLoading] = useState(true);
   const [activeConfig, setActiveConfig] = useState<any>(null);
   
-  // Hydration-safe states
   const [currentWeekId, setCurrentWeekIdState] = useState<string>('');
   const [weeks, setWeeks] = useState<string[]>([]);
 
@@ -146,7 +145,6 @@ export default function EmployeePortal() {
     
     const now = new Date();
     const monday = startOfISOWeek(now);
-    // Unique Week ID Protocol: strictly 7-day Monday-to-Sunday chunks
     const calculatedWeeks = [
       subWeeks(monday, 2),
       subWeeks(monday, 1),
@@ -233,7 +231,6 @@ export default function EmployeePortal() {
   const todayName = format(now, 'EEEE');
   const todayDateStr = format(now, 'yyyy-MM-dd');
   
-  // Find current week roster and today's shift matching by exact date string
   const currentRoster = rosterData[currentWeekId] || { assignments: [], published: false };
   const todayShift = currentRoster.assignments.find(a => a.date === todayDateStr);
   const todayShiftDetails = shifts?.find(s => s.id === todayShift?.shiftId);
@@ -359,7 +356,6 @@ export default function EmployeePortal() {
                            const dateFullStr = date ? format(date, 'yyyy-MM-dd') : '';
                            const dateDisplayStr = date ? format(date, 'MMM dd') : '-- --';
                            
-                           // Atomic Temporal Lookup: Match by specific calendar date
                            const assignment = weekData.assignments.find(a => a.date === dateFullStr);
                            const shift = shifts?.find(s => s.id === assignment?.shiftId);
                            const isOff = userBookings?.some(b => b.weekId === week && b.dayOfWeek === day);

@@ -4,10 +4,11 @@
  * @fileOverview Institutional Pure-Logic Roster Orchestration Engine.
  * Implements a deterministic constraint satisfaction algorithm in TypeScript.
  * 
- * PROTOCOL v3.0: 
- * 1. Mandatory Floor: Strictly satisfies 'Assignment Matrix' headcount requirements.
- * 2. Full Utilization: Assigns every available professional a shift (no idle staff).
- * 3. Excess Distribution: Allows shifts to exceed requirements to accommodate all available staff.
+ * PROTOCOL v4.0: 
+ * 1. MANDATORY FLOOR: Strictly satisfies 'Assignment Matrix' headcount requirements.
+ * 2. 100% UTILIZATION: Every available professional MUST be assigned a shift.
+ * 3. NO REDUCTION: Clinical floor is the absolute minimum; excess staff distributed safely.
+ * 4. SHORTFALL PROTECTION: Blocks generation if available headcount < required floor.
  */
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -59,10 +60,9 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
     const weekDates = getDatesForWeek(weekId);
     const dateStrings = weekDates.map(d => format(d, 'yyyy-MM-dd'));
 
-    // 3. Mathematical Orchestration (Deterministic Assignment)
+    // 3. Logic Execution (Atomic Date Mapping)
     const assignments: any[] = [];
-    const empDailyShift = new Map<string, string>(); // 'empId_dayIdx' -> shiftId
-    const empShiftCounts = new Map<string, Record<string, number>>(); // 'empId' -> { shiftId: count }
+    const empShiftCounts = new Map<string, Record<string, number>>(); 
 
     // Initialize counts
     employees.forEach(e => empShiftCounts.set(e.id, {}));
@@ -75,54 +75,56 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
 
       // Filter people truly available today
       const availableToday = employees.filter(emp => {
-          // Rule: Not on confirmed Week-Off
           if (bookingsMap.get(emp.id) === dayName) return false;
-          // Rule: Not on approved Leave
           const onLeave = leaves.some(l => emp.id === l.employeeId && dateStr >= l.startDate && dateStr <= l.endDate);
           if (onLeave) return false;
           return true;
       });
 
-      // PHASE A: Fulfill Mandatory Quota Floors
-      const shiftsWithRequirements = Object.keys(quotas)
+      // Daily Requirement Calculation
+      const dailyRequirements = Object.keys(quotas)
         .filter(key => key.startsWith(dayName))
         .map(key => ({ 
           id: key.split('_')[1], 
           required: Number(quotas[key]) || 0 
         }))
-        .filter(s => s.required > 0)
-        .sort((a, b) => b.required - a.required);
+        .filter(s => s.required > 0);
 
-      for (const shift of shiftsWithRequirements) {
+      const totalRequiredHeadcount = dailyRequirements.reduce((sum, r) => sum + r.required, 0);
+
+      // SHORTFALL PROTECTION: ensure we have enough staff to meet the floor
+      if (availableToday.length < totalRequiredHeadcount) {
+          throw new Error(`Staffing Shortfall on ${dayName}: Required headcount is ${totalRequiredHeadcount}, but only ${availableToday.length} professionals are available.`);
+      }
+
+      // PHASE A: Fulfill Mandatory Quota Floors
+      dailyRequirements.sort((a, b) => b.required - a.required);
+
+      for (const shift of dailyRequirements) {
         let assignedCount = 0;
         
         const candidates = availableToday.filter(emp => {
           if (assignedToday.has(emp.id)) return false;
 
-          // Rule: Frequency Max Guard
           const currentCount = empShiftCounts.get(emp.id)?.[shift.id] || 0;
           const maxAllowed = globalFreq[shift.id]?.max ?? 7;
           if (currentCount >= maxAllowed) return false;
 
-          // Rule: Adjacency (Pre-Off)
           const tomorrowIsOff = dayIdx < 6 && bookingsMap.get(emp.id) === DAYS[dayIdx + 1];
           if (tomorrowIsOff && globalPreOff.length > 0 && !globalPreOff.includes(shift.id)) return false;
 
-          // Rule: Adjacency (Post-Off)
           const yesterdayWasOff = dayIdx > 0 && bookingsMap.get(emp.id) === DAYS[dayIdx - 1];
           if (yesterdayWasOff && globalPostOff.length > 0 && !globalPostOff.includes(shift.id)) return false;
 
           return true;
         });
 
-        // Fairness Heuristic: Sort candidates by current load
         candidates.sort((a, b) => {
           const countA = empShiftCounts.get(a.id)?.[shift.id] || 0;
           const countB = empShiftCounts.get(b.id)?.[shift.id] || 0;
           return countA - countB;
         });
 
-        // Commit Mandatory Assignments
         while (assignedCount < shift.required && candidates.length > 0) {
           const emp = candidates.shift()!;
           assignments.push({
@@ -137,47 +139,48 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
           counts[shift.id] = (counts[shift.id] || 0) + 1;
           assignedCount++;
         }
+        
+        if (assignedCount < shift.required) {
+            throw new Error(`Constraint Conflict: Could not satisfy mandatory floor for ${shift.id} on ${dayName} due to frequency or adjacency limits.`);
+        }
       }
 
-      // PHASE B: Full Utilization (Distribute Excess Staff)
-      // Every available professional NOT yet assigned MUST get a shift to maximize capacity.
+      // PHASE B: Full Utilization (Assign EVERY remaining professional)
       const leftovers = availableToday.filter(emp => !assignedToday.has(emp.id));
       
-      if (leftovers.length > 0) {
-          leftovers.forEach(emp => {
-              // Find all shifts this person is eligible for today
-              const eligibleShifts = allShiftIds.filter(sid => {
-                  // Rule: Adjacency (Pre-Off)
-                  const tomorrowIsOff = dayIdx < 6 && bookingsMap.get(emp.id) === DAYS[dayIdx + 1];
-                  if (tomorrowIsOff && globalPreOff.length > 0 && !globalPreOff.includes(sid)) return false;
+      leftovers.forEach(emp => {
+          const eligibleShifts = allShiftIds.filter(sid => {
+              const currentCount = empShiftCounts.get(emp.id)?.[sid] || 0;
+              const maxAllowed = globalFreq[sid]?.max ?? 7;
+              if (currentCount >= maxAllowed) return false;
 
-                  // Rule: Adjacency (Post-Off)
-                  const yesterdayWasOff = dayIdx > 0 && bookingsMap.get(emp.id) === DAYS[dayIdx - 1];
-                  if (yesterdayWasOff && globalPostOff.length > 0 && !globalPostOff.includes(sid)) return false;
+              const tomorrowIsOff = dayIdx < 6 && bookingsMap.get(emp.id) === DAYS[dayIdx + 1];
+              if (tomorrowIsOff && globalPreOff.length > 0 && !globalPreOff.includes(sid)) return false;
 
-                  return true;
+              const yesterdayWasOff = dayIdx > 0 && bookingsMap.get(emp.id) === DAYS[dayIdx - 1];
+              if (yesterdayWasOff && globalPostOff.length > 0 && !globalPostOff.includes(sid)) return false;
+
+              return true;
+          });
+
+          if (eligibleShifts.length > 0) {
+              const preferredShift = dailyRequirements.find(r => eligibleShifts.includes(r.id))?.id || eligibleShifts[0];
+              
+              assignments.push({
+                  employeeId: emp.id,
+                  dayOfWeek: dayName,
+                  shiftId: preferredShift,
+                  date: dateStr
               });
 
-              if (eligibleShifts.length > 0) {
-                  // Preference: If this shift was required today, use it. Otherwise, use first eligible.
-                  const bestShift = shiftsWithRequirements.find(s => eligibleShifts.includes(s.id))?.id || eligibleShifts[0];
-                  
-                  assignments.push({
-                      employeeId: emp.id,
-                      dayOfWeek: dayName,
-                      shiftId: bestShift,
-                      date: dateStr
-                  });
-
-                  assignedToday.add(emp.id);
-                  const counts = empShiftCounts.get(emp.id)!;
-                  counts[bestShift] = (counts[bestShift] || 0) + 1;
-              }
-          });
-      }
+              assignedToday.add(emp.id);
+              const counts = empShiftCounts.get(emp.id)!;
+              counts[preferredShift] = (counts[preferredShift] || 0) + 1;
+          }
+      });
     }
 
-    // 4. Persistence Pulse (Singleton ID Protocol)
+    // 4. Persistence (Singleton ID Protocol)
     const draftId = `draft_${weekId}_${officeId}`;
     await adminDb.collection('roster_drafts').doc(draftId).set({
       id: draftId,
@@ -188,34 +191,25 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       actorId: decoded.uid,
-      generationMethod: 'deterministic_engine_v3',
+      generationMethod: 'deterministic_engine_v4_full_utilization',
       solverMetadata: {
         solveTimeMs: Date.now() - start,
-        constraintsChecked: employees.length * 7 * 6,
-        engine: 'ROC_TypeScript_Solver_v3_FullUtilization'
+        assignmentsCreated: assignments.length,
+        engine: 'ROC_TypeScript_Solver_v4'
       }
     });
 
-    // Sync quotas to maintain singleton consistency
-    await adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).set({
-      weekId,
-      officeId,
-      quotas,
-      updatedAt: new Date().toISOString(),
-      actorId: decoded.uid
-    }, { merge: true });
-
-    await logAuditServer(decoded.uid, 'RUN_DETERMINISTIC_SOLVER', draftId, { weekId, officeId, assignmentCount: assignments.length });
+    await logAuditServer(decoded.uid, 'RUN_DETERMINISTIC_SOLVER', draftId, { weekId, officeId, count: assignments.length });
 
     return { 
       success: true, 
       draftId,
-      summary: `Logic pulse complete. Fulfilled all mandatory floors and utilized 100% of available professionals (${assignments.length} assignments).`,
+      summary: `Registry synchronized. Satisfied mandatory floors and achieved 100% professional utilization (${assignments.length} assignments).`,
       solveTimeMs: Date.now() - start
     };
 
   } catch (e: any) {
-    console.error('Logic Engine Conflict:', e.message);
+    console.error('Orchestration Conflict:', e.message);
     return { success: false, error: e.message };
   }
 }

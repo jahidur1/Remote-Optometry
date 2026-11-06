@@ -50,17 +50,14 @@ export default function AvailabilitySummary() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  // Hydration-Safe Week Initialization
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
   }, []);
 
-  // Clear assignments on cycle change to prevent ghosting
   useEffect(() => {
     setAssignments([]);
   }, [selectedWeek, selectedOffice]);
 
-  // Stable Authoritative Registry Fetches
   const empQuery = useMemo(() => {
     if (!profile || !selectedOffice) return null;
     const q = collection(db, 'employees');
@@ -88,10 +85,6 @@ export default function AvailabilitySummary() {
   const { data: leaves } = useCollection(leaveQuery);
   const { data: shifts } = useCollection(shiftsQuery);
 
-  /**
-   * DETERMINISTIC SINGLETON REGISTRY LINK
-   * Atomic Temporal Protocol: Enforces date mapping upon retrieval and overwrite.
-   */
   useEffect(() => {
     if (!db || !selectedWeek || !selectedOffice) return;
     
@@ -103,7 +96,6 @@ export default function AvailabilitySummary() {
     let activeData: any[] = [];
     let hasActiveDraft = false;
 
-    // 1. Listen for Draft Singleton
     const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (snap) => {
       if (snap.exists() && snap.data().status === 'draft') {
         draftData = snap.data().assignments || [];
@@ -115,14 +107,12 @@ export default function AvailabilitySummary() {
       updateState();
     });
 
-    // 2. Listen for Active Published Singleton
     const unsubActive = onSnapshot(doc(db, 'published_rosters', activeId), (snap) => {
       activeData = snap.exists() ? (snap.data().assignments || []) : [];
       updateState();
     });
 
     function updateState() {
-      // Logic Priority: Show Draft if it's being worked on, otherwise show Published
       const finalAssignments = hasActiveDraft ? draftData : activeData;
       setAssignments(finalAssignments);
       setLoadingAssignments(false);
@@ -189,7 +179,6 @@ export default function AvailabilitySummary() {
     if (!selectedOffice || !selectedWeek) return;
     setPublishing(true);
     try {
-      // SINGLETON ID PROTOCOL: strictly overwrites active week/office document
       const activeId = `active_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'published_rosters', activeId), {
         id: activeId,
@@ -202,7 +191,6 @@ export default function AvailabilitySummary() {
         status: 'active'
       });
 
-      // Clear draft status on publish to transition priority back to published view
       const draftId = `draft_${selectedWeek}_${selectedOffice}`;
       await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
 
