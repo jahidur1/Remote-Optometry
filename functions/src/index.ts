@@ -11,7 +11,11 @@ admin.initializeApp();
  * Deterministic scheduler that triggers the clinical briefing pulse.
  * Orchestrates: Identity fetching, Roster lookup, and Dispatch initiation.
  */
-export const dailyRosterBriefing = functions.region('asia-south1').pubsub
+export const dailyRosterBriefing = functions.region('asia-south1').runWith({
+  secrets: ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'],
+  timeoutSeconds: 300,
+  memory: '1GB'
+}).pubsub
   .schedule('0 22 * * *')
   .timeZone('Asia/Kolkata')
   .onRun(async (context) => {
@@ -34,18 +38,30 @@ export const dailyRosterBriefing = functions.region('asia-south1').pubsub
     console.log('ROC_PULSE_INIT: Orchestrating daily clinical briefings...');
     
     /**
-     * NOTE: We trigger the automated briefing orchestration.
-     * In a production environment with heavy image generation, 
-     * this logic handles scaling per employee.
+     * NOTE: We call the internal briefing orchestration logic.
+     * We use a fetch pulse to the main application's secure endpoint 
+     * to reuse the complex image generation (Satori/Resvg) logic.
      */
     const fetch = require('node-fetch');
     const APP_URL = process.env.APP_URL || 'https://studio-9087637488-aa952.web.app';
+    const SECRET_KEY = process.env.INTERNAL_TRIGGER_KEY || 'roc_internal_pulse';
+
+    try {
+      const response = await fetch(`${APP_URL}/api/cron/roster-briefing`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      console.log('ROC_PULSE_COMPLETE:', result);
+    } catch (e: any) {
+      console.error('ROC_PULSE_ERROR:', e.message);
+    }
     
-    // We call the internal orchestration logic
-    // This is handled by the shared service layer in the main app
-    // For the Cloud Function, we log the initiation event.
-    
-    return { success: true, timestamp: new Date().toISOString(), executionId: context.eventId };
+    return { success: true, timestamp: new Date().toISOString() };
   });
 
 /**
