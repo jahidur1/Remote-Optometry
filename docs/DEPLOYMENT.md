@@ -1,54 +1,64 @@
 # ROC Workforce: Deployment Protocol
 
-This guide outlines the mandatory environment configuration and infrastructure setup required for production stability.
+This guide outlines the mandatory infrastructure setup and security configuration required for institutional stability.
 
-## 1. Environment Variables (.env)
-Populate your environment using `.env.example` as a template.
+## 1. Firebase Console Pre-requisites
+1.  **Storage**: Initialize the default bucket. Ensure it matches the bucket ID in `firebase.json`.
+2.  **App Check**: 
+    *   Navigate to **App Check** in the Firebase Console.
+    *   Register your Web App.
+    *   Enable **reCAPTCHA Enterprise**.
+    *   Copy the **Site Key** and add it to your environment as `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY`.
+3.  **Authentication**: Add your production domain (e.g., `roc-workforce.web.app`) to the **Authorized Domains** list.
 
-| Variable | Purpose | Value/Source |
-| :--- | :--- | :--- |
-| `SOLVER_URL` | Cloud Run Solver Endpoint | `https://roc-workforce-solver-...run.app` |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta Cloud API | From Meta Developer Portal (`1143569695505848`) |
-| `WHATSAPP_ACCESS_TOKEN` | Meta API Token | Permanent System User Token |
-| `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` | App Check Security | From Google Cloud Console |
+## 2. Meta Developer Portal Setup
+1.  Verify the WhatsApp Business Phone Number: `1143569695505848`.
+2.  Ensure the template `roc_two_day_roster_notification` is **ACTIVE**.
+3.  Generate a **Permanent System User Token** with `whatsapp_business_messaging` and `whatsapp_business_management` permissions.
 
-## 2. Firebase Infrastructure Setup
-1. **Storage**: Navigate to the Firebase Console -> Storage. Click **Get Started**. Ensure the bucket `studio-9087637488-aa952.firebasestorage.app` is initialized.
-2. **App Check**: 
-   - Enable **reCAPTCHA Enterprise** in the Google Cloud Console.
-   - Register your Web App in the Firebase Console under App Check.
-   - Enforcement should only be enabled *after* initial production traffic is verified.
-3. **Authentication**: Authorized domains must include `roc-workforce.app` and your Firebase App Hosting domains.
+## 3. Secret Configuration (Terminal)
+Execute these commands to securely provision Meta credentials to the Cloud Functions environment:
 
-## 3. Secret Configuration (CLI)
-Execute these commands to provision secrets for Cloud Functions:
 ```bash
+# Set Meta Access Token (EAASX...)
 firebase functions:secrets:set WHATSAPP_ACCESS_TOKEN
+
+# Set Phone Number ID (1143569695505848)
 firebase functions:secrets:set WHATSAPP_PHONE_NUMBER_ID
+
+# Set Internal Trigger Key (Match INTERNAL_TRIGGER_KEY in .env)
+firebase functions:secrets:set INTERNAL_TRIGGER_KEY
 ```
 
-## 4. Manual Component Deployment
-Run these commands in order:
-```bash
-# 1. Deploy Firestore Indexes
-firebase deploy --only firestore:indexes
+## 4. Component Deployment
+Run these commands in order to sync the institutional registry:
 
-# 2. Deploy Security Rules
+```bash
+# 1. Deploy Security Rules & Storage Config
 firebase deploy --only firestore:rules,storage
 
-# 3. Deploy Scheduler & Briefing Pulse
+# 2. Deploy Database Indexes
+firebase deploy --only firestore:indexes
+
+# 3. Deploy Cloud Functions (Scheduler & Cleanup)
 firebase deploy --only functions
 ```
 
-## 5. WhatsApp Template Verification
-Ensure the `roc_two_day_roster_notification` template is **ACTIVE** in your WhatsApp Manager:
-- **Name**: `roc_two_day_roster_notification`
-- **Category**: `UTILITY`
-- **Language**: `en_US`
-- **Header**: Image (Variable)
-- **Body**: `Hello {{1}}, your upcoming ROC work schedule is ready. Please check the attached roster image for your assigned shifts for the next two days.`
+## 5. Environment Variables (.env)
+Populate your production environment (e.g., App Hosting or .env.local):
 
-## 6. Monitoring & Troubleshooting
-- **Audit Logs**: Check the `/audit_logs` collection in Firestore for `AUTH_OTP_REQUEST` and `DISPATCH_OFFICE_WHATSAPP` pulses.
-- **WhatsApp Logs**: Check `/whatsapp_logs` for `failureReason` if messages are not delivered.
-- **Storage Hygiene**: The `storageCleanupPulse` runs hourly. No manual deletion of roster images is required.
+| Variable | Purpose | Value Source |
+| :--- | :--- | :--- |
+| `SOLVER_URL` | Cloud Run Optimization Node | GCP Cloud Run URL |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta API Endpoint | 1143569695505848 |
+| `WHATSAPP_ACCESS_TOKEN` | Meta API Token | Meta Developer Portal |
+| `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` | App Check Identity | Google Cloud Console |
+| `INTERNAL_TRIGGER_KEY` | Pulse Authorization | Custom Random String |
+
+## 6. Verification Trace
+*   **Test Dispatch**: Use the "Dispatch WhatsApp" button in the **Master Matrix** dashboard to verify end-to-end media synthesis.
+*   **Audit Logs**: Monitor the `/audit_logs` collection for `DISPATCH_OFFICE_WHATSAPP` pulses.
+*   **Storage Purge**: The `storageCleanupPulse` runs hourly. No manual binary management is required.
+
+---
+**GOVERNANCE NOTE**: WhatsApp Automation is controlled by the `masterEnabled` toggle in `system_settings/whatsapp_automation`. Keep this `false` until testing is verified.

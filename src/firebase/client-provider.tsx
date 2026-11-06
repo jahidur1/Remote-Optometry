@@ -8,6 +8,14 @@ import { type Firestore } from 'firebase/firestore';
 import { type Auth } from 'firebase/auth';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
+/**
+ * ROC WORKFORCE — INSTITUTIONAL CLIENT PROVIDER
+ * 
+ * Orchestrates:
+ * 1. Idempotent Firebase Service Initialization.
+ * 2. Zero-Trust App Check handshake via reCAPTCHA Enterprise.
+ * 3. Contextual Provisioning for React trees.
+ */
 export function FirebaseClientProvider({ children }: { children: React.ReactNode }) {
   const [instances, setInstances] = useState<{
     app: FirebaseApp;
@@ -18,17 +26,23 @@ export function FirebaseClientProvider({ children }: { children: React.ReactNode
   useEffect(() => {
     const { app, firestore, auth } = initializeFirebase();
     
-    // Task 3: Institutional App Check Initialization
-    // reCAPTCHA Enterprise provides a Zero-Trust token handshake for Firestore, Storage, and Functions.
-    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY) {
-      try {
-        initializeAppCheck(app, {
-          provider: new ReCaptchaEnterpriseProvider(process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY),
-          isTokenAutoRefreshEnabled: true,
-        });
-        console.log('ROC_SEC_PULSE: App Check initiated via reCAPTCHA Enterprise.');
-      } catch (e) {
-        console.warn('ROC_SEC_ALERT: App Check initialization failed. Enrollment required in Firebase Console.');
+    // TASK 3: App Check Token Handshake
+    // reCAPTCHA Enterprise provides a cryptographic guarantee that the caller is your authorized Web App.
+    if (typeof window !== 'undefined') {
+      const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
+      
+      if (siteKey) {
+        try {
+          initializeAppCheck(app, {
+            provider: new ReCaptchaEnterpriseProvider(siteKey),
+            isTokenAutoRefreshEnabled: true,
+          });
+          console.log('ROC_SEC_PULSE: App Check initiated via reCAPTCHA Enterprise.');
+        } catch (e) {
+          console.warn('ROC_SEC_ALERT: App Check failed to initialize. Verify Site Key in Google Cloud Console.');
+        }
+      } else {
+        console.warn('ROC_SEC_ALERT: reCAPTCHA Site Key missing. App Check Enforcement is currently BYPASSED.');
       }
     }
 

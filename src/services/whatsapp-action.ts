@@ -6,6 +6,8 @@
  * Implements the official Media API workflow:
  * 1. Upload binary buffer to Meta Media endpoint.
  * 2. Dispatch Template Message using the returned Media ID.
+ * 
+ * PROTOCOL: Institutional Roster Briefing (2-Day Window)
  */
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -19,14 +21,19 @@ export type WhatsAppSendResult = {
   error?: string;
 };
 
+/**
+ * TASK 1: Validates that Meta credentials are available in the current execution context.
+ * Secrets must be provisioned via `firebase functions:secrets:set` for backend tasks.
+ */
 function verifyCredentials() {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    throw new Error('META_AUTH_ERROR: Meta API credentials not configured in environment secrets. Run `firebase functions:secrets:set` to provision.');
+    throw new Error('META_AUTH_ERROR: Meta API credentials not detected. Ensure WHATSAPP_ACCESS_TOKEN is set in secrets/env.');
   }
 }
 
 /**
- * Uploads a roster image buffer to Meta's Media API.
+ * uploadToMetaMedia
+ * Uploads a roster image buffer to Meta's Media API to generate a temporary Media ID.
  */
 async function uploadToMetaMedia(buffer: Buffer, fileName: string): Promise<string> {
   verifyCredentials();
@@ -47,14 +54,15 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string): Promise<stri
 
   const data = await response.json();
   if (!response.ok) {
-    console.error('Meta Media Dispatch Conflict:', data);
-    throw new Error(`Meta Media Upload Failed: ${data.error?.message || 'Unknown'}`);
+    console.error('META_MEDIA_UPLOAD_CONFLICT:', data);
+    throw new Error(`Meta Media Upload Failed: ${data.error?.message || 'API_REJECTED'}`);
   }
   
   return data.id;
 }
 
 /**
+ * sendWhatsAppShiftBriefingWithImage
  * Dispatches a Shift Briefing Template with an image header.
  * Targeting approved template: roc_two_day_roster_notification
  */
@@ -106,6 +114,7 @@ export async function sendWhatsAppShiftBriefingWithImage(
     const data = await response.json();
     
     if (!response.ok) {
+        console.error('META_MESSAGE_DISPATCH_CONFLICT:', data);
         return { success: false, error: data.error?.message || 'API_REJECTED' };
     }
 
@@ -116,16 +125,7 @@ export async function sendWhatsAppShiftBriefingWithImage(
     };
 
   } catch (err: any) {
-    console.error('WhatsApp Dispatch Failure Trace:', err.message);
+    console.error('WHATSAPP_ORCHESTRATION_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
-}
-
-/**
- * Validates a mobile number format before Meta dispatch.
- */
-export async function validateProfessionalPhone(phone: string): Promise<boolean> {
-    if (!phone) return false;
-    const clean = phone.replace(/\D/g, '');
-    return clean.length === 10 || (clean.length === 12 && clean.startsWith('91'));
 }
