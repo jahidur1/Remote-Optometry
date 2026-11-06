@@ -63,6 +63,7 @@ const navGroups = [
     items: [
       { title: "Roster Solver", url: "/admin/roster", icon: Calendar, roles: ["super_admin", "admin"] },
       { title: "Shift Master", url: "/admin/shifts", icon: Clock, roles: ["super_admin", "admin"] },
+      { title: "Off Matrix", url: "/admin/weekoff-config", icon: Target, roles: ["super_admin", "admin"] },
     ]
   },
   {
@@ -71,6 +72,7 @@ const navGroups = [
       { title: "User Details", url: "/admin/employees", icon: Users, roles: ["super_admin", "admin"] },
       { title: "Master Matrix", url: "/admin/availability", icon: UserCheck, roles: ["super_admin", "admin"] },
       { title: "Exchange Hub", url: "/admin/swaps", icon: ArrowRightLeft, roles: ["super_admin", "admin"] },
+      { title: "Absence Registry", url: "/admin/leaves", icon: Activity, roles: ["super_admin", "admin"] },
     ]
   },
   {

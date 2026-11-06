@@ -4,6 +4,8 @@
  * @fileOverview Institutional Pure-Logic Roster Orchestration Engine.
  * Implements a deterministic constraint satisfaction algorithm in TypeScript.
  * Removes AI/Python dependencies to ensure 100% predictable clinical results.
+ * 
+ * NEXT.JS 15 COMPLIANCE: Only async functions are exported.
  */
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -64,13 +66,14 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       const dayName = DAYS[dayIdx];
       const dateStr = dateStrings[dayIdx];
       
-      // Order shifts by "Hardest to Fill" heuristic (custom prioritization can be added here)
+      // Order shifts by "Hardest to Fill" heuristic (shifts with requirements)
       const shiftsToFill = Object.keys(quotas)
         .filter(key => key.startsWith(dayName))
         .map(key => ({ 
           id: key.split('_')[1], 
           required: quotas[key] 
         }))
+        .filter(s => s.required > 0)
         .sort((a, b) => b.required - a.required);
 
       for (const shift of shiftsToFill) {
@@ -138,21 +141,31 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       assignments,
       status: 'draft',
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       actorId: decoded.uid,
       generationMethod: 'deterministic_engine',
       solverMetadata: {
         solveTimeMs: Date.now() - start,
         constraintsChecked: employees.length * 7 * 6,
-        engine: 'ROC_TypeScript_Solver_v1'
+        engine: 'ROC_TypeScript_Solver_v2'
       }
     });
+
+    // Also save the quotas for this week/office to maintain singleton consistency
+    await adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).set({
+      weekId,
+      officeId,
+      quotas,
+      updatedAt: new Date().toISOString(),
+      actorId: decoded.uid
+    }, { merge: true });
 
     await logAuditServer(decoded.uid, 'RUN_DETERMINISTIC_SOLVER', draftId, { weekId, officeId });
 
     return { 
       success: true, 
       draftId,
-      summary: `Logic pulse complete. Generated ${assignments.length} assignments across 7 days.`,
+      summary: `Logic pulse complete. Generated ${assignments.length} assignments across 7 days with Atomic Temporal Mapping.`,
       solveTimeMs: Date.now() - start
     };
 

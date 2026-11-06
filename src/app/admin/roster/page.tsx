@@ -23,7 +23,8 @@ import {
   Target,
   Users,
   Terminal,
-  Server
+  Server,
+  Save
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -59,7 +60,7 @@ export default function RosterSolver() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
 
-  // Integrated Configuration State
+  // Integrated Unified State
   const [quotas, setQuotas] = useState<Record<string, number>>({});
   const [globalFreq, setGlobalFreq] = useState<Record<string, { min: number, max: number, label: string }>>({});
   const [globalPreOff, setGlobalPreOff] = useState<string[]>([]);
@@ -90,15 +91,18 @@ export default function RosterSolver() {
     }
   }, [authorizedOffices, selectedOffice]);
 
-  // Load existing quotas for the selected week/office
+  // Unified Singleton Listener
   useEffect(() => {
     if (!db || !weekId || !selectedOffice) return;
     const localizedId = `${weekId}_${selectedOffice}`;
-    const unsub = onSnapshot(doc(db, 'roster_quotas', localizedId), (snap) => {
+    
+    // Load Quotas
+    const unsubQuota = onSnapshot(doc(db, 'roster_quotas', localizedId), (snap) => {
       if (snap.exists()) setQuotas(snap.data().quotas || {});
       else setQuotas({});
     });
-    return () => unsub();
+
+    return () => unsubQuota();
   }, [db, weekId, selectedOffice]);
 
   const empQuery = useMemo(() => {
@@ -126,6 +130,13 @@ export default function RosterSolver() {
 
   const activeDays = useMemo(() => weekId ? getDatesForWeek(weekId).map(d => format(d, 'EEEE')) : [], [weekId]);
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    setWeekId(formatWeekId(date));
+    setStatus('idle');
+    setSolverResult(null);
+  };
+
   const handleRunSolver = async () => {
     if (!selectedOffice || !weekId) return;
     
@@ -151,6 +162,7 @@ export default function RosterSolver() {
         setSolverResult(result);
         setLastDraftId(result.draftId);
         setStatus("success");
+        toast({ title: "Logic Pulse Complete", description: "Draft secured in registry." });
       } else {
         throw new Error(result.error);
       }
@@ -181,7 +193,7 @@ export default function RosterSolver() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Deterministic Logic Mode <ShieldCheck className="size-3 text-secondary" />
+                  Deterministic Logic Node <ShieldCheck className="size-3 text-secondary" />
                 </p>
               </div>
             </div>
@@ -191,7 +203,7 @@ export default function RosterSolver() {
         <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Hub</label>
-              <Select value={selectedOffice} onValueChange={setSelectedOffice}>
+              <Select value={selectedOffice} onValueChange={(v) => { setSelectedOffice(v); setStatus('idle'); }}>
                 <SelectTrigger className="h-6 w-48 font-black border-none bg-transparent p-0 text-[14px] focus:ring-0">
                   <SelectValue placeholder="Select Center..." />
                 </SelectTrigger>
@@ -218,7 +230,7 @@ export default function RosterSolver() {
                 </PopoverContent>
               </Popover>
            </div>
-           <Button className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-black" onClick={() => setStatus('config')} disabled={status === 'running' || !selectedOffice || !weekId}>
+           <Button className="bg-primary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-black shadow-lg" onClick={() => setStatus('config')} disabled={status === 'running' || !selectedOffice || !weekId}>
              <Play className="size-4 mr-2" /> {status === 'idle' ? 'INITIATE WORKSPACE' : 'ADJUST PARAMETERS'}
            </Button>
         </div>
@@ -232,11 +244,14 @@ export default function RosterSolver() {
 
            <div className="grid gap-10 lg:grid-cols-12">
               <div className="lg:col-span-8 space-y-10">
-                 {/* Integrated Quota Grid */}
+                 {/* Integrated Quota Matrix */}
                  <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
-                    <CardHeader className="bg-slate-50/50 border-b p-10">
-                       <CardTitle className="text-2xl font-black uppercase tracking-tight">Assignment Matrix</CardTitle>
-                       <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">Required headcount per shift type for Cycle {weekId}.</CardDescription>
+                    <CardHeader className="bg-slate-50/50 border-b p-10 flex flex-col md:flex-row items-center justify-between">
+                       <div>
+                          <CardTitle className="text-2xl font-black uppercase tracking-tight">Assignment Matrix</CardTitle>
+                          <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">Required headcount per shift type for Cycle {weekId}.</CardDescription>
+                       </div>
+                       <Badge variant="outline" className="px-4 py-1.5 rounded-lg border-secondary/20 bg-secondary/5 text-secondary font-black text-[9px] uppercase">Headcount Quotas</Badge>
                     </CardHeader>
                     <CardContent className="p-0 overflow-x-auto no-scrollbar">
                        <Table>
@@ -296,11 +311,11 @@ export default function RosterSolver() {
                                     <TableCell className="py-6 border-r">
                                        <div className="flex flex-col">
                                           <span className="font-black text-[15px] uppercase">{emp.fullName}</span>
-                                          <span className="text-[9px] font-bold text-slate-400 uppercase">ID: {emp.id}</span>
+                                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">ID: {emp.id}</span>
                                        </div>
                                     </TableCell>
                                     <TableCell className="text-center py-6">
-                                       {booking ? <Badge className="bg-secondary text-white font-black text-[10px] px-4 py-1 rounded-full uppercase">{booking.dayOfWeek}</Badge> : <span className="text-[10px] italic opacity-30 uppercase font-bold">Unbooked</span>}
+                                       {booking ? <Badge className="bg-secondary text-white font-black text-[10px] px-4 py-1.5 rounded-full uppercase">{booking.dayOfWeek}</Badge> : <span className="text-[10px] italic opacity-30 uppercase font-bold">Unbooked</span>}
                                     </TableCell>
                                  </TableRow>
                                );
@@ -315,7 +330,7 @@ export default function RosterSolver() {
                  {/* Logic Constraints */}
                  <Card className="shadow-2xl border-none rounded-[2.5rem] bg-[#0F172A] text-white overflow-hidden border-t-8 border-t-secondary sticky top-24">
                     <CardHeader className="p-10 pb-6 border-b border-white/5">
-                       <CardTitle className="text-xl font-black uppercase tracking-tight">Logic Constraints</CardTitle>
+                       <CardTitle className="text-xl font-black uppercase tracking-tight">Global Constraints</CardTitle>
                        <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-4">Unified standards for Cycle {weekId}</CardDescription>
                     </CardHeader>
                     <CardContent className="p-10 space-y-10">
@@ -354,7 +369,7 @@ export default function RosterSolver() {
                        </div>
 
                        <div className="space-y-6 pt-8 border-t border-white/5">
-                          <label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Distribution Limits</label>
+                          <label className="text-[10px] font-black uppercase text-secondary tracking-[0.3em] block">Weekly Frequency Ranges</label>
                           <div className="grid grid-cols-2 gap-4">
                              {shifts?.map(s => (
                                 <div key={s.id} className="space-y-2 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-secondary/30 transition-all group">
@@ -445,7 +460,7 @@ export default function RosterSolver() {
                               </Button>
                            </Link>
                            <Button variant="outline" onClick={() => setStatus('config')} className="h-20 px-12 border-2 border-slate-100 rounded-3xl font-black uppercase text-[11px] tracking-[0.2em] hover:bg-slate-50">
-                              Re-Configure Matrix
+                              Adjust Logic Matrix
                            </Button>
                         </div>
                      )}
@@ -463,7 +478,8 @@ export default function RosterSolver() {
                   <div className="space-y-4">
                      <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Logic Pulse</h3>
                      <p className="text-[14px] text-muted-foreground font-medium leading-relaxed">
-                        Initiate the deterministic orchestration engine to analyze staffing requirements, professional week-offs, and distribution limits.
+                        Initiate the deterministic orchestration engine to analyze staffing requirements, professional week-offs, and distribution limits. 
+                        No AI inference — 100% mathematical accuracy.
                      </p>
                   </div>
                   <Button className="h-16 px-10 bg-primary text-white font-black uppercase text-[11px] tracking-[0.2em] rounded-2xl shadow-xl w-full" onClick={() => setStatus('config')}>
@@ -477,12 +493,13 @@ export default function RosterSolver() {
                   <div className="space-y-4 relative z-10">
                      <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Deterministic Guard</h3>
                      <p className="text-[14px] text-white/40 font-medium leading-relaxed">
-                        All assignments are derived from pure mathematical constraints. No AI inference is used, ensuring 100% compliance with clinical hard-rules.
+                        All assignments are derived from pure institutional constraints. Registry integrity is maintained via the 
+                        Singleton ID Protocol, strictly targeting active clinical cycles.
                      </p>
                   </div>
                   <div className="pt-6 relative z-10 flex gap-4">
                      <Badge variant="outline" className="bg-white/5 border-white/10 text-white/60 font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-lg">Audit Active</Badge>
-                     <Badge variant="outline" className="bg-secondary/20 border-secondary/20 text-secondary font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-lg">Level 4 Secure</Badge>
+                     <Badge variant="outline" className="bg-secondary/20 border-secondary/20 text-secondary font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-lg">Logic Node v2.0</Badge>
                   </div>
                </Card>
             </div>
