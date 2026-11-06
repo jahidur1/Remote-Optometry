@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -12,7 +11,7 @@ import { assertOfficeActive } from '@/lib/office-utils';
 async function getAuthorizedCaller(idToken: string) {
   if (!idToken) return null;
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
+    const decoded = await adminAuth.verifyIdToken(idToken);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     
     if (!userSnap.exists) return null;
@@ -58,7 +57,7 @@ export async function saveQuotaAction(idToken: string, payload: SaveQuotaInput) 
 
   // 2. Authorization Scoping
   if (caller.role === 'admin' && !caller.officeIds.includes(officeId)) {
-    throw new Error(`Access Denied: You are not authorized to configure quotas for ${officeId}.`);
+    throw new Error(`Access Denied: You are not authorized for cluster ${officeId}.`);
   }
 
   try {

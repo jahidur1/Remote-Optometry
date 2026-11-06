@@ -98,6 +98,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       }
 
       // PHASE A: Fulfill Mandatory Quota Floors
+      // Priority: shifts with higher requirement first
       dailyRequirements.sort((a, b) => b.required - a.required);
 
       for (const shift of dailyRequirements) {
@@ -119,6 +120,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
           return true;
         });
 
+        // Heuristic: Prefer people with fewest current assignments of THIS shift to keep it fair
         candidates.sort((a, b) => {
           const countA = empShiftCounts.get(a.id)?.[shift.id] || 0;
           const countB = empShiftCounts.get(b.id)?.[shift.id] || 0;
@@ -164,6 +166,7 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
           });
 
           if (eligibleShifts.length > 0) {
+              // Prefer assigning to a shift that is part of the daily requirements to balance pods
               const preferredShift = dailyRequirements.find(r => eligibleShifts.includes(r.id))?.id || eligibleShifts[0];
               
               assignments.push({

@@ -143,7 +143,7 @@ export default function RosterSolver() {
     if (!selectedOffice || !weekId) return;
     setSavingMatrix(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken(true);
+      const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Authentication pulse failed.");
 
       const result = await saveQuotaAction(idToken, {
@@ -171,7 +171,7 @@ export default function RosterSolver() {
     setProgress(30);
 
     try {
-      const idToken = await auth.currentUser?.getIdToken(true);
+      const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth pulse failed.");
 
       const result = await runLocalRosterEngineAction(idToken, {
@@ -220,7 +220,7 @@ export default function RosterSolver() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Solver</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Deterministic Logic Node <ShieldCheck className="size-3 text-secondary" />
+                  Deterministic Logic Center <ShieldCheck className="size-3 text-secondary" />
                 </p>
               </div>
             </div>
@@ -280,16 +280,13 @@ export default function RosterSolver() {
                        </div>
                        <div className="flex items-center gap-4">
                           <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="h-9 px-6 font-black uppercase text-[10px] tracking-widest border-secondary/20 text-secondary hover:bg-secondary/5 rounded-xl transition-all shadow-sm"
+                            className="h-12 px-10 bg-secondary text-white font-black uppercase text-[11px] tracking-widest rounded-xl shadow-xl shadow-secondary/20 hover:scale-105 active:scale-95 transition-all"
                             onClick={handleSaveMatrix}
                             disabled={savingMatrix}
                           >
-                            {savingMatrix ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
-                            Save Matrix
+                            {savingMatrix ? <Loader2 className="size-5 animate-spin mr-3" /> : <Save className="size-5 mr-3" />}
+                            SAVE MATRIX
                           </Button>
-                          <Badge variant="outline" className="px-4 py-1.5 rounded-lg border-secondary/20 bg-secondary/5 text-secondary font-black text-[9px] uppercase">Headcount Quotas</Badge>
                        </div>
                     </CardHeader>
                     <CardContent className="p-0 overflow-x-auto no-scrollbar">
@@ -310,7 +307,7 @@ export default function RosterSolver() {
                                       <TableCell key={day} className="text-center px-2 py-4 border-r last:border-0">
                                          <Input 
                                             type="number" 
-                                            className="w-16 mx-auto h-10 text-center font-black bg-slate-50 border-2 rounded-xl focus:border-secondary shadow-inner"
+                                            className="w-16 mx-auto h-12 text-center text-lg font-black bg-slate-50 border-2 rounded-xl focus:border-secondary shadow-inner"
                                             value={quotas[`${day}_${s.id}`] || 0}
                                             onChange={(e) => handleQuotaChange(day, s.id, e.target.value)}
                                          />
