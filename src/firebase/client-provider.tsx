@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -33,7 +32,7 @@ export function FirebaseClientProvider({ children }: { children: React.ReactNode
   useEffect(() => {
     const { app, firestore, auth } = initializeFirebase();
     
-    // TASK 3: App Check Token Handshake
+    // TASK: App Check Token Handshake
     // reCAPTCHA Enterprise provides a cryptographic guarantee that the caller is your authorized Web App.
     if (typeof window !== 'undefined' && !isAppCheckInitialized) {
       const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
