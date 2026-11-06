@@ -38,6 +38,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from '@/lib/utils';
 import { formatWeekId, displayWeekRange, getCurrentWeekId, getDatesForWeek } from '@/lib/date-utils';
 import { runLocalRosterEngineAction } from '@/services/roster-engine';
+import { saveQuotaAction } from '@/services/quota-actions';
 import { format } from 'date-fns';
 
 const FREQUENCY_RANGES = [
@@ -59,6 +60,7 @@ export default function RosterSolver() {
   const [lastDraftId, setLastDraftId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
+  const [savingMatrix, setSavingMatrix] = useState(false);
 
   // Integrated Unified State
   const [quotas, setQuotas] = useState<Record<string, number>>({});
@@ -135,6 +137,31 @@ export default function RosterSolver() {
     setWeekId(formatWeekId(date));
     setStatus('idle');
     setSolverResult(null);
+  };
+
+  const handleSaveMatrix = async () => {
+    if (!selectedOffice || !weekId) return;
+    setSavingMatrix(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("Authentication pulse failed.");
+
+      const result = await saveQuotaAction(idToken, {
+        weekId,
+        officeId: selectedOffice,
+        quotas,
+      });
+
+      if (result.success) {
+        toast({ title: "Assignment Matrix Secured", description: "Clinical headcount requirements saved to registry." });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message });
+    } finally {
+      setSavingMatrix(false);
+    }
   };
 
   const handleRunSolver = async () => {
@@ -251,7 +278,19 @@ export default function RosterSolver() {
                           <CardTitle className="text-2xl font-black uppercase tracking-tight">Assignment Matrix</CardTitle>
                           <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">Required headcount per shift type for Cycle {weekId}.</CardDescription>
                        </div>
-                       <Badge variant="outline" className="px-4 py-1.5 rounded-lg border-secondary/20 bg-secondary/5 text-secondary font-black text-[9px] uppercase">Headcount Quotas</Badge>
+                       <div className="flex items-center gap-4">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-9 px-6 font-black uppercase text-[10px] tracking-widest border-secondary/20 text-secondary hover:bg-secondary/5 rounded-xl transition-all shadow-sm"
+                            onClick={handleSaveMatrix}
+                            disabled={savingMatrix}
+                          >
+                            {savingMatrix ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
+                            Save Matrix
+                          </Button>
+                          <Badge variant="outline" className="px-4 py-1.5 rounded-lg border-secondary/20 bg-secondary/5 text-secondary font-black text-[9px] uppercase">Headcount Quotas</Badge>
+                       </div>
                     </CardHeader>
                     <CardContent className="p-0 overflow-x-auto no-scrollbar">
                        <Table>
@@ -449,7 +488,7 @@ export default function RosterSolver() {
                   <div className="space-y-12 flex-1">
                      <div className="space-y-6">
                         <h2 className="text-4xl font-black uppercase tracking-tight leading-none text-black">Orchestration Outcome</h2>
-                        <p className="text-xl font-medium text-black/60 leading-relaxed max-w-4xl italic">"{solverResult.summary}"</p>
+                        <p className="text-xl font-medium text-black/60 leading-relaxed font-italic italic">"{solverResult.summary}"</p>
                      </div>
 
                      {status === 'success' && lastDraftId && (
