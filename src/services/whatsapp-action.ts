@@ -74,7 +74,7 @@ export async function sendWhatsAppShiftBriefingWithImage(
       to: formattedTo,
       type: 'template',
       template: {
-        name: 'shift_briefing_with_image', // This template must be approved in Meta Business Manager
+        name: 'roc_two_day_roster_notification', // Institutional Template Node
         language: { code: 'en_US' },
         components: [
           {

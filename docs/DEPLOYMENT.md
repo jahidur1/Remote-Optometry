@@ -27,7 +27,8 @@ firebase deploy --only firestore:indexes
 Or manually configure in the console using the paths defined in `firestore.indexes.json`.
 
 ## 4. WhatsApp Template
-Ensure the `shift_briefing` template is approved in your WhatsApp Manager:
-- **Name**: `shift_briefing`
+Ensure the `roc_two_day_roster_notification` template is approved in your WhatsApp Manager:
+- **Name**: `roc_two_day_roster_notification`
 - **Category**: `UTILITY`
-- **Body**: `Hi {{1}}, your shift for {{2}} is {{3}} ({{4}}). Login to the portal for details.`
+- **Header**: Image
+- **Body**: `Hello {{1}}, your upcoming ROC work schedule is ready. Please check the attached roster image for your assigned shifts for the next two days.`
