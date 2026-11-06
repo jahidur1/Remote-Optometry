@@ -83,7 +83,9 @@ export const storageCleanupPulse = functions.region('asia-south1').pubsub
       const [metadata] = await file.getMetadata();
       const expiresAtStr = metadata.metadata?.expiresAt;
 
-      if (expiresAtStr) {
+      // Type guard: Date constructor requires string, number, or Date.
+      // Firebase Storage metadata values can be interpreted as string | number | boolean.
+      if (expiresAtStr && typeof expiresAtStr === 'string') {
         const expiresAt = new Date(expiresAtStr);
         if (now > expiresAt) {
           try {
