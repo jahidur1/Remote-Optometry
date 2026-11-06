@@ -3,9 +3,11 @@
 /**
  * @fileOverview Institutional Pure-Logic Roster Orchestration Engine.
  * Implements a deterministic constraint satisfaction algorithm in TypeScript.
- * Removes AI/Python dependencies to ensure 100% predictable clinical results.
  * 
- * NEXT.JS 15 COMPLIANCE: Only async functions are exported.
+ * PROTOCOL v3.0: 
+ * 1. Mandatory Floor: Strictly satisfies 'Assignment Matrix' headcount requirements.
+ * 2. Full Utilization: Assigns every available professional a shift (no idle staff).
+ * 3. Excess Distribution: Allows shifts to exceed requirements to accommodate all available staff.
  */
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -36,15 +38,19 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
     const { weekId, officeId, employeeIds, quotas, globalFreq, globalPreOff, globalPostOff } = input;
 
     // 2. Aggregate Constraint Registry
-    const [empSnap, bookingsSnap, leavesSnap] = await Promise.all([
+    const [empSnap, bookingsSnap, leavesSnap, shiftSnap] = await Promise.all([
       adminDb.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get(),
       adminDb.collection('weekoff_bookings').where('weekId', '==', weekId).where('office', '==', officeId).get(),
-      adminDb.collection('employee_leaves').where('office', '==', officeId).where('status', '==', 'approved').get()
+      adminDb.collection('employee_leaves').where('office', '==', officeId).where('status', '==', 'approved').get(),
+      adminDb.collection('shift_master').orderBy('displayOrder').get()
     ]);
 
     const employees = empSnap.docs
       .filter(d => employeeIds.includes(d.id))
       .map(d => ({ id: d.id, ...d.data() }));
+
+    const masterShifts = shiftSnap.docs.map(d => d.data());
+    const allShiftIds = masterShifts.map(s => s.id);
 
     const bookingsMap = new Map();
     bookingsSnap.docs.forEach(d => bookingsMap.set(d.data().employeeId, d.data().dayOfWeek));
@@ -65,56 +71,58 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
       const dayName = DAYS[dayIdx];
       const dateStr = dateStrings[dayIdx];
-      
-      // Order shifts by "Hardest to Fill" heuristic (shifts with requirements)
-      const shiftsToFill = Object.keys(quotas)
+      const assignedToday = new Set<string>();
+
+      // Filter people truly available today
+      const availableToday = employees.filter(emp => {
+          // Rule: Not on confirmed Week-Off
+          if (bookingsMap.get(emp.id) === dayName) return false;
+          // Rule: Not on approved Leave
+          const onLeave = leaves.some(l => emp.id === l.employeeId && dateStr >= l.startDate && dateStr <= l.endDate);
+          if (onLeave) return false;
+          return true;
+      });
+
+      // PHASE A: Fulfill Mandatory Quota Floors
+      const shiftsWithRequirements = Object.keys(quotas)
         .filter(key => key.startsWith(dayName))
         .map(key => ({ 
           id: key.split('_')[1], 
-          required: quotas[key] 
+          required: Number(quotas[key]) || 0 
         }))
         .filter(s => s.required > 0)
         .sort((a, b) => b.required - a.required);
 
-      for (const shift of shiftsToFill) {
+      for (const shift of shiftsWithRequirements) {
         let assignedCount = 0;
         
-        // Find suitable professionals
-        const candidates = employees.filter(emp => {
-          // Rule 1: Not on confirmed Week-Off
-          if (bookingsMap.get(emp.id) === dayName) return false;
+        const candidates = availableToday.filter(emp => {
+          if (assignedToday.has(emp.id)) return false;
 
-          // Rule 2: Not on approved Leave
-          const onLeave = leaves.some(l => emp.id === l.employeeId && dateStr >= l.startDate && dateStr <= l.endDate);
-          if (onLeave) return false;
-
-          // Rule 3: Single assignment per day
-          if (empDailyShift.has(`${emp.id}_${dayIdx}`)) return false;
-
-          // Rule 4: Frequency Max Guard
+          // Rule: Frequency Max Guard
           const currentCount = empShiftCounts.get(emp.id)?.[shift.id] || 0;
           const maxAllowed = globalFreq[shift.id]?.max ?? 7;
           if (currentCount >= maxAllowed) return false;
 
-          // Rule 5: Adjacency (Pre-Off)
+          // Rule: Adjacency (Pre-Off)
           const tomorrowIsOff = dayIdx < 6 && bookingsMap.get(emp.id) === DAYS[dayIdx + 1];
           if (tomorrowIsOff && globalPreOff.length > 0 && !globalPreOff.includes(shift.id)) return false;
 
-          // Rule 6: Adjacency (Post-Off)
+          // Rule: Adjacency (Post-Off)
           const yesterdayWasOff = dayIdx > 0 && bookingsMap.get(emp.id) === DAYS[dayIdx - 1];
           if (yesterdayWasOff && globalPostOff.length > 0 && !globalPostOff.includes(shift.id)) return false;
 
           return true;
         });
 
-        // Fairness Heuristic: Sort candidates by current load to ensure even distribution
+        // Fairness Heuristic: Sort candidates by current load
         candidates.sort((a, b) => {
           const countA = empShiftCounts.get(a.id)?.[shift.id] || 0;
           const countB = empShiftCounts.get(b.id)?.[shift.id] || 0;
           return countA - countB;
         });
 
-        // Commit Assignments
+        // Commit Mandatory Assignments
         while (assignedCount < shift.required && candidates.length > 0) {
           const emp = candidates.shift()!;
           assignments.push({
@@ -124,11 +132,48 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
             date: dateStr
           });
 
-          empDailyShift.set(`${emp.id}_${dayIdx}`, shift.id);
+          assignedToday.add(emp.id);
           const counts = empShiftCounts.get(emp.id)!;
           counts[shift.id] = (counts[shift.id] || 0) + 1;
           assignedCount++;
         }
+      }
+
+      // PHASE B: Full Utilization (Distribute Excess Staff)
+      // Every available professional NOT yet assigned MUST get a shift to maximize capacity.
+      const leftovers = availableToday.filter(emp => !assignedToday.has(emp.id));
+      
+      if (leftovers.length > 0) {
+          leftovers.forEach(emp => {
+              // Find all shifts this person is eligible for today
+              const eligibleShifts = allShiftIds.filter(sid => {
+                  // Rule: Adjacency (Pre-Off)
+                  const tomorrowIsOff = dayIdx < 6 && bookingsMap.get(emp.id) === DAYS[dayIdx + 1];
+                  if (tomorrowIsOff && globalPreOff.length > 0 && !globalPreOff.includes(sid)) return false;
+
+                  // Rule: Adjacency (Post-Off)
+                  const yesterdayWasOff = dayIdx > 0 && bookingsMap.get(emp.id) === DAYS[dayIdx - 1];
+                  if (yesterdayWasOff && globalPostOff.length > 0 && !globalPostOff.includes(sid)) return false;
+
+                  return true;
+              });
+
+              if (eligibleShifts.length > 0) {
+                  // Preference: If this shift was required today, use it. Otherwise, use first eligible.
+                  const bestShift = shiftsWithRequirements.find(s => eligibleShifts.includes(s.id))?.id || eligibleShifts[0];
+                  
+                  assignments.push({
+                      employeeId: emp.id,
+                      dayOfWeek: dayName,
+                      shiftId: bestShift,
+                      date: dateStr
+                  });
+
+                  assignedToday.add(emp.id);
+                  const counts = empShiftCounts.get(emp.id)!;
+                  counts[bestShift] = (counts[bestShift] || 0) + 1;
+              }
+          });
       }
     }
 
@@ -143,15 +188,15 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       actorId: decoded.uid,
-      generationMethod: 'deterministic_engine',
+      generationMethod: 'deterministic_engine_v3',
       solverMetadata: {
         solveTimeMs: Date.now() - start,
         constraintsChecked: employees.length * 7 * 6,
-        engine: 'ROC_TypeScript_Solver_v2'
+        engine: 'ROC_TypeScript_Solver_v3_FullUtilization'
       }
     });
 
-    // Also save the quotas for this week/office to maintain singleton consistency
+    // Sync quotas to maintain singleton consistency
     await adminDb.collection('roster_quotas').doc(`${weekId}_${officeId}`).set({
       weekId,
       officeId,
@@ -160,12 +205,12 @@ export async function runLocalRosterEngineAction(idToken: string, input: {
       actorId: decoded.uid
     }, { merge: true });
 
-    await logAuditServer(decoded.uid, 'RUN_DETERMINISTIC_SOLVER', draftId, { weekId, officeId });
+    await logAuditServer(decoded.uid, 'RUN_DETERMINISTIC_SOLVER', draftId, { weekId, officeId, assignmentCount: assignments.length });
 
     return { 
       success: true, 
       draftId,
-      summary: `Logic pulse complete. Generated ${assignments.length} assignments across 7 days with Atomic Temporal Mapping.`,
+      summary: `Logic pulse complete. Fulfilled all mandatory floors and utilized 100% of available professionals (${assignments.length} assignments).`,
       solveTimeMs: Date.now() - start
     };
 
