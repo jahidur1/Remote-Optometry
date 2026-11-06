@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { format, addDays } from 'date-fns';
 
@@ -17,7 +17,7 @@ export const dailyRosterBriefing = functions.region('asia-south1').runWith({
 }).pubsub
   .schedule('0 22 * * *')
   .timeZone('Asia/Kolkata')
-  .onRun(async (context) => {
+  .onRun(async (context: functions.EventContext) => {
     const db = admin.firestore();
     
     // 1. Governance Pulse Check
@@ -71,7 +71,7 @@ export const dailyRosterBriefing = functions.region('asia-south1').runWith({
  */
 export const storageCleanupPulse = functions.region('asia-south1').pubsub
   .schedule('0 * * * *') // Runs every hour
-  .onRun(async (context) => {
+  .onRun(async (context: functions.EventContext) => {
     const bucket = admin.storage().bucket();
     const [files] = await bucket.getFiles({ prefix: 'whatsapp-roster-images/' });
     const now = new Date();
