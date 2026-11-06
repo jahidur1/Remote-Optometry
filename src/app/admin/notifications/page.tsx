@@ -22,19 +22,15 @@ import {
   UploadCloud,
   History,
   Activity,
-  ArrowRight,
   RefreshCcw,
   AlertTriangle,
-  Info,
   Eye,
   Send,
   CloudLightning,
-  Link,
   ShieldAlert
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { useToast } from '@/hooks/use-toast';
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
@@ -94,7 +90,7 @@ export default function NotificationDashboard() {
       setWsSettings((prev: any) => ({ 
         ...prev, 
         whatsappEnabled: checked,
-        automation: { ...prev.automation, masterEnabled: checked } 
+        automation: { ...prev?.automation, masterEnabled: checked } 
       }));
       
       toast({ title: "Governance Pulse Updated", description: `Automation is now ${checked ? 'ACTIVE' : 'SUSPENDED'}.` });
@@ -122,11 +118,11 @@ export default function NotificationDashboard() {
         const idToken = await auth.currentUser?.getIdToken(true);
         if (!idToken) return;
         const res = await updateWhatsAppSettingsAction(idToken, { 
-            enabled: wsSettings.whatsappEnabled, 
+            enabled: wsSettings?.whatsappEnabled, 
             logoBase64: base64
         });
         if (!res.success) throw new Error(res.error);
-        setWsSettings((prev: any) => ({ ...prev, automation: { ...prev.automation, base64Logo: base64 } }));
+        setWsSettings((prev: any) => ({ ...prev, automation: { ...prev?.automation, base64Logo: base64 } }));
         toast({ title: "Branding Secured", description: "Institutional mark updated in image engine." });
       } catch (e: any) {
         toast({ variant: "destructive", title: "Upload Failed", description: e.message });
@@ -186,7 +182,8 @@ export default function NotificationDashboard() {
 
   const isSuperAdmin = profile?.role === 'super_admin';
 
-  if (!isSuperAdmin && !settingsLoading) return (
+  if (!isSuperAdmin && !settingsLoading) {
+    return (
       <div className="flex h-[80vh] items-center justify-center animate-in">
           <Card className="max-w-md border-destructive/20 bg-destructive/5 p-12 text-center space-y-8 rounded-[3rem]">
               <div className="size-24 rounded-[2rem] bg-destructive/10 flex items-center justify-center mx-auto">
@@ -200,7 +197,8 @@ export default function NotificationDashboard() {
               </div>
           </Card>
       </div>
-  );
+    );
+  }
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
