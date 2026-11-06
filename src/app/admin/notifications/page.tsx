@@ -25,9 +25,7 @@ import {
   RefreshCcw,
   AlertTriangle,
   Eye,
-  Send,
-  CloudLightning,
-  ShieldAlert
+  CloudLightning
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -42,7 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function NotificationDashboard() {
   const db = useFirestore();
   const auth = useAuth();
-  const { profile } = useUser();
+  const { profile, loading: profileLoading } = useUser();
   const { toast } = useToast();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -182,8 +180,7 @@ export default function NotificationDashboard() {
 
   const isSuperAdmin = profile?.role === 'super_admin';
 
-  // Early returns for loading and access control to avoid complex nested ternary in main JSX
-  if (settingsLoading) {
+  if (settingsLoading || profileLoading) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <Loader2 className="size-12 animate-spin text-secondary opacity-30" />
@@ -281,17 +278,17 @@ export default function NotificationDashboard() {
                     <div className="group relative">
                       <div className="h-44 rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-4 transition-all group-hover:border-secondary group-hover:bg-secondary/5 overflow-hidden">
                         {wsSettings?.automation?.base64Logo ? (
-                          <>
+                          <div className="relative w-full h-full flex flex-col items-center justify-center">
                             <img src={wsSettings.automation.base64Logo} alt="Branding" className="h-24 object-contain" />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                               <RefreshCcw className="size-8 text-white" />
                             </div>
-                          </>
+                          </div>
                         ) : (
-                          <>
+                          <div className="flex flex-col items-center justify-center gap-4">
                             <UploadCloud className="size-12 text-slate-300" />
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center px-8">PNG / JPG <br/><span className="text-[8px] opacity-40">MAX 150KB</span></p>
-                          </>
+                          </div>
                         )}
                       </div>
                       <input 
