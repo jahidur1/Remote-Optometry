@@ -1,0 +1,57 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // --- INSTITUTIONAL HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getProfile() {
+      // Secure cross-service lookup: verify role and employeeId from Firestore
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isUserActive() {
+      let profile = getProfile();
+      return isSignedIn() && profile != null && profile.status == 'Active';
+    }
+
+    function isAdmin() {
+      let profile = getProfile();
+      return isUserActive() && (profile.role == 'admin' || profile.role == 'super_admin');
+    }
+
+    function isSuperAdmin() {
+      let profile = getProfile();
+      return isUserActive() && profile.role == 'super_admin';
+    }
+
+    // --- CLINICAL REGISTRY: ROSTER IMAGES ---
+    // Storage Path: whatsapp-roster-images/{year}/{month}/{employeeId}/{fileName}
+    match /whatsapp-roster-images/{year}/{month}/{employeeId}/{fileName} {
+      // 1. READ: A professional can only read their own roster briefings.
+      // 2. READ: Admins/Super Admins can read all for institutional oversight.
+      allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
+      
+      // 3. WRITE: Client-side writes are STRICTLY FORBIDDEN.
+      // These assets are exclusively synthesized and managed by Cloud Functions (Admin SDK).
+      allow write: if false;
+    }
+
+    // --- SYSTEM ASSETS: LOGOS & BRANDING ---
+    match /system_assets/{allPaths=**} {
+      // Branding is readable by all authorized professionals for portal UI consistency.
+      allow read: if isUserActive();
+      
+      // Modifications restricted to Super Admin node only.
+      allow write: if isSuperAdmin();
+    }
+    
+    // --- ADMINISTRATIVE FALLBACK ---
+    match /audit_traces/{allPaths=**} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}
