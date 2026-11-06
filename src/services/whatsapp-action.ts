@@ -5,7 +5,7 @@
  * @fileOverview Meta WhatsApp Cloud API Server Action.
  * 
  * Handles secure communication with Meta's Graph API using institutional credentials.
- * Credentials must be provided via environment variables.
+ * Support for Image payloads and templates.
  */
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -18,18 +18,51 @@ export type WhatsAppSendResult = {
   error?: string;
 };
 
-/**
- * Validates that API credentials are provisioned in the environment.
- */
 function verifyCredentials() {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    throw new Error('Meta API Error: WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN not configured in environment.');
+    throw new Error('Meta API Error: Credentials not configured in environment.');
   }
 }
 
-/**
- * Sends a WhatsApp message via Meta Cloud API using an approved template.
- */
+export async function sendWhatsAppShiftBriefingWithImage(
+  to: string,
+  employeeName: string,
+  imageUrl: string,
+  caption: string
+): Promise<WhatsAppSendResult> {
+  try {
+    verifyCredentials();
+    const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+    
+    let formattedTo = to.replace(/\D/g, '');
+    if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: formattedTo,
+      type: 'image',
+      image: {
+        link: imageUrl,
+        caption: caption
+      }
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    return { success: response.ok, messageId: data.messages?.[0]?.id, error: data.error?.message };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function sendWhatsAppShiftBriefing(
   to: string,
   employeeName: string,
@@ -41,7 +74,6 @@ export async function sendWhatsAppShiftBriefing(
     verifyCredentials();
     const url = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
     
-    // Normalize phone: remove +, ensure country code (default +91)
     let formattedTo = to.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
 
@@ -76,27 +108,12 @@ export async function sendWhatsAppShiftBriefing(
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      return { 
-        success: false, 
-        error: data.error?.message || 'Meta API Dispatch Failed' 
-      };
-    }
-
-    return { 
-      success: true, 
-      messageId: data.messages?.[0]?.id 
-    };
+    return { success: response.ok, messageId: data.messages?.[0]?.id, error: data.error?.message };
   } catch (err: any) {
-    console.error('WhatsApp Action critical failure:', err.message);
     return { success: false, error: err.message };
   }
 }
 
-/**
- * Verification of API connectivity using a simple text message.
- */
 export async function sendWhatsAppTestMessage(to: string): Promise<WhatsAppSendResult> {
   try {
     verifyCredentials();
@@ -121,11 +138,7 @@ export async function sendWhatsAppTestMessage(to: string): Promise<WhatsAppSendR
     });
 
     const data = await response.json();
-    return { 
-      success: response.ok, 
-      messageId: data.messages?.[0]?.id,
-      error: data.error?.message 
-    };
+    return { success: response.ok, messageId: data.messages?.[0]?.id, error: data.error?.message };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

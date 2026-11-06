@@ -12,15 +12,21 @@
         "displayName": { "type": "string" },
         "employeeId": { "type": "string" },
         "phoneNumber": { "type": "string" },
-        "office": { "type": "string", "description": "Primary office ID from the /offices registry." },
-        "officeIds": { 
-          "type": "array", 
-          "items": { "type": "string" },
-          "description": "List of authorized ROC units for Admins."
-        },
+        "office": { "type": "string" },
+        "officeIds": { "type": "array", "items": { "type": "string" } },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] }
       },
       "required": ["uid", "role"]
+    },
+    "SystemSettings": {
+      "title": "System Settings",
+      "description": "Global configuration for WhatsApp and institutional branding.",
+      "type": "object",
+      "properties": {
+        "whatsappEnabled": { "type": "boolean" },
+        "logoBase64": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     },
     "Employee": {
       "title": "Employee",
@@ -31,93 +37,37 @@
         "fullName": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "gender": { "type": "string", "enum": ["Male", "Female", "Other"] },
-        "age": { "type": "number" },
-        "office": { "type": "string", "description": "Assigned office ID from the /offices registry." },
+        "office": { "type": "string" },
         "role": { "type": "string", "enum": ["super_admin", "admin", "user"] },
         "status": { "type": "string", "enum": ["Active", "Inactive", "Suspended"] },
-        "whatsappNumber": { "type": "string" },
-        "joinedAt": { "type": "string", "format": "date" },
-        "department": { "type": "string" },
-        "designation": { "type": "string" }
+        "whatsappNumber": { "type": "string" }
       },
-      "required": ["id", "fullName", "whatsappNumber", "office", "role", "status", "gender"]
-    },
-    "Office": {
-      "title": "Office",
-      "description": "ROC Cluster Node within the institutional registry.",
-      "type": "object",
-      "properties": {
-        "officeId": { "type": "string" },
-        "officeName": { "type": "string" },
-        "shortCode": { "type": "string" },
-        "city": { "type": "string" },
-        "state": { "type": "string" },
-        "country": { "type": "string" },
-        "status": { "type": "string", "enum": ["Active", "Inactive"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "createdBy": { "type": "string" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["officeId", "officeName", "shortCode", "status"]
-    },
-    "Shift": {
-      "title": "Shift",
-      "description": "Clinical shift standard definition.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "description": "Identity Key (e.g. SO, OP, C1)" },
-        "name": { "type": "string", "description": "Clinical Category Name" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "displayOrder": { "type": "number" }
-      },
-      "required": ["id", "name", "startTime", "endTime", "displayOrder"]
-    },
-    "WeekOffConfig": {
-      "title": "Week-Off Configuration",
-      "description": "Rules and quotas for weekly-off reservations.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "weekId": { "type": "string" },
-        "office": { "type": "string" },
-        "bookingOpen": { "type": "string", "format": "date-time" },
-        "bookingClose": { "type": "string", "format": "date-time" },
-        "quotas": { "type": "object", "description": "Map of Day -> Number" },
-        "booked": { "type": "object", "description": "Map of Day -> Current Count" },
-        "status": { "type": "string" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "weekId", "office", "bookingOpen", "bookingClose", "quotas"]
+      "required": ["id", "fullName", "whatsappNumber", "office", "role", "status"]
     }
   },
   "auth": {
     "providers": ["phone", "google.com", "password"]
   },
   "firestore": {
-    "/offices/{officeId}": {
-      "schema": "Office",
-      "description": "Master ROC cluster registry."
+    "/system_settings/whatsapp_config": {
+      "schema": "SystemSettings",
+      "description": "Global Meta integration and branding config."
     },
     "/users/{userId}": {
       "schema": "User",
-      "description": "User profile with role and multi-office access."
+      "description": "User profile records."
     },
     "/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Master employee records."
     },
-    "/shift_master/{shiftId}": {
-      "schema": "Shift",
-      "description": "Permanent clinical shift standards."
+    "/published_rosters/{rosterId}": {
+      "schema": "object",
+      "description": "Deterministic clinical roster assignments."
     },
-    "/weekoff_configs/{configId}": {
-      "schema": "WeekOffConfig",
-      "description": "Office-specific booking window settings."
-    },
-    "/roster_quotas/{quotaId}": {
-      "schema": { "$ref": "#/backend/entities/OtpPulse" },
-      "description": "Localized staffing requirements (weekId_officeId)."
+    "/whatsapp_logs/{logId}": {
+      "schema": "object",
+      "description": "Trace ledger for Meta API transmissions."
     }
   }
 }
