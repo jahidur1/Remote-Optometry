@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -16,7 +15,8 @@ import {
   Zap,
   Lock,
   Activity,
-  ChevronRight
+  ChevronRight,
+  Database
 } from "lucide-react";
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';

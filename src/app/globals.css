@@ -49,20 +49,20 @@
 
 /* Institutional Design System Utilities */
 .animate-in {
-  animation: premium-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: premium-fade-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slide-up {
-  animation: premium-slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: premium-slide-up 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes premium-fade-in {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.98) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes premium-slide-up {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -105,4 +105,8 @@
 /* Roster Grid Persistence Utilities */
 .roster-sticky-col {
   @apply sticky left-0 z-20 bg-white shadow-[4px_0_10px_rgba(0,0,0,0.03)] border-r;
+}
+
+.hover-lift {
+  @apply transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl;
 }
