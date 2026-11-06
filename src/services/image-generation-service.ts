@@ -9,7 +9,7 @@ import React from 'react';
  * ROC WORKFORCE — DYNAMIC IMAGE ORCHESTRATOR
  * 
  * Generates personalized 700x400 roster images.
- * STRICT REQUIREMENT: Final image size MUST be <= 60KB.
+ * STRICT REQUIREMENT: Final image size MUST be <= 50KB.
  * PROGRESSIVE COMPRESSION: Recursively reduces quality/scale until constraint is met.
  */
 
@@ -140,8 +140,8 @@ export async function generateRosterImage(input: {
     );
   };
 
-  // RECURSIVE QUALITY LOOP: Progressively reduce fidelity to hit strict 60KB limit
-  // Start at full scale, reduce by 0.1 until byte weight <= 61440 bytes (60KB)
+  // RECURSIVE QUALITY LOOP: Progressively reduce fidelity to hit strict 50KB limit
+  // Start at full scale, reduce by 0.1 until byte weight <= 51200 bytes (50KB)
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
   
@@ -155,7 +155,8 @@ export async function generateRosterImage(input: {
     const pngData = resvg.render();
     const currentBuffer = pngData.asPng();
     
-    if (currentBuffer.length <= 61440) {
+    // Strict 50KB constraint
+    if (currentBuffer.length <= 51200) {
         finalBuffer = currentBuffer;
         break;
     }
@@ -163,7 +164,7 @@ export async function generateRosterImage(input: {
   }
 
   if (!finalBuffer) {
-    throw new Error("IMAGE_OPTIMIZATION_FAILURE: Could not compress roster image below 60KB threshold while maintaining legibility.");
+    throw new Error("IMAGE_OPTIMIZATION_FAILURE: Could not compress roster image below 50KB threshold while maintaining legibility.");
   }
 
   return finalBuffer;

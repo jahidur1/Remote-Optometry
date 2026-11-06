@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -11,22 +12,39 @@ import { formatWeekId } from '@/lib/date-utils';
  * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE
  * 
  * Orchestrates image synthesis, Storage lifecycle, and Meta API dispatch.
- * STRICT REQUIREMENT: Final image size MUST be <= 60KB.
+ * STRICT REQUIREMENT: Final image size MUST be <= 50KB.
  */
 
-async function assertSuperAdmin(idToken: string) {
+async function getAuthorizedUser(idToken: string) {
   if (!idToken) throw new Error("Unauthorized.");
   const decoded = await adminAuth.verifyIdToken(idToken, true);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
-  if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
-    throw new Error("Unauthorized.");
+  if (!userSnap.exists) throw new Error("Profile not found.");
+  return { uid: decoded.uid, ...userSnap.data() } as any;
+}
+
+export async function dispatchOfficeBriefingsAction(idToken: string, officeId: string) {
+  try {
+    const profile = await getAuthorizedUser(idToken);
+    
+    // Authorization Scoping: Super Admin or Admin of the target office
+    if (profile.role !== 'super_admin') {
+      const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
+      if (!authorizedOffices.includes(officeId)) {
+        throw new Error("Unauthorized: Office access restricted.");
+      }
+    }
+
+    return await runAutomatedRosterBriefing(officeId, true); // Manual trigger bypasses master pulse check
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
-  return decoded.uid;
 }
 
 export async function previewEmployeeRosterAction(idToken: string, employeeId: string) {
   try {
-    await assertSuperAdmin(idToken);
+    const profile = await getAuthorizedUser(idToken);
+    if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized.");
     
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
     if (!empSnap.exists) throw new Error("Professional not found in registry.");
@@ -87,7 +105,8 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
 
 export async function runManualRosterBriefingAction(idToken: string) {
   try {
-    await assertSuperAdmin(idToken);
+    const profile = await getAuthorizedUser(idToken);
+    if (profile.role !== 'super_admin') throw new Error("Super Admin pulse required.");
     return await runAutomatedRosterBriefing();
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -98,7 +117,7 @@ export async function runManualRosterBriefingAction(idToken: string) {
  * CORE ORCHESTRATION LOGIC
  * Can be triggered via Server Action (UI) or Cloud Function (Scheduler).
  */
-export async function runAutomatedRosterBriefing() {
+export async function runAutomatedRosterBriefing(officeId?: string, bypassMasterCheck = false) {
   const executionId = `exec_${Date.now()}`;
   let successCount = 0;
   let failCount = 0;
@@ -107,12 +126,20 @@ export async function runAutomatedRosterBriefing() {
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
-    if (!configSnap.data()?.whatsappEnabled || !autoSnap.data()?.masterEnabled) {
-      throw new Error("AUTOMATION_SUSPENDED: Master Pulse is OFF.");
+    if (!bypassMasterCheck) {
+      if (!configSnap.data()?.whatsappEnabled || !autoSnap.data()?.masterEnabled) {
+        throw new Error("AUTOMATION_SUSPENDED: Master Pulse is OFF.");
+      }
     }
 
-    const automation = autoSnap.data()!;
-    const empSnap = await adminDb.collection('employees').where('status', '==', 'Active').get();
+    const automation = autoSnap.exists ? autoSnap.data() : { base64Logo: null };
+    
+    let empBaseQuery = adminDb.collection('employees').where('status', '==', 'Active');
+    if (officeId) {
+      empBaseQuery = empBaseQuery.where('office', '==', officeId);
+    }
+    const empSnap = await empBaseQuery.get();
+
     const shiftSnap = await adminDb.collection('shift_master').get();
     const shiftsMap = new Map();
     shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
@@ -135,7 +162,8 @@ export async function runAutomatedRosterBriefing() {
           .where('status', '==', 'success')
           .limit(1).get();
         
-        if (!existingJob.empty) continue;
+        // Skip if already sent today (manual or automatic)
+        if (!existingJob.empty && !bypassMasterCheck) continue;
 
         const tomRosterId = `active_${weekIds[0]}_${emp.office}`;
         const datRosterId = `active_${weekIds[1]}_${emp.office}`;
@@ -164,7 +192,7 @@ export async function runAutomatedRosterBriefing() {
         const pngBuffer = await generateRosterImage({
           employeeName: emp.fullName,
           employeeId: empDoc.id,
-          logoBase64: automation.base64Logo,
+          logoBase64: automation?.base64Logo,
           nextTwoDays
         });
 
@@ -195,6 +223,7 @@ export async function runAutomatedRosterBriefing() {
             executionId,
             jobKey,
             employeeId: empDoc.id,
+            office: emp.office,
             status: 'success',
             imgSize: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
             messageId: dispatch.messageId,
@@ -209,6 +238,7 @@ export async function runAutomatedRosterBriefing() {
         await adminDb.collection('whatsapp_logs').add({
           executionId,
           employeeId: empDoc.id,
+          office: emp.office,
           status: 'failed',
           error: empErr.message,
           timestamp: new Date().toISOString()
@@ -216,11 +246,13 @@ export async function runAutomatedRosterBriefing() {
       }
     }
 
-    await adminDb.collection('system_settings').doc('whatsapp_automation').update({
-      lastRun: new Date().toISOString(),
-      lastStats: { success: successCount, fail: failCount, total: successCount + failCount },
-      updatedAt: new Date().toISOString()
-    });
+    if (autoSnap.exists) {
+      await adminDb.collection('system_settings').doc('whatsapp_automation').update({
+        lastRun: new Date().toISOString(),
+        lastStats: { success: successCount, fail: failCount, total: successCount + failCount },
+        updatedAt: new Date().toISOString()
+      });
+    }
 
     return { success: true, count: successCount, total: successCount + failCount };
 

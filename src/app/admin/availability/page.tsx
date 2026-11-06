@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -19,7 +20,9 @@ import {
   Save,
   Send,
   Loader2,
-  Database
+  Database,
+  MessageSquare,
+  Zap
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
@@ -33,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { logAudit } from '@/lib/audit';
 import { useToast } from '@/hooks/use-toast';
+import { dispatchOfficeBriefingsAction } from '@/services/roster-notification-service';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -49,6 +53,7 @@ export default function AvailabilitySummary() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
 
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
@@ -203,6 +208,30 @@ export default function AvailabilitySummary() {
     }
   };
 
+  const handleDispatchWhatsApp = async () => {
+    if (!selectedOffice) return;
+    setDispatching(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Authentication pulse failed.");
+
+      const result = await dispatchOfficeBriefingsAction(idToken, selectedOffice);
+      if (result.success) {
+        toast({ 
+          title: "Briefings Dispatched", 
+          description: `Successfully queued ${result.count} WhatsApp roster notifications for ROC ${selectedOffice}.` 
+        });
+        logAudit(db, profile?.uid || 'system', 'DISPATCH_OFFICE_WHATSAPP', selectedOffice, { count: result.count });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Dispatch Conflict", description: e.message });
+    } finally {
+      setDispatching(false);
+    }
+  };
+
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
@@ -247,6 +276,15 @@ export default function AvailabilitySummary() {
               >
                 {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
                 Save Draft
+              </Button>
+              <Button 
+                variant="outline"
+                className="bg-white border-2 border-emerald-500/20 text-emerald-600 h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-emerald-50 group"
+                onClick={handleDispatchWhatsApp}
+                disabled={dispatching || !selectedOffice}
+              >
+                {dispatching ? <Loader2 className="size-4 animate-spin mr-2" /> : <MessageSquare className="size-4 mr-2 group-hover:scale-110 transition-transform" />}
+                Dispatch WhatsApp
               </Button>
               <Button 
                 className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
