@@ -30,6 +30,7 @@ import { DemoBadge } from '@/components/ui/demo-badge';
 import { useToast } from '@/hooks/use-toast';
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
 import { runManualRosterBriefingAction } from '@/services/roster-notification-service';
+import { cn } from '@/lib/utils';
 
 export default function NotificationDashboard() {
   const db = useFirestore();
