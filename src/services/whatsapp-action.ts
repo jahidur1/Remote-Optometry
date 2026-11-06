@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -22,7 +21,7 @@ export type WhatsAppSendResult = {
 
 function verifyCredentials() {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    throw new Error('META_AUTH_ERROR: Meta API credentials not configured in environment secrets.');
+    throw new Error('META_AUTH_ERROR: Meta API credentials not configured in environment secrets. Run `firebase functions:secrets:set` to provision.');
   }
 }
 
@@ -47,13 +46,17 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string): Promise<stri
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(`Meta Media Upload Failed: ${data.error?.message || 'Unknown'}`);
+  if (!response.ok) {
+    console.error('Meta Media Dispatch Conflict:', data);
+    throw new Error(`Meta Media Upload Failed: ${data.error?.message || 'Unknown'}`);
+  }
   
   return data.id;
 }
 
 /**
  * Dispatches a Shift Briefing Template with an image header.
+ * Targeting approved template: roc_two_day_roster_notification
  */
 export async function sendWhatsAppShiftBriefingWithImage(
   to: string,
@@ -74,7 +77,7 @@ export async function sendWhatsAppShiftBriefingWithImage(
       to: formattedTo,
       type: 'template',
       template: {
-        name: 'roc_two_day_roster_notification', // Institutional Template Node
+        name: 'roc_two_day_roster_notification',
         language: { code: 'en_US' },
         components: [
           {
@@ -101,15 +104,28 @@ export async function sendWhatsAppShiftBriefingWithImage(
     });
 
     const data = await response.json();
+    
+    if (!response.ok) {
+        return { success: false, error: data.error?.message || 'API_REJECTED' };
+    }
+
     return { 
-      success: response.ok, 
+      success: true, 
       messageId: data.messages?.[0]?.id, 
-      mediaId,
-      error: data.error?.message 
+      mediaId
     };
 
   } catch (err: any) {
-    console.error('WhatsApp Dispatch Failure:', err.message);
+    console.error('WhatsApp Dispatch Failure Trace:', err.message);
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * Validates a mobile number format before Meta dispatch.
+ */
+export async function validateProfessionalPhone(phone: string): Promise<boolean> {
+    if (!phone) return false;
+    const clean = phone.replace(/\D/g, '');
+    return clean.length === 10 || (clean.length === 12 && clean.startsWith('91'));
 }

@@ -1,34 +1,54 @@
-
 # ROC Workforce: Deployment Protocol
 
 This guide outlines the mandatory environment configuration and infrastructure setup required for production stability.
 
-## 1. Environment Variables
-Add these to your production environment (GCP Cloud Run, App Hosting, or .env.production).
+## 1. Environment Variables (.env)
+Populate your environment using `.env.example` as a template.
 
 | Variable | Purpose | Value/Source |
 | :--- | :--- | :--- |
 | `SOLVER_URL` | Cloud Run Solver Endpoint | `https://roc-workforce-solver-...run.app` |
-| `ENABLE_IAM_AUTH` | Secure service-to-service auth | `true` |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta Cloud API | From Meta Developer Portal |
-| `WHATSAPP_ACCESS_TOKEN` | Meta System User Token | Permanent Token recommended |
-| `NEXT_PUBLIC_FIREBASE_CONFIG` | Client SDK Config | JSON string from Firebase Console |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta Cloud API | From Meta Developer Portal (`1143569695505848`) |
+| `WHATSAPP_ACCESS_TOKEN` | Meta API Token | Permanent System User Token |
+| `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` | App Check Security | From Google Cloud Console |
 
-## 2. Firebase Infrastructure
-1.  **Storage**: Enable Firebase Storage for Logo and Profile asset persistence.
-2.  **App Check**: Register your site with Firebase App Check (reCAPTCHA Enterprise) to protect Cloud Functions and Firestore from bots.
-3.  **Authentication**: Authorized domains must include `roc-workforce.app` and your Cloud Run domains.
+## 2. Firebase Infrastructure Setup
+1. **Storage**: Navigate to the Firebase Console -> Storage. Click **Get Started**. Ensure the bucket `studio-9087637488-aa952.firebasestorage.app` is initialized.
+2. **App Check**: 
+   - Enable **reCAPTCHA Enterprise** in the Google Cloud Console.
+   - Register your Web App in the Firebase Console under App Check.
+   - Enforcement should only be enabled *after* initial production traffic is verified.
+3. **Authentication**: Authorized domains must include `roc-workforce.app` and your Firebase App Hosting domains.
 
-## 3. Manual Firestore Indexes
-Deploy indexes using:
+## 3. Secret Configuration (CLI)
+Execute these commands to provision secrets for Cloud Functions:
 ```bash
-firebase deploy --only firestore:indexes
+firebase functions:secrets:set WHATSAPP_ACCESS_TOKEN
+firebase functions:secrets:set WHATSAPP_PHONE_NUMBER_ID
 ```
-Or manually configure in the console using the paths defined in `firestore.indexes.json`.
 
-## 4. WhatsApp Template
-Ensure the `roc_two_day_roster_notification` template is approved in your WhatsApp Manager:
+## 4. Manual Component Deployment
+Run these commands in order:
+```bash
+# 1. Deploy Firestore Indexes
+firebase deploy --only firestore:indexes
+
+# 2. Deploy Security Rules
+firebase deploy --only firestore:rules,storage
+
+# 3. Deploy Scheduler & Briefing Pulse
+firebase deploy --only functions
+```
+
+## 5. WhatsApp Template Verification
+Ensure the `roc_two_day_roster_notification` template is **ACTIVE** in your WhatsApp Manager:
 - **Name**: `roc_two_day_roster_notification`
 - **Category**: `UTILITY`
-- **Header**: Image
+- **Language**: `en_US`
+- **Header**: Image (Variable)
 - **Body**: `Hello {{1}}, your upcoming ROC work schedule is ready. Please check the attached roster image for your assigned shifts for the next two days.`
+
+## 6. Monitoring & Troubleshooting
+- **Audit Logs**: Check the `/audit_logs` collection in Firestore for `AUTH_OTP_REQUEST` and `DISPATCH_OFFICE_WHATSAPP` pulses.
+- **WhatsApp Logs**: Check `/whatsapp_logs` for `failureReason` if messages are not delivered.
+- **Storage Hygiene**: The `storageCleanupPulse` runs hourly. No manual deletion of roster images is required.
