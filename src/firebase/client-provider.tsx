@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -7,6 +8,12 @@ import { type FirebaseApp } from 'firebase/app';
 import { type Firestore } from 'firebase/firestore';
 import { type Auth } from 'firebase/auth';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+
+/**
+ * Global flag to track App Check initialization across React re-renders.
+ * Prevents "App Check has already been initialized" errors.
+ */
+let isAppCheckInitialized = false;
 
 /**
  * ROC WORKFORCE — INSTITUTIONAL CLIENT PROVIDER
@@ -28,7 +35,7 @@ export function FirebaseClientProvider({ children }: { children: React.ReactNode
     
     // TASK 3: App Check Token Handshake
     // reCAPTCHA Enterprise provides a cryptographic guarantee that the caller is your authorized Web App.
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !isAppCheckInitialized) {
       const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
       
       if (siteKey) {
@@ -37,11 +44,13 @@ export function FirebaseClientProvider({ children }: { children: React.ReactNode
             provider: new ReCaptchaEnterpriseProvider(siteKey),
             isTokenAutoRefreshEnabled: true,
           });
+          isAppCheckInitialized = true;
           console.log('ROC_SEC_PULSE: App Check initiated via reCAPTCHA Enterprise.');
         } catch (e) {
           console.warn('ROC_SEC_ALERT: App Check failed to initialize. Verify Site Key in Google Cloud Console.');
         }
       } else {
+        // Safe bypass for local dev until Site Key is provisioned in the environment
         console.warn('ROC_SEC_ALERT: reCAPTCHA Site Key missing. App Check Enforcement is currently BYPASSED.');
       }
     }
