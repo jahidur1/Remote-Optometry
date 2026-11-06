@@ -7,6 +7,7 @@ import { sendWhatsAppShiftBriefingWithImage } from './whatsapp-action';
 import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId } from '@/lib/date-utils';
+import { logAuditServer } from './audit-service';
 
 /**
  * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE
@@ -27,7 +28,6 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
   try {
     const profile = await getAuthorizedUser(idToken);
     
-    // Authorization Scoping: Super Admin or Admin of the target office
     if (profile.role !== 'super_admin') {
       const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
       if (!authorizedOffices.includes(officeId)) {
@@ -35,10 +35,88 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
       }
     }
 
-    return await runAutomatedRosterBriefing(officeId, true); // Manual trigger bypasses master pulse check
+    return await runAutomatedRosterBriefing(officeId, true);
   } catch (e: any) {
     return { success: false, error: e.message };
   }
+}
+
+/**
+ * sendTestBriefingAction
+ * Dispatches a real WhatsApp briefing to a custom test number.
+ */
+export async function sendTestBriefingAction(idToken: string, employeeId: string, testPhone: string) {
+  try {
+    const profile = await getAuthorizedUser(idToken);
+    if (profile.role !== 'super_admin') throw new Error("Super Admin pulse required.");
+
+    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
+    if (!empSnap.exists) throw new Error("Professional not found.");
+    const emp = empSnap.data()!;
+
+    const nextTwoDays = await getNextTwoDaysData(employeeId, emp.office);
+    
+    const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
+    const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
+
+    const pngBuffer = await generateRosterImage({
+      employeeName: emp.fullName,
+      employeeId: employeeId,
+      logoBase64,
+      nextTwoDays
+    });
+
+    const dispatch = await sendWhatsAppShiftBriefingWithImage(
+      testPhone,
+      emp.fullName,
+      pngBuffer,
+      `test_briefing_${employeeId}.png`
+    );
+
+    if (dispatch.success) {
+      await logAuditServer(profile.uid, 'ADMIN_TEST_DISPATCH', employeeId, { testPhone });
+      return { success: true, messageId: dispatch.messageId };
+    } else {
+      throw new Error(dispatch.error);
+    }
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+async function getNextTwoDaysData(employeeId: string, office: string) {
+  const shiftSnap = await adminDb.collection('shift_master').get();
+  const shiftsMap = new Map();
+  shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
+
+  const tomorrow = addDays(new Date(), 1);
+  const dayAfter = addDays(new Date(), 2);
+  const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
+  const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
+
+  const tomRosterId = `active_${weekIds[0]}_${office}`;
+  const datRosterId = `active_${weekIds[1]}_${office}`;
+
+  const [r1, r2] = await Promise.all([
+    adminDb.collection('published_rosters').doc(tomRosterId).get(),
+    adminDb.collection('published_rosters').doc(datRosterId).get()
+  ]);
+
+  const findAssignment = (snap: any, date: string) => 
+    snap.exists ? snap.data().assignments?.find((a: any) => a.employeeId === employeeId && a.date === date) : null;
+
+  return dates.map((date, idx) => {
+    const assign = findAssignment(idx === 0 ? r1 : r2, date);
+    const shift = assign ? shiftsMap.get(assign.shiftId) : null;
+    const isOff = assign?.shiftId === 'none' || !assign;
+
+    return {
+      date: format(new Date(date), 'dd MMM yyyy'),
+      day: format(new Date(date), 'EEEE'),
+      shift: isOff ? 'WEEK-OFF' : (shift?.name || 'UNASSIGNED'),
+      time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`
+    };
+  });
 }
 
 export async function previewEmployeeRosterAction(idToken: string, employeeId: string) {
@@ -47,44 +125,13 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
     if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized.");
     
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
-    if (!empSnap.exists) throw new Error("Professional not found in registry.");
+    if (!empSnap.exists) throw new Error("Professional not found.");
     const emp = empSnap.data()!;
 
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
 
-    const shiftSnap = await adminDb.collection('shift_master').get();
-    const shiftsMap = new Map();
-    shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
-
-    const tomorrow = addDays(new Date(), 1);
-    const dayAfter = addDays(new Date(), 2);
-    const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
-    const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
-
-    const tomRosterId = `active_${weekIds[0]}_${emp.office}`;
-    const datRosterId = `active_${weekIds[1]}_${emp.office}`;
-
-    const [r1, r2] = await Promise.all([
-      adminDb.collection('published_rosters').doc(tomRosterId).get(),
-      adminDb.collection('published_rosters').doc(datRosterId).get()
-    ]);
-
-    const findAssignment = (snap: any, date: string) => 
-      snap.exists ? snap.data().assignments?.find((a: any) => a.employeeId === employeeId && a.date === date) : null;
-
-    const nextTwoDays = dates.map((date, idx) => {
-      const assign = findAssignment(idx === 0 ? r1 : r2, date);
-      const shift = assign ? shiftsMap.get(assign.shiftId) : null;
-      const isOff = assign?.shiftId === 'none' || !assign;
-
-      return {
-        date: format(new Date(date), 'dd MMM yyyy'),
-        day: format(new Date(date), 'EEEE'),
-        shift: isOff ? 'WEEK-OFF' : (shift?.name || 'UNASSIGNED'),
-        time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`
-      };
-    });
+    const nextTwoDays = await getNextTwoDaysData(employeeId, emp.office);
 
     const pngBuffer = await generateRosterImage({
       employeeName: emp.fullName,
@@ -103,20 +150,6 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
   }
 }
 
-export async function runManualRosterBriefingAction(idToken: string) {
-  try {
-    const profile = await getAuthorizedUser(idToken);
-    if (profile.role !== 'super_admin') throw new Error("Super Admin pulse required.");
-    return await runAutomatedRosterBriefing();
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-/**
- * CORE ORCHESTRATION LOGIC
- * Can be triggered via Server Action (UI) or Cloud Function (Scheduler).
- */
 export async function runAutomatedRosterBriefing(officeId?: string, bypassMasterCheck = false) {
   const executionId = `exec_${Date.now()}`;
   let successCount = 0;
@@ -140,14 +173,9 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     }
     const empSnap = await empBaseQuery.get();
 
-    const shiftSnap = await adminDb.collection('shift_master').get();
-    const shiftsMap = new Map();
-    shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
-
     const tomorrow = addDays(new Date(), 1);
     const dayAfter = addDays(new Date(), 2);
     const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
-    const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
 
     const bucket = getStorage().bucket();
 
@@ -162,32 +190,9 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           .where('status', '==', 'success')
           .limit(1).get();
         
-        // Skip if already sent today (manual or automatic)
         if (!existingJob.empty && !bypassMasterCheck) continue;
 
-        const tomRosterId = `active_${weekIds[0]}_${emp.office}`;
-        const datRosterId = `active_${weekIds[1]}_${emp.office}`;
-
-        const [r1, r2] = await Promise.all([
-          adminDb.collection('published_rosters').doc(tomRosterId).get(),
-          adminDb.collection('published_rosters').doc(datRosterId).get()
-        ]);
-
-        const findAssignment = (snap: any, date: string) => 
-          snap.exists ? snap.data().assignments?.find((a: any) => a.employeeId === empDoc.id && a.date === date) : null;
-
-        const nextTwoDays = dates.map((date, idx) => {
-          const assign = findAssignment(idx === 0 ? r1 : r2, date);
-          const shift = assign ? shiftsMap.get(assign.shiftId) : null;
-          const isOff = assign?.shiftId === 'none' || !assign;
-
-          return {
-            date: format(new Date(date), 'dd MMM yyyy'),
-            day: format(new Date(date), 'EEEE'),
-            shift: isOff ? 'WEEK-OFF' : (shift?.name || 'UNASSIGNED'),
-            time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`
-          };
-        });
+        const nextTwoDays = await getNextTwoDaysData(empDoc.id, emp.office);
 
         const pngBuffer = await generateRosterImage({
           employeeName: emp.fullName,
@@ -223,6 +228,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             executionId,
             jobKey,
             employeeId: empDoc.id,
+            employeeName: emp.fullName,
             office: emp.office,
             status: 'success',
             imgSize: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
@@ -238,6 +244,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         await adminDb.collection('whatsapp_logs').add({
           executionId,
           employeeId: empDoc.id,
+          employeeName: emp.fullName,
           office: emp.office,
           status: 'failed',
           error: empErr.message,

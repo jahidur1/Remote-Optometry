@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,6 +24,7 @@ import {
   Globe,
   Building2,
   ChevronDown,
+  Zap,
 } from "lucide-react"
 
 import {
@@ -78,6 +80,7 @@ const navGroups = [
   {
     label: "Governance",
     items: [
+      { title: "Automation Hub", url: "/admin/notifications", icon: Zap, roles: ["super_admin"] },
       { title: "Cluster Registry", url: "/admin/offices", icon: Network, roles: ["super_admin"] },
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["super_admin"] },
       { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["super_admin"] },
