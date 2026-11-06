@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -9,7 +8,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE (PART 2)
+ * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE
  * 
  * Orchestrates image synthesis, Storage lifecycle, and Meta API dispatch.
  * STRICT REQUIREMENT: Final image size MUST be <= 60KB.
@@ -25,10 +24,6 @@ async function assertSuperAdmin(idToken: string) {
   return decoded.uid;
 }
 
-/**
- * Generates a base64 preview of a professional's roster for the dashboard.
- * Does not send or save to storage permanently.
- */
 export async function previewEmployeeRosterAction(idToken: string, employeeId: string) {
   try {
     await assertSuperAdmin(idToken);
@@ -99,6 +94,10 @@ export async function runManualRosterBriefingAction(idToken: string) {
   }
 }
 
+/**
+ * CORE ORCHESTRATION LOGIC
+ * Can be triggered via Server Action (UI) or Cloud Function (Scheduler).
+ */
 export async function runAutomatedRosterBriefing() {
   const executionId = `exec_${Date.now()}`;
   let successCount = 0;
@@ -108,13 +107,11 @@ export async function runAutomatedRosterBriefing() {
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
-    const config = configSnap.data();
-    const automation = autoSnap.data();
-    
-    if (!config?.whatsappEnabled || !automation?.masterEnabled) {
+    if (!configSnap.data()?.whatsappEnabled || !autoSnap.data()?.masterEnabled) {
       throw new Error("AUTOMATION_SUSPENDED: Master Pulse is OFF.");
     }
 
+    const automation = autoSnap.data()!;
     const empSnap = await adminDb.collection('employees').where('status', '==', 'Active').get();
     const shiftSnap = await adminDb.collection('shift_master').get();
     const shiftsMap = new Map();
@@ -171,9 +168,7 @@ export async function runAutomatedRosterBriefing() {
           nextTwoDays
         });
 
-        const year = format(new Date(), 'yyyy');
-        const month = format(new Date(), 'MM');
-        const storagePath = `whatsapp-roster-images/${year}/${month}/${empDoc.id}/${executionId}.png`;
+        const storagePath = `whatsapp-roster-images/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.png`;
         const file = bucket.file(storagePath);
         
         await file.save(pngBuffer, {
@@ -227,29 +222,10 @@ export async function runAutomatedRosterBriefing() {
       updatedAt: new Date().toISOString()
     });
 
-    await purgeExpiredRosterMedia();
     return { success: true, count: successCount, total: successCount + failCount };
 
   } catch (globalErr: any) {
-    console.error('Automation Orchestration Conflict:', globalErr.message);
+    console.error('Automation Conflict:', globalErr.message);
     return { success: false, error: globalErr.message };
-  }
-}
-
-async function purgeExpiredRosterMedia() {
-  const bucket = getStorage().bucket();
-  const [files] = await bucket.getFiles({ prefix: 'whatsapp-roster-images/' });
-  const now = new Date();
-
-  for (const file of files) {
-    const [meta] = await file.getMetadata();
-    const expiry = meta.metadata?.expiresAt;
-    if (expiry && new Date(expiry) < now) {
-      try {
-        await file.delete();
-      } catch (e) {
-        console.error(`Cleanup failure: ${file.name}`, e);
-      }
-    }
   }
 }
