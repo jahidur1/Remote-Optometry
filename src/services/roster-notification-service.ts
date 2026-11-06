@@ -4,29 +4,20 @@
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { generateRosterImage } from './image-generation-service';
 import { sendWhatsAppShiftBriefingWithImage } from './whatsapp-action';
-import { format, addDays, startOfISOWeek } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE (PART 1)
+ * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE (PART 2)
  * 
- * Scheduled Pulse: 10:00 PM IST
- * Protocol:
- * 1. Target T+1 and T+2 shifts from published rosters.
- * 2. Synthesize individual < 60KB PNG images.
- * 3. Secure in private Storage node with strict lifecycle metadata.
- * 4. Dispatch via Meta Cloud API using Template Workflow.
- * 5. Automate 48-hour retention purge.
+ * Orchestrates image synthesis, Storage lifecycle, and Meta API dispatch.
+ * Strictly enforces 60KB image size and 48H retention.
  */
 
-/**
- * runManualRosterBriefingAction
- * High-intensity trigger for testing the Part 1 infrastructure.
- */
 export async function runManualRosterBriefingAction(idToken: string) {
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await adminAuth.verifyIdToken(idToken, true);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
       throw new Error("Unauthorized: Super Admin credentials required for automation pulse.");
@@ -40,27 +31,27 @@ export async function runManualRosterBriefingAction(idToken: string) {
 
 export async function runAutomatedRosterBriefing() {
   const executionId = `exec_${Date.now()}`;
-  const start = Date.now();
   let successCount = 0;
   let failCount = 0;
 
   try {
-    // 1. Governance Audit
+    // 1. Governance Verification
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
     const config = configSnap.exists ? configSnap.data() : { whatsappEnabled: false };
     const automation = autoSnap.exists ? autoSnap.data() : { masterEnabled: false };
     
-    if (!automation?.masterEnabled) return { success: false, error: "AUTOMATION_SUSPENDED: Master toggle is OFF." };
+    if (!config?.whatsappEnabled || !automation?.masterEnabled) {
+      throw new Error("AUTOMATION_SUSPENDED: Pulse is globally OFF.");
+    }
 
-    // 2. Resource Aggregation
+    // 2. Data Aggregation
     const empSnap = await adminDb.collection('employees').where('status', '==', 'Active').get();
     const shiftSnap = await adminDb.collection('shift_master').get();
     const shiftsMap = new Map();
     shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
 
-    // Calculate Target Dates: Tomorrow and Day After
     const tomorrow = addDays(new Date(), 1);
     const dayAfter = addDays(new Date(), 2);
     
@@ -75,7 +66,6 @@ export async function runAutomatedRosterBriefing() {
       if (!emp.whatsappNumber) continue;
 
       try {
-        // Idempotency check: Don't repeat for the same dates in this execution cycle
         const jobKey = `${empDoc.id}_${dates[0]}_${dates[1]}`;
         const existingJob = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
@@ -84,7 +74,6 @@ export async function runAutomatedRosterBriefing() {
         
         if (!existingJob.empty) continue;
 
-        // Retrieve relevant rosters
         const tomRosterId = `active_${weekIds[0]}_${emp.office}`;
         const datRosterId = `active_${weekIds[1]}_${emp.office}`;
 
@@ -99,8 +88,6 @@ export async function runAutomatedRosterBriefing() {
         const nextTwoDays = dates.map((date, idx) => {
           const assign = findAssignment(idx === 0 ? r1 : r2, date);
           const shift = assign ? shiftsMap.get(assign.shiftId) : null;
-          
-          // Check for Week-Off via the assignments (published roster source of truth)
           const isOff = assign?.shiftId === 'none' || !assign;
 
           return {
@@ -111,7 +98,7 @@ export async function runAutomatedRosterBriefing() {
           };
         });
 
-        // 4. Image Synthesis (Stateless Buffer)
+        // 4. Deterministic Image Synthesis (< 60KB enforced)
         const pngBuffer = await generateRosterImage({
           employeeName: emp.fullName,
           employeeId: empDoc.id,
@@ -119,7 +106,7 @@ export async function runAutomatedRosterBriefing() {
           nextTwoDays
         });
 
-        // 5. Private Storage Pulse
+        // 5. Private Registry Pulse
         const year = format(new Date(), 'yyyy');
         const month = format(new Date(), 'MM');
         const storagePath = `whatsapp-roster-images/${year}/${month}/${empDoc.id}/${executionId}.png`;
@@ -129,9 +116,8 @@ export async function runAutomatedRosterBriefing() {
           contentType: 'image/png',
           metadata: {
             metadata: {
-              employeeUid: emp.authUid || 'UNMAPPED',
               employeeId: empDoc.id,
-              expiresAt: addDays(new Date(), 2).toISOString(), // 48h Retention
+              expiresAt: addDays(new Date(), 2).toISOString(),
               imageSize: `${(pngBuffer.length / 1024).toFixed(1)}KB`
             }
           }
@@ -172,28 +158,23 @@ export async function runAutomatedRosterBriefing() {
       }
     }
 
-    // 7. Telemetry Update
+    // 7. Telemetry Registry Sync
     await adminDb.collection('system_settings').doc('whatsapp_automation').update({
       lastRun: new Date().toISOString(),
       lastStats: { success: successCount, fail: failCount, total: successCount + failCount },
       updatedAt: new Date().toISOString()
     });
 
-    // 8. Lifecycle Purge Pulse
     await purgeExpiredRosterMedia();
 
     return { success: true, count: successCount, total: successCount + failCount };
 
   } catch (globalErr: any) {
-    console.error('WhatsApp Orchestration Crash:', globalErr.message);
+    console.error('Automation Orchestration Conflict:', globalErr.message);
     return { success: false, error: globalErr.message };
   }
 }
 
-/**
- * purgeExpiredRosterMedia
- * Explicitly deletes Firebase Storage objects older than 48 hours.
- */
 async function purgeExpiredRosterMedia() {
   const bucket = getStorage().bucket();
   const [files] = await bucket.getFiles({ prefix: 'whatsapp-roster-images/' });
@@ -206,7 +187,7 @@ async function purgeExpiredRosterMedia() {
       try {
         await file.delete();
       } catch (e) {
-        console.error(`Cleanup Failure: ${file.name}`, e);
+        console.error(`Cleanup failure: ${file.name}`, e);
       }
     }
   }

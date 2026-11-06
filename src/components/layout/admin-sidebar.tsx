@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,6 +24,7 @@ import {
   Globe,
   Building2,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react"
 
 import {
@@ -79,6 +81,7 @@ const navGroups = [
     label: "Governance",
     items: [
       { title: "Cluster Registry", url: "/admin/offices", icon: Network, roles: ["super_admin"] },
+      { title: "Roster Automation", url: "/admin/notifications", icon: MessageCircle, roles: ["super_admin"] },
       { title: "Session Audit", url: "/admin/sessions", icon: ShieldAlert, roles: ["super_admin"] },
       { title: "Institutional Logs", url: "/admin/audit", icon: ShieldCheck, roles: ["super_admin"] },
     ]
@@ -104,7 +107,6 @@ export function AdminSidebar() {
   }
 
   const currentOffice = authorizedOffices.find(o => o.officeId === selectedOffice);
-
   const showOfficeSelector = profile?.role === 'admin' || (profile?.role === 'super_admin' && authorizedOffices.length > 0);
 
   return (

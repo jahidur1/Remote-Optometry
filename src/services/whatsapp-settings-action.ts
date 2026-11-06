@@ -5,9 +5,9 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE (PART 1)
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE (PART 2)
  * 
- * Manages the backend configuration for automated briefings.
+ * Manages institutional branding, master automation toggles, and Meta API telemetry.
  * Restricts modifications to active Super Admin nodes.
  */
 
@@ -26,36 +26,43 @@ export async function getWhatsAppSettingsAction() {
       }
     };
   } catch (e) {
-    return { whatsappEnabled: false, automation: { masterEnabled: false } };
+    console.error('Governance Fetch Failure:', e);
+    return { 
+      whatsappEnabled: false, 
+      automation: { masterEnabled: false, lastStats: { success: 0, fail: 0, total: 0 } } 
+    };
   }
 }
 
-export async function updateWhatsAppSettingsAction(idToken: string, updates: { enabled: boolean, logoBase64?: string, masterEnabled?: boolean }) {
+export async function updateWhatsAppSettingsAction(idToken: string, updates: { enabled?: boolean, logoBase64?: string, masterEnabled?: boolean }) {
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await adminAuth.verifyIdToken(idToken, true);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
-      throw new Error("Unauthorized: Elevated credentials required.");
+      throw new Error("Unauthorized: SUPER_ADMIN credentials required.");
     }
 
     const batch = adminDb.batch();
+    const now = new Date().toISOString();
     
     // 1. Update Core API Status
-    batch.set(adminDb.collection('system_settings').doc('whatsapp_config'), {
-      whatsappEnabled: updates.enabled,
-      updatedAt: new Date().toISOString(),
-      updatedBy: decoded.uid
-    }, { merge: true });
+    if (updates.enabled !== undefined) {
+      batch.set(adminDb.collection('system_settings').doc('whatsapp_config'), {
+        whatsappEnabled: updates.enabled,
+        updatedAt: now,
+        updatedBy: decoded.uid
+      }, { merge: true });
+    }
 
     // 2. Update Automation Governance
     const autoUpdates: any = {
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       updatedBy: decoded.uid
     };
     if (updates.masterEnabled !== undefined) autoUpdates.masterEnabled = updates.masterEnabled;
     if (updates.logoBase64 !== undefined) {
         autoUpdates.base64Logo = updates.logoBase64;
-        autoUpdates.logoUpdatedAt = new Date().toISOString();
+        autoUpdates.logoUpdatedAt = now;
     }
 
     batch.set(adminDb.collection('system_settings').doc('whatsapp_automation'), autoUpdates, { merge: true });
@@ -63,11 +70,13 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: { e
     await batch.commit();
     await logAuditServer(decoded.uid, 'ADMIN_UPDATE_WHATSAPP_GOVERNANCE', 'system', { 
         enabled: updates.enabled, 
-        master: updates.masterEnabled 
+        master: updates.masterEnabled,
+        logoUpdated: !!updates.logoBase64
     });
 
     return { success: true };
   } catch (e: any) {
+    console.error('Governance Sync Failure:', e.message);
     return { success: false, error: e.message };
   }
 }

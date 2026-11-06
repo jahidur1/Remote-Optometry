@@ -23,7 +23,10 @@ import {
   UploadCloud,
   History,
   Activity,
-  ArrowRight
+  ArrowRight,
+  RefreshCcw,
+  AlertTriangle,
+  Info
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -34,6 +37,12 @@ import { runManualRosterBriefingAction } from '@/services/roster-notification-se
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+/**
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE HUB (PART 2)
+ * 
+ * Privileged Command Center for SUPER_ADMIN only.
+ * Manages institutional branding, master automation toggles, and Meta API telemetry.
+ */
 export default function NotificationDashboard() {
   const db = useFirestore();
   const auth = useAuth();
@@ -42,33 +51,47 @@ export default function NotificationDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Governance State
-  const [wsSettings, setWsSettings] = useState<any>({ enabled: false, logoBase64: '', automation: { masterEnabled: false } });
+  const [wsSettings, setWsSettings] = useState<any>({ whatsappEnabled: false, automation: { masterEnabled: false, base64Logo: '', lastRun: null, lastStats: { success: 0, fail: 0, total: 0 } } });
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [triggeringManual, setTriggeringManual] = useState(false);
 
   useEffect(() => {
     async function fetchSettings() {
-      const data = await getWhatsAppSettingsAction();
-      setWsSettings(data);
-      setSettingsLoading(false);
+      try {
+        const data = await getWhatsAppSettingsAction();
+        setWsSettings(data);
+      } catch (e) {
+        console.error("Registry Fetch Failure:", e);
+      } finally {
+        setSettingsLoading(false);
+      }
     }
     fetchSettings();
   }, []);
 
   const handleToggleAutomation = async (checked: boolean) => {
-    setWsSettings((prev: any) => ({ ...prev, automation: { ...prev.automation, masterEnabled: checked } }));
+    if (!confirm(`CONFIRMATION PROTOCOL: ${checked ? 'Initiate' : 'Suspend'} entire automated clinical briefing workflow?`)) return;
+    
+    const prev = { ...wsSettings };
+    setWsSettings((prev: any) => ({ 
+      ...prev, 
+      whatsappEnabled: checked,
+      automation: { ...prev.automation, masterEnabled: checked } 
+    }));
+    
     setSavingSettings(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
+      const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) return;
-      await updateWhatsAppSettingsAction(idToken, { 
-        enabled: wsSettings.whatsappEnabled, 
-        logoBase64: wsSettings.logoBase64,
+      const res = await updateWhatsAppSettingsAction(idToken, { 
+        enabled: checked, 
         masterEnabled: checked 
       });
-      toast({ title: "Automation Node Updated", description: `Scheduled pulse is now ${checked ? 'active' : 'suspended'}.` });
+      if (!res.success) throw new Error(res.error);
+      toast({ title: "Governance Pulse Updated", description: `Automation is now ${checked ? 'ACTIVE' : 'SUSPENDED'}.` });
     } catch (e: any) {
+      setWsSettings(prev);
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
       setSavingSettings(false);
@@ -80,26 +103,26 @@ export default function NotificationDashboard() {
     if (!file) return;
 
     if (file.size > 150000) { 
-      toast({ variant: "destructive", title: "File too large", description: "Organization logo must be < 150KB for optimized synthesis." });
+      toast({ variant: "destructive", title: "Constraint Alert", description: "Logo must be < 150KB for optimized synthesis." });
       return;
     }
 
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      setWsSettings((prev: any) => ({ ...prev, logoBase64: base64 }));
       setSavingSettings(true);
       try {
-        const idToken = await auth.currentUser?.getIdToken();
+        const idToken = await auth.currentUser?.getIdToken(true);
         if (!idToken) return;
-        await updateWhatsAppSettingsAction(idToken, { 
+        const res = await updateWhatsAppSettingsAction(idToken, { 
             enabled: wsSettings.whatsappEnabled, 
-            logoBase64: base64,
-            masterEnabled: wsSettings.automation.masterEnabled
+            logoBase64: base64
         });
-        toast({ title: "Branding Secured", description: "Institutional mark updated in generation engine." });
+        if (!res.success) throw new Error(res.error);
+        setWsSettings((prev: any) => ({ ...prev, automation: { ...prev.automation, base64Logo: base64 } }));
+        toast({ title: "Branding Secured", description: "Institutional mark updated in image engine." });
       } catch (e: any) {
-        toast({ variant: "destructive", title: "Sync Failed", description: e.message });
+        toast({ variant: "destructive", title: "Upload Failed", description: e.message });
       } finally {
         setSavingSettings(false);
       }
@@ -108,20 +131,20 @@ export default function NotificationDashboard() {
   };
 
   const handleTriggerManual = async () => {
-    if (!confirm("EMERGENCY PULSE: Initiate image synthesis and WhatsApp dispatch for next 2 days. This will consume Meta API credits. Proceed?")) return;
+    if (!confirm("EMERGENCY TEST PULSE: Initiate image synthesis and Meta API dispatch for active shifts. Proceed?")) return;
     
     setTriggeringManual(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
+      const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) return;
       const result = await runManualRosterBriefingAction(idToken);
       if (result.success) {
-        toast({ title: "Orchestration Complete", description: `Dispatched ${result.count} briefings to active staff.` });
+        toast({ title: "Orchestration Complete", description: `Dispatched ${result.count} briefings successfully.` });
       } else {
         throw new Error(result.error);
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Broadcast Failed", description: e.message });
+      toast({ variant: "destructive", title: "Broadcast Failure", description: e.message });
     } finally {
       setTriggeringManual(false);
     }
@@ -132,18 +155,27 @@ export default function NotificationDashboard() {
 
   const isSuperAdmin = profile?.role === 'super_admin';
 
-  if (!isSuperAdmin) return (
-      <div className="flex h-[80vh] items-center justify-center">
-          <Card className="max-w-md border-destructive/20 bg-destructive/5 p-12 text-center space-y-6 rounded-[3rem]">
-              <XCircle className="size-16 mx-auto text-destructive" />
-              <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Privileged Hub Restricted</h2>
-              <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">Automation governance is restricted to system Super Admin accounts only.</p>
+  if (!isSuperAdmin && !settingsLoading) return (
+      <div className="flex h-[80vh] items-center justify-center animate-in">
+          <Card className="max-w-md border-destructive/20 bg-destructive/5 p-12 text-center space-y-8 rounded-[3rem]">
+              <div className="size-24 rounded-[2rem] bg-destructive/10 flex items-center justify-center mx-auto">
+                 <AlertTriangle className="size-12 text-destructive" />
+              </div>
+              <div className="space-y-3">
+                 <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Access Restricted</h2>
+                 <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed tracking-widest">
+                    Automation governance is restricted to active system SUPER_ADMIN accounts only.
+                 </p>
+              </div>
+              <Button variant="outline" className="h-12 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest border-2" onClick={() => window.history.back()}>
+                 Return to Hub
+              </Button>
           </Card>
       </div>
   );
 
   return (
-    <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4">
+    <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -154,7 +186,7 @@ export default function NotificationDashboard() {
               <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">Roster Automation</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                   Meta Cloud API Pulse <Activity className="size-3 text-secondary animate-pulse" />
+                   Institutional Command Hub <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
                 <DemoBadge />
               </div>
@@ -166,17 +198,17 @@ export default function NotificationDashboard() {
                 variant="outline" 
                 className="bg-white border-2 border-secondary/20 text-secondary font-black uppercase text-[11px] tracking-widest h-14 px-10 rounded-[1.5rem] transition-all hover:bg-secondary hover:text-white group shadow-xl"
                 onClick={handleTriggerManual}
-                disabled={triggeringManual || !wsSettings.automation?.masterEnabled}
+                disabled={triggeringManual || !wsSettings.whatsappEnabled}
             >
                 {triggeringManual ? <Loader2 className="size-5 mr-3 animate-spin" /> : <Zap className="size-5 mr-3 group-hover:rotate-12 transition-transform" />}
-                Manual Broadcast Pulse
+                Run Test Pulse
             </Button>
         </div>
       </div>
 
       <div className="grid gap-10 lg:grid-cols-12">
         <div className="lg:col-span-4 space-y-10">
-          {/* Master Governance */}
+          {/* Governance Node */}
           <Card className="shadow-2xl border-none rounded-[3rem] bg-white overflow-hidden border-t-8 border-t-primary">
             <CardHeader className="bg-slate-50/50 border-b p-10 space-y-4">
                <div className="flex items-center gap-6">
@@ -185,37 +217,39 @@ export default function NotificationDashboard() {
                   </div>
                   <div>
                     <CardTitle className="text-xl uppercase font-black tracking-tight leading-none text-black">Governance</CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Core Automation Node</CardDescription>
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Master Toggle Logic</CardDescription>
                   </div>
                </div>
             </CardHeader>
             <CardContent className="p-10 space-y-10">
                 <div className="flex items-center justify-between p-8 rounded-3xl bg-slate-50 border-2 border-slate-100 group">
                   <div className="space-y-1">
-                    <Label className="text-[11px] font-black uppercase text-black tracking-widest">Master Automation</Label>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase">10:00 PM Daily Pulse</p>
+                    <Label className="text-[11px] font-black uppercase text-black tracking-widest">Master Pulse</Label>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase">10:00 PM Daily Cycle</p>
                   </div>
                   <Switch 
-                    checked={wsSettings.automation?.masterEnabled} 
+                    checked={wsSettings.whatsappEnabled} 
                     onCheckedChange={handleToggleAutomation} 
                     disabled={savingSettings || settingsLoading}
-                    className="data-[state=checked]:bg-emerald-500"
+                    className="data-[state=checked]:bg-emerald-500 scale-125"
                   />
                 </div>
 
                 <div className="space-y-4">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1">Institutional mark</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] ml-1">Organizational Mark</Label>
                   <div className="group relative">
                     <div className="h-44 rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-4 transition-all group-hover:border-secondary group-hover:bg-secondary/5 overflow-hidden shadow-inner">
-                      {wsSettings.logoBase64 ? (
+                      {wsSettings.automation?.base64Logo ? (
                         <>
-                          <img src={wsSettings.logoBase64} alt="Branding" className="h-24 object-contain" />
-                          <p className="text-[9px] font-black text-secondary uppercase tracking-[0.3em]">Logo Secured</p>
+                          <img src={wsSettings.automation.base64Logo} alt="Branding" className="h-24 object-contain" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                             <RefreshCcw className="size-8 text-white animate-spin-slow" />
+                          </div>
                         </>
                       ) : (
                         <>
                           <UploadCloud className="size-12 text-slate-300" />
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center px-8">Upload PNG/JPG<br/><span className="text-[8px] opacity-40">Max 150KB</span></p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center px-8">PNG / JPG <br/><span className="text-[8px] opacity-40">MAX 150KB</span></p>
                         </>
                       )}
                     </div>
@@ -230,14 +264,18 @@ export default function NotificationDashboard() {
                 </div>
 
                 <div className="p-8 rounded-3xl bg-amber-50 border-2 border-amber-100 flex gap-6 items-start">
-                   <ShieldCheck className="size-6 text-amber-600 shrink-0" />
-                   <p className="text-[11px] font-bold text-amber-700 leading-relaxed uppercase tracking-tight">
-                     Strict protocol enforced: Generated images are recursive-compressed to maintain a byte-weight &lt; 60KB.
-                   </p>
+                   <ShieldCheck className="size-6 text-amber-600 shrink-0 mt-1" />
+                   <div className="space-y-2">
+                      <p className="text-[11px] font-black uppercase text-amber-700 tracking-tight">Zero-Config Optimization</p>
+                      <p className="text-[10px] font-medium text-amber-600 leading-relaxed uppercase">
+                        The system recursively reduces quality until the final roster PNG is strictly below the 60KB WhatsApp threshold.
+                      </p>
+                   </div>
                 </div>
             </CardContent>
           </Card>
 
+          {/* Connection Status Node */}
           <Card className="bg-[#0F172A] text-white shadow-2xl rounded-[3rem] p-10 space-y-8 relative overflow-hidden group border-none">
               <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-[2s]"><ImageIcon size={180} /></div>
               <div className="flex items-center gap-5 text-secondary">
@@ -247,15 +285,15 @@ export default function NotificationDashboard() {
               <div className="space-y-4 relative z-10">
                 <div className="flex justify-between items-center border-b border-white/5 pb-4">
                    <span className="text-[10px] uppercase font-black text-white/40">Next Execution</span>
-                   <span className="text-[11px] font-black text-emerald-400">TODAY 10:00 PM</span>
+                   <span className="text-[11px] font-black text-emerald-400 tabular-nums">TODAY 22:00 IST</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                   <span className="text-[10px] uppercase font-black text-white/40">Retention Node</span>
-                   <span className="text-[11px] font-black text-secondary">48H PURGE CYCLE</span>
+                   <span className="text-[10px] uppercase font-black text-white/40">Retention Cycle</span>
+                   <span className="text-[11px] font-black text-secondary">48H PURGE SYNC</span>
                 </div>
                 <div className="flex justify-between items-center pb-4">
-                   <span className="text-[10px] uppercase font-black text-white/40">Cloud Scheduler</span>
-                   <span className="text-[11px] font-black text-white/80">ACTIVE SYNC</span>
+                   <span className="text-[10px] uppercase font-black text-white/40">Cloud Node</span>
+                   <span className="text-[11px] font-black text-white/80 uppercase">Asia/South-1</span>
                 </div>
               </div>
           </Card>
@@ -266,7 +304,7 @@ export default function NotificationDashboard() {
              {[
                { label: 'Success Pulse', value: wsSettings.automation?.lastStats?.success || 0, icon: CheckCircle2, color: 'text-emerald-500' },
                { label: 'Failure Trace', value: wsSettings.automation?.lastStats?.fail || 0, icon: XCircle, color: 'text-destructive' },
-               { label: 'Images Generated', value: wsSettings.automation?.lastStats?.total || 0, icon: ImageIcon, color: 'text-secondary' }
+               { label: 'Cloud Synthesis', value: wsSettings.automation?.lastStats?.total || 0, icon: ImageIcon, color: 'text-secondary' }
              ].map((stat, i) => (
                <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all shadow-xl">
                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -280,6 +318,7 @@ export default function NotificationDashboard() {
              ))}
           </div>
 
+          {/* Execution History Table */}
           <Card className="shadow-2xl border-none overflow-hidden rounded-[3rem] bg-white">
             <CardHeader className="bg-slate-50/50 border-b p-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="flex items-center gap-6">
@@ -288,7 +327,7 @@ export default function NotificationDashboard() {
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-2xl font-black uppercase tracking-tight text-black leading-none">Execution Ledger</CardTitle>
-                  <CardDescription className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">Real-time Meta API transmission tracing.</CardDescription>
+                  <CardDescription className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">Meta API transmission tracing.</CardDescription>
                 </div>
               </div>
               <div className="relative w-full max-w-sm group">
@@ -305,10 +344,10 @@ export default function NotificationDashboard() {
               <Table>
                 <TableHeader className="bg-slate-50/30">
                   <TableRow>
-                    <TableHead className="w-[180px] pl-10 py-8 uppercase text-[10px] font-black tracking-[0.4em] border-r">Identity</TableHead>
-                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] border-r text-center">Payload Size</TableHead>
-                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] border-r text-center">Status Pulse</TableHead>
-                    <TableHead className="text-right pr-12 py-8 uppercase text-[10px] font-black tracking-[0.4em]">IST Execution</TableHead>
+                    <TableHead className="w-[180px] pl-10 py-8 uppercase text-[10px] font-black tracking-[0.4em] border-r">Professional</TableHead>
+                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] border-r text-center">Byte Weight</TableHead>
+                    <TableHead className="py-8 uppercase text-[10px] font-black tracking-[0.4em] border-r text-center">Dispatch Pulse</TableHead>
+                    <TableHead className="text-right pr-12 py-8 uppercase text-[10px] font-black tracking-[0.4em]">IST Trace</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -319,23 +358,26 @@ export default function NotificationDashboard() {
                   ) : logs?.length === 0 ? (
                     <TableRow><TableCell colSpan={4} className="py-40 text-center opacity-30 italic font-black uppercase text-xs tracking-[0.3em]">No transmission traces in institutional ledger.</TableCell></TableRow>
                   ) : (
-                    logs?.filter(l => l.employeeId.includes(searchTerm)).map((log, i) => (
+                    logs?.filter(l => l.employeeId?.includes(searchTerm)).map((log, i) => (
                       <TableRow key={log.id} className="group hover:bg-slate-50 transition-colors border-b last:border-0">
                         <td className="py-8 px-10 border-r border-slate-100">
                           <div className="flex flex-col">
                               <span className="font-black text-[14px] text-primary tracking-tight uppercase group-hover:translate-x-1 transition-transform">{log.employeeId}</span>
-                              <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">TRC_{log.id?.slice(-8)}</span>
+                              <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">TRC_{log.executionId?.slice(-8)}</span>
                           </div>
                         </td>
                         <td className="px-8 border-r border-slate-100 text-center">
-                           <code className="text-secondary font-black text-[11px] bg-secondary/5 px-3 py-1 rounded-md border border-secondary/10 shadow-inner">
+                           <code className={cn(
+                             "text-secondary font-black text-[11px] bg-secondary/5 px-3 py-1 rounded-md border border-secondary/10 shadow-inner",
+                             log.imgSize?.includes('KB') && parseFloat(log.imgSize) > 60 ? 'text-destructive border-destructive/20 bg-destructive/5' : ''
+                           )}>
                               {log.imgSize || '-- KB'}
                            </code>
                         </td>
                         <td className="px-8 border-r border-slate-100 text-center">
                            <Badge className={cn(
-                             "text-[8px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full",
-                             log.status === 'success' ? "bg-emerald-500 text-white shadow-lg" : "bg-destructive text-white shadow-lg"
+                             "text-[8px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg",
+                             log.status === 'success' ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-destructive text-white shadow-destructive/20"
                            )}>
                              {log.status === 'success' ? 'DISPATCHED' : 'FAILED'}
                            </Badge>
@@ -357,7 +399,7 @@ export default function NotificationDashboard() {
                   <div className="space-y-1">
                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40">Audit Protocol Active</p>
                      <p className="text-[11px] font-medium text-black/70 leading-relaxed uppercase max-w-4xl tracking-tight">
-                        Transmissions are strictly ledgered. Failed messages can be re-triggered via manual pulse during the active cycle window.
+                        Transmissions are strictly ledgered with 48-hour Storage TTL. Failures during the test pulse can be re-triggered manually without duplicating successful dispatches.
                      </p>
                   </div>
                </div>
