@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -29,7 +28,9 @@ import {
   Info,
   Eye,
   Send,
-  CloudLightning
+  CloudLightning,
+  Link,
+  ShieldAlert
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -42,12 +43,6 @@ import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-/**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE HUB (FINAL)
- * 
- * Privileged Command Center for SUPER_ADMIN only.
- * Manages institutional branding, master automation toggles, and Meta API telemetry.
- */
 export default function NotificationDashboard() {
   const db = useFirestore();
   const auth = useAuth();
@@ -305,6 +300,37 @@ export default function NotificationDashboard() {
                     </div>
                  </CardContent>
                </Card>
+
+               <Card className="shadow-2xl border-none rounded-[3rem] bg-white overflow-hidden border-t-8 border-t-secondary">
+                  <CardHeader className="bg-slate-50/50 border-b p-10">
+                     <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">API Status</CardTitle>
+                     <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Meta Cloud Integration Status</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-10 space-y-6">
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                           <Zap className={cn("size-4", wsSettings?.apiStatus?.hasToken ? "text-emerald-500" : "text-slate-300")} />
+                           <span className="text-[11px] font-black uppercase text-black tracking-widest">Access Token</span>
+                        </div>
+                        <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-3", wsSettings?.apiStatus?.hasToken ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-destructive/5 text-destructive border-destructive/20")}>
+                           {wsSettings?.apiStatus?.hasToken ? 'VALID_PULSE' : 'MISSING'}
+                        </Badge>
+                     </div>
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                           <Activity className={cn("size-4", wsSettings?.apiStatus?.hasPhoneId ? "text-emerald-500" : "text-slate-300")} />
+                           <span className="text-[11px] font-black uppercase text-black tracking-widest">Phone ID</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 uppercase">{wsSettings?.apiStatus?.phoneId || 'NOT_SET'}</span>
+                     </div>
+                  </CardContent>
+                  <CardFooter className="bg-slate-50/50 border-t p-6">
+                     <div className="flex items-center gap-3 text-secondary">
+                        <ShieldCheck className="size-4" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Secure Cloud Pulse Active</span>
+                     </div>
+                  </CardFooter>
+               </Card>
              </div>
 
              <div className="lg:col-span-8 space-y-10">
@@ -427,7 +453,7 @@ export default function NotificationDashboard() {
                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">Meta API transmission tracing.</CardDescription>
                     </div>
                  </div>
-                 <div className="relative w-full max-w-sm group">
+                 <div className="relative w-full max-sm:max-w-sm group">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground group-focus-within:text-secondary transition-colors" />
                     <Input 
                        placeholder="Filter Employee ID..." 

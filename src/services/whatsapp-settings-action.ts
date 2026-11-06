@@ -1,11 +1,10 @@
-
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE (PART 2)
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE
  * 
  * Manages institutional branding, master automation toggles, and Meta API telemetry.
  * Restricts modifications to active Super Admin nodes.
@@ -26,8 +25,18 @@ export async function getWhatsAppSettingsAction() {
     const snap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
+    // Check credentials status without exposing values
+    const hasPhoneId = !!process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const hasToken = !!process.env.WHATSAPP_ACCESS_TOKEN;
+
     return {
       whatsappEnabled: snap.data()?.whatsappEnabled || false,
+      apiStatus: {
+        configured: hasPhoneId && hasToken,
+        hasPhoneId,
+        hasToken,
+        phoneId: hasPhoneId ? process.env.WHATSAPP_PHONE_NUMBER_ID?.slice(-4).padStart(process.env.WHATSAPP_PHONE_NUMBER_ID?.length || 0, '*') : null
+      },
       automation: autoSnap.exists ? autoSnap.data() : { 
         masterEnabled: false, 
         base64Logo: '', 
@@ -39,6 +48,7 @@ export async function getWhatsAppSettingsAction() {
     console.error('Governance Fetch Failure:', e);
     return { 
       whatsappEnabled: false, 
+      apiStatus: { configured: false },
       automation: { masterEnabled: false, lastStats: { success: 0, fail: 0, total: 0 } } 
     };
   }
