@@ -7,6 +7,14 @@ import { addDays, format, parse, isValid, startOfISOWeek, endOfISOWeek } from 'd
  * Format: YYYYMMDD-YYYYMMDD (Strictly Monday to Sunday)
  */
 
+/**
+ * Retrieves the current date/time in Asia/Kolkata.
+ */
+export function getISTNow(): Date {
+  const istStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  return new Date(istStr);
+}
+
 export function getDatesForWeek(weekId: string): Date[] {
   if (!weekId) return [];
   
@@ -58,7 +66,7 @@ export function formatWeekId(date: Date): string {
  * Retrieves the current week identifier based on institutional standards.
  */
 export function getCurrentWeekId(): string {
-  return formatWeekId(new Date());
+  return formatWeekId(getISTNow());
 }
 
 export function displayWeekRange(weekId: string): string {

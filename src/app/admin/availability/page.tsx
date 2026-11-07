@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -24,7 +23,11 @@ import {
   MessageSquare,
   Zap,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
@@ -391,19 +394,28 @@ export default function AvailabilitySummary() {
                                <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
                                <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
                             </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="size-8 rounded-lg hover:bg-secondary/10 text-secondary transition-all"
-                              onClick={() => handlePreviewEmployeePDF(emp.id)}
-                              disabled={previewingId === emp.id}
-                            >
-                               {previewingId === emp.id ? (
-                                 <Loader2 className="size-4 animate-spin" />
-                               ) : (
-                                 <FileText className="size-4" />
-                               )}
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="size-8 rounded-lg hover:bg-secondary/10 text-secondary transition-all"
+                                    onClick={() => handlePreviewEmployeePDF(emp.id)}
+                                    disabled={previewingId === emp.id}
+                                  >
+                                    {previewingId === emp.id ? (
+                                      <Loader2 className="size-4 animate-spin" />
+                                    ) : (
+                                      <FileText className="size-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-primary text-white font-black text-[9px] uppercase tracking-widest border-none p-3 rounded-xl shadow-2xl">
+                                  Synthesis PDF Preview
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                          </div>
                       </TableCell>
                       {DAYS.map((day, idx) => {
@@ -481,4 +493,3 @@ export default function AvailabilitySummary() {
     </div>
   );
 }
-

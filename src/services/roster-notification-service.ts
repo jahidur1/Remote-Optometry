@@ -5,7 +5,7 @@ import { generateRosterPdf } from './roster-document-service';
 import { sendWhatsAppShiftBriefingWithDocument } from './whatsapp-action';
 import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
-import { formatWeekId } from '@/lib/date-utils';
+import { formatWeekId, getISTNow } from '@/lib/date-utils';
 
 /**
  * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v8.0 (PDF)
@@ -23,9 +23,11 @@ async function getAuthorizedUser(idToken: string) {
 }
 
 async function getNextTwoDaysData(employeeId: string, office: string, mockCase?: number) {
+  const istNow = getISTNow();
+  
   if (mockCase !== undefined) {
-    const tomorrow = addDays(new Date(), 1);
-    const dayAfter = addDays(new Date(), 2);
+    const tomorrow = addDays(istNow, 1);
+    const dayAfter = addDays(istNow, 2);
     
     if (mockCase === 1) return [
       { date: format(tomorrow, 'dd MMMM yyyy').toUpperCase(), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'SUPER OPENING', time: '09:30 AM - 06:30 PM', shiftId: 'SO' },
@@ -45,8 +47,8 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
   const shiftsMap = new Map();
   shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
 
-  const tomorrow = addDays(new Date(), 1);
-  const dayAfter = addDays(new Date(), 2);
+  const tomorrow = addDays(istNow, 1);
+  const dayAfter = addDays(istNow, 2);
   const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
   
   const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
@@ -133,6 +135,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
   let failCount = 0;
 
   try {
+    const istNow = getISTNow();
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
@@ -150,8 +153,8 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     }
     const empSnap = await empBaseQuery.get();
 
-    const tomorrow = addDays(new Date(), 1);
-    const dayAfter = addDays(new Date(), 2);
+    const tomorrow = addDays(istNow, 1);
+    const dayAfter = addDays(istNow, 2);
     const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
 
     const storage = getStorage();
