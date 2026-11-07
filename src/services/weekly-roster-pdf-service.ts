@@ -6,9 +6,10 @@ import { getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
+import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v5.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v6.0
  * 
  * Orchestrates bulk distribution with Meta Document API and multi-switch logic gates.
  */
@@ -25,13 +26,13 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
   try {
     const caller = await getAuthorizedUser(idToken);
     
-    // 1. Logic Gate Check (Switch Enforcement)
+    // Logic Gate Check
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
 
     if (!config.masterEnabled) throw new Error("MASTER_AUTOMATION_DISABLED");
     if (!config.weeklyEnabled) throw new Error("WEEKLY_CAMPAIGNS_DISABLED");
-    if (!config.whatsappEnabled) throw new Error("WHATSAPP_INTEGRATION_DISABLED");
+    if (!config.whatsappEnabled) throw new Error("WHATSAPP_GATEWAY_DISABLED");
 
     const campaignId = `camp_${officeId}_${weekId}_${Date.now()}`;
     const weekDates = getDatesForWeek(weekId);
@@ -64,14 +65,17 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
       status: 'processing',
       stats: { total: eligibleEmployees.length, pending: eligibleEmployees.length, success: 0, failed: 0 },
       createdAt: new Date().toISOString(),
-      actorId: caller.uid
+      actorId: caller.uid,
+      initiatedBy: caller.displayName || caller.uid
     });
+
+    await logAuditServer(caller.uid, 'INITIATE_WEEKLY_CAMPAIGN', campaignId, { officeId, weekId });
 
     const storage = getStorage();
     const bucket = storage.bucket();
 
     for (const empDoc of eligibleEmployees) {
-      // Re-check Master Switch before each professional dispatch (Real-time responsiveness)
+      // Real-time emergency check
       const liveConfig = await adminDb.collection('system_settings').doc('whatsapp_config').get();
       if (!liveConfig.data()?.masterEnabled) break;
 
@@ -80,8 +84,6 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
 
       try {
         const jobKey = `weekly_${employeeId}_${weekId}`;
-        
-        // Idempotency check: notificationType required in query
         const existing = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
           .where('notificationType', '==', 'weekly_roster_pdf')
@@ -106,7 +108,6 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           };
         });
 
-        // Document Synthesis
         const pdfBuffer = await generateWeeklyRosterPdf({
           employeeName: emp.fullName,
           employeeId,
@@ -120,7 +121,6 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
         const storagePath = `weekly-roster-pdfs/${officeId}/${weekId}/${employeeId}/${filename}`;
         await bucket.file(storagePath).save(pdfBuffer, { contentType: 'application/pdf' });
 
-        // Meta Cloud Document API Pulse
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
@@ -136,8 +136,6 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           templateId: templateName,
           status: dispatch.success ? 'success' : 'failed',
           messageId: dispatch.messageId,
-          apiStatus: dispatch.apiStatus,
-          storagePath,
           timestamp: new Date().toISOString()
         });
 
@@ -159,10 +157,19 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
   }
 }
 
+export async function getRecentCampaignsAction() {
+  try {
+    const snap = await adminDb.collection('weekly_roster_campaigns').orderBy('createdAt', 'desc').limit(20).get();
+    return { success: true, campaigns: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function previewWeeklyRosterAction(idToken: string, employeeId: string, weekId: string, mockCase?: number) {
   try {
-    const caller = await getAuthorizedUser(idToken);
-    let emp: any = { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL', id: 'EMP-W-001' };
+    await getAuthorizedUser(idToken);
+    let emp: any = { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL', id: 'EMP-W-SANDBOX' };
     if (employeeId !== 'TEST-EMP') {
       const empSnap = await adminDb.collection('employees').doc(employeeId).get();
       if (empSnap.exists) emp = empSnap.data();
@@ -171,7 +178,6 @@ export async function previewWeeklyRosterAction(idToken: string, employeeId: str
     const weekRangeStr = displayWeekRange(weekId);
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     
-    // Synthesis logic (Standard 7-day map)
     const rosterDays = weekDates.map(d => ({ 
       date: format(d, 'dd MMM yyyy').toUpperCase(), 
       day: format(d, 'EEEE'), 

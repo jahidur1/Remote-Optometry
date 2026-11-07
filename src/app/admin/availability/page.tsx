@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -68,7 +67,6 @@ export default function MasterMatrix() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [dispatching, setDispatching] = useState(false);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
 
   // Weekly Campaign States
@@ -281,6 +279,7 @@ export default function MasterMatrix() {
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
+      {/* Precision Header Hub */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -351,7 +350,7 @@ export default function MasterMatrix() {
         </div>
       </div>
 
-      {/* Weekly Roster Distribution UI */}
+      {/* Institutional Weekly Roster Distribution Module */}
       <Card className="shadow-xl border-none rounded-[2.5rem] bg-primary text-white overflow-hidden relative group">
          <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={200} /></div>
          <CardHeader className="p-10 pb-6 border-b border-white/5 relative z-10">
@@ -361,11 +360,11 @@ export default function MasterMatrix() {
                   <CardDescription className="text-[10px] font-bold uppercase text-white/40 tracking-[0.3em] mt-3">Office-wise bulk dispatch protocol via Meta Document API.</CardDescription>
                </div>
                <Button 
-                 className="bg-secondary text-white h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                 className="bg-secondary text-white h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all group/btn"
                  onClick={() => setIsCampaignDialogOpen(true)}
                  disabled={!selectedOffice || !selectedWeek || assignments.length === 0}
                >
-                 <Zap className="mr-3 size-5 fill-white" /> SEND WEEKLY ROSTER TO ALL
+                 <Zap className="mr-3 size-5 fill-white group-hover/btn:animate-pulse" /> SEND WEEKLY ROSTER TO ALL
                </Button>
             </div>
          </CardHeader>
@@ -376,7 +375,7 @@ export default function MasterMatrix() {
               { label: 'Missing Opt-In', value: campaignEligibility.missingOptIn, sub: 'Pulse Restricted', icon: ShieldCheck, color: 'text-amber-400' },
               { label: 'Missing Roster', value: campaignEligibility.missingRoster, sub: 'Empty Cycle Data', icon: AlertTriangle, color: 'text-slate-400' }
             ].map((stat, i) => (
-              <div key={i} className="p-6 rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
+              <div key={i} className="p-6 rounded-[2rem] bg-white/5 border border-white/10 space-y-4 hover:bg-white/10 transition-all cursor-default">
                  <div className="flex items-center justify-between">
                     <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{stat.label}</span>
                     <stat.icon className={cn("size-4", stat.color)} />
@@ -393,7 +392,7 @@ export default function MasterMatrix() {
               <div className="flex-1 space-y-4">
                  <div className="flex justify-between items-end">
                     <div className="space-y-1">
-                       <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Active Campaign Trace</p>
+                       <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Active Campaign Pulse</p>
                        <p className="text-[12px] font-bold uppercase text-white/60">ID: {activeCampaign.id.slice(-8)} • {activeCampaign.status?.toUpperCase()}</p>
                     </div>
                     <div className="text-right">
@@ -408,21 +407,12 @@ export default function MasterMatrix() {
                       style={{ width: `${((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100}%` }} 
                     />
                  </div>
-                 <div className="flex gap-8 pt-2">
-                    <div className="flex items-center gap-3">
-                       <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                       <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Success: {activeCampaign.stats.success}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <div className="size-2 rounded-full bg-destructive" />
-                       <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Failed: {activeCampaign.stats.failed}</span>
-                    </div>
-                 </div>
               </div>
            </CardFooter>
          )}
       </Card>
 
+      {/* Roster Assignment Ledger */}
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
            <div className="flex items-center gap-6">

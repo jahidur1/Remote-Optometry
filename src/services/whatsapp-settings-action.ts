@@ -5,19 +5,22 @@ import { logAuditServer } from './audit-service';
 import { getTemplateStatus } from './whatsapp-action';
 
 /**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE v3.0
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE v5.0
  * 
- * Manages institutional switches and template approval traces.
+ * Manages institutional switches, template approval traces, and activity monitoring.
+ * SECURITY: SUPER_ADMIN restricted.
  */
 
 async function assertSuperAdmin(idToken: string) {
-  if (!idToken) throw new Error("Unauthorized.");
+  if (!idToken) throw new Error("Unauthorized: Session Link Missing.");
   const decoded = await adminAuth.verifyIdToken(idToken, true);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
+  
   if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
-    throw new Error("Unauthorized: Super Admin access required.");
+    throw new Error("Privilege Block: Super Admin access required for governance modifications.");
   }
-  return decoded.uid;
+  
+  return { uid: decoded.uid, profile: userSnap.data() };
 }
 
 export async function getWhatsAppSettingsAction() {
@@ -28,7 +31,7 @@ export async function getWhatsAppSettingsAction() {
     const weeklyTemplate = data.weeklyTemplate || 'roc_weekly_roster_pdf';
     const dailyTemplate = data.dailyTemplate || 'roc_daily_two_day_shift_reminder';
 
-    // Verify Actual Meta Status Pulse
+    // Real-time verification Pulse via Meta Graph API
     const [weeklyStatus, dailyStatus] = await Promise.all([
       getTemplateStatus(weeklyTemplate),
       getTemplateStatus(dailyTemplate)
@@ -46,14 +49,11 @@ export async function getWhatsAppSettingsAction() {
         weekly: weeklyStatus,
         daily: dailyStatus
       },
-      automation: {
-        lastRun: data.automation?.lastRun || null,
-        dailyLastRun: data.automation?.dailyLastRun || null,
-        dailyStats: data.automation?.dailyStats || { success: 0, fail: 0, skipped: 0 }
-      }
+      updatedAt: data.updatedAt || null,
+      updatedBy: data.updatedBy || 'SYSTEM_DEFAULT'
     };
-  } catch (e) {
-    console.error('FETCH_SETTINGS_FAILURE:', e);
+  } catch (e: any) {
+    console.error('GOVERNANCE_FETCH_FAILURE:', e.message);
     return { 
       whatsappEnabled: false, 
       masterEnabled: false, 
@@ -66,20 +66,29 @@ export async function getWhatsAppSettingsAction() {
 
 export async function updateWhatsAppSettingsAction(idToken: string, updates: any) {
   try {
-    const uid = await assertSuperAdmin(idToken);
+    const caller = await assertSuperAdmin(idToken);
     
-    // Institutional defaults: If master is toggled OFF, ensure we stop new pulses in this action session.
-    // However, we save the exact state requested by the Super Admin.
+    const configRef = adminDb.collection('system_settings').doc('whatsapp_config');
+    const oldSnap = await configRef.get();
+    const oldData = oldSnap.data() || {};
 
-    await adminDb.collection('system_settings').doc('whatsapp_config').set({
+    const payload = {
       ...updates,
       updatedAt: new Date().toISOString(),
-      updatedBy: uid
-    }, { merge: true });
+      updatedBy: caller.uid
+    };
+
+    await configRef.set(payload, { merge: true });
     
-    await logAuditServer(uid, 'UPDATE_WHATSAPP_CONFIG', 'system', updates);
+    // Institutional Audit Protocol
+    await logAuditServer(caller.uid, 'UPDATE_WHATSAPP_CONFIG', 'system_governance', {
+      changes: updates,
+      previousState: oldData
+    });
+
     return { success: true };
   } catch (e: any) {
+    console.error('GOVERNANCE_UPDATE_FAILURE:', e.message);
     return { success: false, error: e.message };
   }
 }
