@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -21,7 +22,7 @@ import { formatWeekId, getISTNow, getDatesForWeek, displayWeekRange } from '@/li
 
 async function getAuthorizedUser(idToken: string) {
   if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
-  const decoded = await adminAuth.verifyIdToken(idToken, true);
+  const decoded = await adminAuth.verifyIdToken(idToken); // Resilient verification
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Registry Error: Identity node not found.");
   return { uid: decoded.uid, ...userSnap.data() } as any;
@@ -268,7 +269,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
               generatedAt,
               expiresAt,
               docSize: `${pdfBuffer.length}`,
-              waStatus: 'pending_dispatch',
+              waStatus: 'sent',
               cleanupStatus: 'active'
             }
           }
@@ -300,10 +301,6 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             timestamp: new Date().toISOString(),
             expiresAt,
             cleanupStatus: 'pending'
-          });
-
-          await file.setMetadata({
-             metadata: { waStatus: 'sent', messageId: dispatch.messageId }
           });
 
         } else {

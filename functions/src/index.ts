@@ -1,3 +1,4 @@
+
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -19,7 +20,6 @@ const IST_TZ = 'Asia/Kolkata';
 /**
  * 1. dailyTwoDayShiftReminder
  * Triggered at 10:00 PM IST daily.
- * Text-only 7-variable notification for Tomorrow and Day After.
  */
 export const dailyTwoDayShiftReminder = onSchedule({
   schedule: '0 22 * * *',
@@ -29,7 +29,6 @@ export const dailyTwoDayShiftReminder = onSchedule({
 }, async (event) => {
   const db = admin.firestore();
   
-  // Logic Gate Audit
   const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
   const config = configSnap.data() || {};
   if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
@@ -90,7 +89,6 @@ export const dailyTwoDayShiftReminder = onSchedule({
 
 /**
  * 2. startWeeklyRosterCampaign
- * Triggered from Master Matrix SEND WEEKLY ROSTER TO ALL.
  */
 export const startWeeklyRosterCampaign = onCall({
   memory: '256MiB',
@@ -142,7 +140,6 @@ export const startWeeklyRosterCampaign = onCall({
 
 /**
  * 3. processWeeklyRosterJobs
- * Handles PDF synthesis and Meta dispatch for the bulk campaign.
  */
 export const processWeeklyRosterJobs = onDocumentCreated({
   document: 'whatsapp_jobs/{jobId}',
@@ -226,7 +223,6 @@ export const processWeeklyRosterJobs = onDocumentCreated({
 
 /**
  * 4. whatsappStatusWebhook
- * Meta Callback Node for delivery tracking.
  */
 export const whatsappStatusWebhook = onRequest({
   secrets: [WHATSAPP_WEBHOOK_VERIFY_TOKEN],
@@ -262,7 +258,6 @@ export const whatsappStatusWebhook = onRequest({
 
 /**
  * 5. retryFailedWhatsAppJobs
- * Scheduled recovery pulse every 15 minutes.
  */
 export const retryFailedWhatsAppJobs = onSchedule('every 15 minutes', async (event) => {
   const db = admin.firestore();
@@ -278,7 +273,6 @@ export const retryFailedWhatsAppJobs = onSchedule('every 15 minutes', async (eve
 
 /**
  * 6. cleanupExpiredRosterPdfs
- * Hourly purge of PDF objects older than 48 hours.
  */
 export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) => {
   const bucket = admin.storage().bucket();
@@ -338,7 +332,6 @@ async function sendWhatsApp(to: string, template: string, vars: string[], jobKey
 async function uploadToMeta(buffer: Buffer, name: string): Promise<string> {
   const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/media`;
   const fd = new FormData();
-  // Binary Blob conversion fix for TS/Node 22
   fd.append('file', new Blob([new Uint8Array(buffer)]), name);
   fd.append('type', 'application/pdf');
   fd.append('messaging_product', 'whatsapp');

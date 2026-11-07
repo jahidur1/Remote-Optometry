@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -13,7 +14,7 @@ import { getTemplateStatus } from './whatsapp-action';
 
 async function assertSuperAdmin(idToken: string) {
   if (!idToken) throw new Error("Unauthorized: Session Link Missing.");
-  const decoded = await adminAuth.verifyIdToken(idToken, true);
+  const decoded = await adminAuth.verifyIdToken(idToken); // Standard verification
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   
   if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {

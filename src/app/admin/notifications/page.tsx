@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -148,7 +149,7 @@ export default function AutomationGovernance() {
     } catch (e: any) {
       toast({ variant: "destructive", title: "Pulse Failure", description: e.message });
     } finally {
-      setRunningManual(false);
+      runningManual && setRunningManual(false);
     }
   };
 
@@ -167,11 +168,8 @@ export default function AutomationGovernance() {
       }
 
       if (result.success) {
-        if (type === 'weekly' || type === 'daily') {
-          // Both actions now return a PDF for preview
-          setPreviewDoc(result.base64);
-          setPreviewSize(result.size || '0 KB');
-        }
+        setPreviewDoc(result.base64);
+        setPreviewSize(result.size || '0 KB');
       } else {
         throw new Error(result.error);
       }
@@ -195,7 +193,6 @@ export default function AutomationGovernance() {
     
     setUpdating(true);
     try {
-      // Test Dispatch Logic via meta-action wrapper
       toast({ title: "Test Pulse Initiated", description: `Dispatching ${testMode} template to ${testNumber}. Check logs for outcome.` });
       setIsTestConfirmOpen(false);
     } catch (e: any) {
@@ -205,7 +202,7 @@ export default function AutomationGovernance() {
     }
   };
 
-  if (userLoading) {
+  if (userLoading || !profile) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
@@ -214,7 +211,7 @@ export default function AutomationGovernance() {
     );
   }
 
-  if (profile?.role !== 'super_admin') {
+  if (profile.role !== 'super_admin') {
     return (
       <div className="flex h-[80vh] items-center justify-center p-10">
          <Card className="max-w-md border-destructive/20 bg-destructive/5 p-10 text-center space-y-6 rounded-[2rem]">
