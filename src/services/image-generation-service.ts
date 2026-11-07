@@ -5,11 +5,10 @@ import { Resvg } from '@resvg/resvg-js';
 import React from 'react';
 
 /**
- * ROC WORKFORCE — DYNAMIC IMAGE ORCHESTRATOR
+ * ROC WORKFORCE — CLINICAL IMAGE ORCHESTRATOR
  * 
- * Generates personalized 700x400 roster images.
- * STRICT REQUIREMENT: Final image size MUST be <= 50KB.
- * FONT PROTOCOL: Fetches Inter font buffer for layout calculation.
+ * Generates personalized 700x400 roster images optimized for mobile briefings.
+ * PROTOCOL: Proportional Branding & Strict < 60KB Weight Limit.
  */
 
 type RosterDay = {
@@ -39,7 +38,10 @@ export async function generateRosterImage(input: {
   const { employeeName, employeeId, logoBase64, nextTwoDays } = input;
   const fontData = await loadFont();
 
-  // Satori SVG Rendering (Deterministic React-to-SVG)
+  /**
+   * Satori SVG Rendering (Deterministic React-to-SVG)
+   * Designed with "Clinical Document" aesthetic: High contrast, sans-serif, proportional.
+   */
   const renderSvg = async (scale = 1) => {
     return await satori(
       React.createElement(
@@ -56,7 +58,7 @@ export async function generateRosterImage(input: {
             borderRadius: `${32 * scale}px`,
           },
         },
-        // Header Hub
+        // Header Hub: Professional Placement
         React.createElement(
           'div',
           {
@@ -72,23 +74,28 @@ export async function generateRosterImage(input: {
             { style: { display: 'flex', flexDirection: 'column' } },
             React.createElement(
               'span',
-              { style: { fontSize: `${24 * scale}px`, fontWeight: 900, color: '#0F172A', textTransform: 'uppercase' } },
+              { style: { fontSize: `${22 * scale}px`, fontWeight: 900, color: '#0F172A', textTransform: 'uppercase' } },
               employeeName
             ),
             React.createElement(
               'span',
-              { style: { fontSize: `${12 * scale}px`, fontWeight: 700, color: '#3B82F6', marginTop: `${4 * scale}px`, letterSpacing: '1px' } },
-              `ID: ${employeeId}`
+              { style: { fontSize: `${11 * scale}px`, fontWeight: 700, color: '#3B82F6', marginTop: `${4 * scale}px`, letterSpacing: '1px' } },
+              `IDENTITY: ${employeeId}`
             )
           ),
           logoBase64 ? React.createElement('img', {
             src: logoBase64,
-            style: { height: `${40 * scale}px`, maxWidth: `${180 * scale}px`, objectFit: 'contain' }
+            style: { 
+              height: `${40 * scale}px`, 
+              width: 'auto',
+              maxWidth: `${180 * scale}px`, 
+              objectFit: 'contain' // Ensures no distortion
+            }
           }) : React.createElement('div', {
-            style: { fontSize: `${18 * scale}px`, fontWeight: 900, color: '#3B82F6' }
+            style: { fontSize: `${16 * scale}px`, fontWeight: 900, color: '#3B82F6', letterSpacing: '2px' }
           }, 'ROC')
         ),
-        // Clinical Grid
+        // Clinical Duty Grid
         React.createElement(
           'div',
           { style: { display: 'flex', gap: `${16 * scale}px` } },
@@ -101,25 +108,26 @@ export async function generateRosterImage(input: {
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
-                  padding: `${20 * scale}px`,
+                  padding: `${24 * scale}px`,
                   backgroundColor: i === 0 ? '#F8FAFC' : '#FFFFFF',
                   border: `${2 * scale}px solid #F1F5F9`,
                   borderRadius: `${20 * scale}px`,
+                  boxShadow: i === 0 ? '0 10px 15px -3px rgba(0, 0, 0, 0.05)' : 'none',
                 },
               },
               React.createElement(
                 'span',
-                { style: { fontSize: `${10 * scale}px`, fontWeight: 900, color: '#64748B', textTransform: 'uppercase' } },
+                { style: { fontSize: `${10 * scale}px`, fontWeight: 900, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1px' } },
                 `${d.day} • ${d.date}`
               ),
               React.createElement(
                 'span',
-                { style: { fontSize: `${20 * scale}px`, fontWeight: 900, color: '#3B82F6', marginTop: `${10 * scale}px`, textTransform: 'uppercase' } },
+                { style: { fontSize: `${24 * scale}px`, fontWeight: 900, color: '#0F172A', marginTop: `${12 * scale}px`, textTransform: 'uppercase' } },
                 d.shift
               ),
               React.createElement(
                 'span',
-                { style: { fontSize: `${12 * scale}px`, fontWeight: 700, color: '#94A3B8', marginTop: `${4 * scale}px` } },
+                { style: { fontSize: `${14 * scale}px`, fontWeight: 700, color: '#3B82F6', marginTop: `${4 * scale}px` } },
                 d.time
               )
             )
@@ -132,14 +140,14 @@ export async function generateRosterImage(input: {
             style: {
               marginTop: 'auto',
               display: 'flex',
-              paddingTop: `${16 * scale}px`,
+              paddingTop: `${20 * scale}px`,
               borderTop: `${1 * scale}px solid #F1F5F9`,
             },
           },
           React.createElement(
             'span',
-            { style: { fontSize: `${9 * scale}px`, fontWeight: 600, color: '#94A3B8', textAlign: 'center', width: '100%', lineHeight: 1.4 } },
-            'Arrive on time, follow shift timings, and coordinate with your team. Wishing you a productive day!'
+            { style: { fontSize: `${9 * scale}px`, fontWeight: 600, color: '#94A3B8', textAlign: 'center', width: '100%', lineHeight: 1.5, textTransform: 'uppercase', letterSpacing: '0.5px' } },
+            'Institutional Protocol: Arrive 15 minutes early. Coordinate with your Team Lead. Wishing you a productive session.'
           )
         )
       ),
@@ -158,22 +166,27 @@ export async function generateRosterImage(input: {
     );
   };
 
-  // RECURSIVE QUALITY LOOP: Progressively reduce fidelity to hit strict 50KB limit
+  /**
+   * RECURSIVE QUALITY LOOP: BYTE-SIZE ENFORCEMENT
+   * Progressively scales the vector output until the raster buffer hits the target.
+   * STRICT CEILING: 60 KB (61440 bytes).
+   */
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
+  const MAX_BYTES = 60000; // Targeting 60KB with safe margin
   
   while (qualityScale > 0.4) {
     const svg = await renderSvg(qualityScale);
     const resvg = new Resvg(svg, {
       background: '#FFFFFF',
-      fitTo: { mode: 'width', value: 700 * qualityScale },
+      fitTo: { mode: 'width', value: Math.floor(700 * qualityScale) },
     });
     
     const pngData = resvg.render();
     const currentBuffer = pngData.asPng();
     
-    // Strict 50KB constraint for Meta Media API reliability
-    if (currentBuffer.length <= 51200) {
+    // Check if within clinical document limits
+    if (currentBuffer.length <= MAX_BYTES) {
         finalBuffer = currentBuffer;
         break;
     }
@@ -181,7 +194,7 @@ export async function generateRosterImage(input: {
   }
 
   if (!finalBuffer) {
-    throw new Error("IMAGE_OPTIMIZATION_FAILURE: Buffer weight exceeds 50KB ceiling.");
+    throw new Error("ORCHESTRATION_FAILURE: Unable to satisfy 60KB buffer constraint.");
   }
 
   return finalBuffer;

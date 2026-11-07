@@ -25,7 +25,6 @@ export async function getWhatsAppSettingsAction() {
     const snap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
-    // Check credentials status without exposing values
     const hasPhoneId = !!process.env.WHATSAPP_PHONE_NUMBER_ID;
     const hasToken = !!process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -40,6 +39,7 @@ export async function getWhatsAppSettingsAction() {
       automation: autoSnap.exists ? autoSnap.data() : { 
         masterEnabled: false, 
         base64Logo: '', 
+        rawLogoBase64: '',
         lastRun: null, 
         lastStats: { success: 0, fail: 0, total: 0 }
       }
@@ -54,13 +54,13 @@ export async function getWhatsAppSettingsAction() {
   }
 }
 
-export async function updateWhatsAppSettingsAction(idToken: string, updates: { enabled?: boolean, logoBase64?: string, masterEnabled?: boolean }) {
+export async function updateWhatsAppSettingsAction(idToken: string, updates: { enabled?: boolean, logoBase64?: string, rawLogoBase64?: string, masterEnabled?: boolean }) {
   try {
     const uid = await assertSuperAdmin(idToken);
     const batch = adminDb.batch();
     const now = new Date().toISOString();
     
-    // 1. Update Core API Status (whatsapp_config)
+    // 1. Update Core API Status
     if (updates.enabled !== undefined) {
       batch.set(adminDb.collection('system_settings').doc('whatsapp_config'), {
         whatsappEnabled: updates.enabled,
@@ -69,16 +69,23 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: { e
       }, { merge: true });
     }
 
-    // 2. Update Automation Governance (whatsapp_automation)
+    // 2. Update Automation Governance & Institutional Branding
     const autoUpdates: any = {
       updatedAt: now,
       updatedBy: uid
     };
+    
     if (updates.masterEnabled !== undefined) autoUpdates.masterEnabled = updates.masterEnabled;
+    
     if (updates.logoBase64 !== undefined) {
-        // Institutional Registry: Logo is stored as Base64 for consistent server-side rendering
+        // Optimized Layer: Used for immediate server-side synthesis
         autoUpdates.base64Logo = updates.logoBase64;
         autoUpdates.logoUpdatedAt = now;
+    }
+    
+    if (updates.rawLogoBase64 !== undefined) {
+        // Original Archive: Preserved for future re-optimization or forensic audit
+        autoUpdates.rawLogoBase64 = updates.rawLogoBase64;
     }
 
     batch.set(adminDb.collection('system_settings').doc('whatsapp_automation'), autoUpdates, { merge: true });
