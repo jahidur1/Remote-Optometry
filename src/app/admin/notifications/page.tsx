@@ -26,7 +26,9 @@ import {
   Info,
   ChevronLeft,
   Settings2,
-  FileSearch
+  FileSearch,
+  Save,
+  RotateCcw
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -48,6 +50,11 @@ export default function AutomationGovernance() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   
+  // Branding Staging State
+  const [stagedLogo, setStagedLogo] = useState<string | null>(null);
+  const [stagedRawLogo, setStagedRawLogo] = useState<string | null>(null);
+  const [savingBranding, setSavingBranding] = useState(false);
+
   // Diagnostic State
   const [selectedEmp, setSelectedEmp] = useState('');
   const [testPhone, setTestPhone] = useState('');
@@ -73,6 +80,10 @@ export default function AutomationGovernance() {
     try {
       const data = await getWhatsAppSettingsAction();
       setSettings(data);
+      // Initialize staged from persisted
+      if (data?.automation?.base64Logo) {
+        setStagedLogo(data.automation.base64Logo);
+      }
     } catch (e: any) {
       toast({ title: "Fetch Failure", description: e.message, variant: "destructive" });
     } finally {
@@ -105,7 +116,7 @@ export default function AutomationGovernance() {
     }
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -116,7 +127,7 @@ export default function AutomationGovernance() {
       
       img.onload = async () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; 
+        const MAX_WIDTH = 600; // Professional standard for branding
         const scale = MAX_WIDTH / img.width;
         canvas.width = MAX_WIDTH;
         canvas.height = img.height * scale;
@@ -124,32 +135,64 @@ export default function AutomationGovernance() {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const optimizedBase64 = canvas.toDataURL('image/png', 0.8);
-
-          setUpdating(true);
-          try {
-            const idToken = await auth.currentUser?.getIdToken();
-            if (!idToken) throw new Error("Auth link failed.");
-
-            const result = await updateWhatsAppSettingsAction(idToken, { 
-              logoBase64: optimizedBase64,
-              rawLogoBase64: originalBase64
-            });
-            
-            if (result.success) {
-              toast({ title: "Branding Secured", description: "Logo synchronization complete." });
-              fetchSettings();
-            }
-          } catch (e: any) {
-            toast({ variant: "destructive", title: "Upload Failure", description: e.message });
-          } finally {
-            setUpdating(false);
-          }
+          const optimizedBase64 = canvas.toDataURL('image/png', 0.9);
+          setStagedLogo(optimizedBase64);
+          setStagedRawLogo(originalBase64);
+          toast({ title: "Branding Staged", description: "Logo ready for institutional commit." });
         }
       };
       img.src = originalBase64;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleSaveBranding = async () => {
+    if (!stagedLogo) return;
+    setSavingBranding(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Auth link failed.");
+
+      const result = await updateWhatsAppSettingsAction(idToken, { 
+        logoBase64: stagedLogo,
+        rawLogoBase64: stagedRawLogo || stagedLogo
+      });
+      
+      if (result.success) {
+        toast({ title: "Registry Synchronized", description: "Branding secured for clinical documents." });
+        fetchSettings();
+        setStagedRawLogo(null); // Clear raw staging after success
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failure", description: e.message });
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
+  const handleClearBranding = async () => {
+    if (!confirm("Decommission Branding: Remove logo from all generated documents?")) return;
+    setSavingBranding(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Auth link failed.");
+
+      const result = await updateWhatsAppSettingsAction(idToken, { 
+        logoBase64: '', 
+        rawLogoBase64: '' 
+      });
+      
+      if (result.success) {
+        setStagedLogo(null);
+        setStagedRawLogo(null);
+        fetchSettings();
+        toast({ title: "Branding Purged" });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Clear Failure", description: e.message });
+    } finally {
+      setSavingBranding(false);
+    }
   };
 
   const handlePreview = async (mockCase?: number) => {
@@ -232,6 +275,8 @@ export default function AutomationGovernance() {
     );
   }
 
+  const hasUnsavedChanges = stagedRawLogo !== null;
+
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
@@ -270,7 +315,7 @@ export default function AutomationGovernance() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
-        <div className="lg:col-span-4 space-y-8">
+        <div className="lg:col-span-5 space-y-8">
           <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-primary">
             <CardHeader className="bg-slate-50/50 border-b p-10">
               <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Protocol Switches</CardTitle>
@@ -299,41 +344,73 @@ export default function AutomationGovernance() {
                <CardTitle className="text-xl uppercase font-black tracking-tight leading-none flex items-center gap-3">
                  <Settings2 className="size-5 text-secondary" /> Institutional Branding
                </CardTitle>
+               <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Optimized for Clinical Documents (Base64)</CardDescription>
              </CardHeader>
              <CardContent className="p-10 space-y-8">
-                {settings?.automation?.base64Logo ? (
-                  <div className="relative aspect-video rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 p-8 flex items-center justify-center group overflow-hidden shadow-inner">
-                     <img src={settings.automation.base64Logo} alt="Institutional Logo" className="max-h-24 object-contain" />
+                <div className="relative aspect-video rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 p-8 flex items-center justify-center group overflow-hidden shadow-inner">
+                   {stagedLogo ? (
+                     <img src={stagedLogo} alt="Institutional Logo" className="max-h-32 object-contain animate-in zoom-in-95" />
+                   ) : (
+                     <div className="flex flex-col items-center justify-center gap-4 group hover:border-secondary transition-all opacity-30">
+                        <ImageIcon className="size-12 text-slate-300 group-hover:scale-110 transition-transform" />
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em]">No Logo Registry Found</p>
+                     </div>
+                   )}
+                   
+                   {stagedLogo && (
                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4">
-                        <Badge className="bg-secondary text-white font-black text-[9px] uppercase tracking-widest px-3 py-1">OPTIMIZED FOR DOCS</Badge>
-                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => updateWhatsAppSettingsAction(auth.currentUser!.uid, { logoBase64: '', rawLogoBase64: '' }).then(() => fetchSettings())}>
+                        <Badge className="bg-secondary text-white font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full">OPTIMIZED PREVIEW</Badge>
+                        <Button variant="ghost" size="icon" className="text-white hover:bg-destructive/20 hover:text-destructive rounded-full" onClick={handleClearBranding}>
                            <Trash2 className="size-6" />
                         </Button>
                      </div>
-                  </div>
-                ) : (
-                  <div className="aspect-video rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-4 group hover:border-secondary transition-all">
-                     <ImageIcon className="size-10 text-slate-300 group-hover:scale-110 transition-transform" />
-                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No Logo Registry Found</p>
-                  </div>
-                )}
+                   )}
+                </div>
                 
-                <div className="space-y-4">
-                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Upload Branding (PNG/JPG)</Label>
-                   <div className="relative">
-                      <Input type="file" accept="image/*" className="h-14 pt-3.5 font-bold border-2 border-slate-100 rounded-xl cursor-pointer" onChange={handleLogoUpload} disabled={updating} />
-                      <Upload className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-slate-300 pointer-events-none" />
+                <div className="space-y-6">
+                   <div className="space-y-3">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Upload Branding (PNG/JPG)</Label>
+                      <div className="relative">
+                         <Input type="file" accept="image/*" className="h-14 pt-3.5 font-black border-2 border-slate-100 rounded-2xl cursor-pointer" onChange={handleLogoSelect} disabled={savingBranding} />
+                         <Upload className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-slate-300 pointer-events-none" />
+                      </div>
                    </div>
+
+                   <div className="grid grid-cols-2 gap-4">
+                      <Button 
+                        variant="outline" 
+                        className="h-14 font-black uppercase text-[10px] tracking-widest rounded-xl border-2"
+                        onClick={() => { setStagedLogo(settings?.automation?.base64Logo || null); setStagedRawLogo(null); }}
+                        disabled={!hasUnsavedChanges || savingBranding}
+                      >
+                         <RotateCcw className="size-4 mr-2" /> Reset Staging
+                      </Button>
+                      <Button 
+                        className="h-14 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl hover:bg-black transition-all group"
+                        onClick={handleSaveBranding}
+                        disabled={!hasUnsavedChanges || savingBranding}
+                      >
+                         {savingBranding ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2 group-hover:scale-110 transition-transform" />}
+                         Commit Branding
+                      </Button>
+                   </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-secondary/5 border border-secondary/10 flex gap-4">
+                   <Info className="size-5 text-secondary shrink-0" />
+                   <p className="text-[10px] font-bold text-black/60 leading-relaxed uppercase tracking-tight">
+                      Branding assets are converted to optimized Base64 strings for direct injection into clinical image pulses. Final images are recursively compressed to strictly satisfy the 60KB ceiling.
+                   </p>
                 </div>
              </CardContent>
           </Card>
         </div>
 
-        <div className="lg:col-span-8 space-y-8">
+        <div className="lg:col-span-7 space-y-8">
           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white border-t-8 border-t-secondary">
              <CardHeader className="p-10 pb-4 border-b border-white/5 flex flex-col md:flex-row items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl uppercase font-black tracking-tight">Intelligence Diagnostics</CardTitle>
+                  <CardTitle className="text-2xl uppercase font-black tracking-tight leading-none">Intelligence Diagnostics</CardTitle>
                   <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">Preview synthesis & byte-limit validation</CardDescription>
                 </div>
                 <div className="flex items-center gap-4 px-6 py-2 bg-white/5 rounded-xl border border-white/10">
