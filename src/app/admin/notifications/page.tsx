@@ -34,7 +34,8 @@ import {
   Fingerprint,
   Smartphone,
   Info,
-  ShieldAlert
+  ShieldAlert,
+  Target
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -52,7 +53,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 export default function AutomationGovernance() {
   const db = useFirestore();
   const auth = useAuth();
-  const { profile } = useUser();
+  const { profile, loading: userLoading } = useUser();
   const { toast } = useToast();
 
   const [settings, setSettings] = useState<any>(null);
@@ -76,10 +77,11 @@ export default function AutomationGovernance() {
   const { data: employees } = useCollection(empQuery);
 
   useEffect(() => {
-    if (profile?.role !== 'super_admin') return;
+    if (userLoading || !profile) return;
+    if (profile.role !== 'super_admin') return;
     fetchSettings();
     fetchActivity();
-  }, [profile]);
+  }, [profile, userLoading]);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -159,18 +161,16 @@ export default function AutomationGovernance() {
 
       let result;
       if (type === 'daily') {
-        result = await previewEmployeeRosterAction(idToken, selectedEmp || 'TEST-EMP', mockCase);
+        result = await previewEmployeeRosterAction(idToken, selectedEmp || 'TEST-EMP', undefined, mockCase);
       } else {
         result = await previewWeeklyRosterAction(idToken, selectedEmp || 'TEST-EMP', getCurrentWeekId(), mockCase);
       }
 
       if (result.success) {
-        if (type === 'weekly') {
+        if (type === 'weekly' || type === 'daily') {
+          // Both actions now return a PDF for preview
           setPreviewDoc(result.base64);
-          setPreviewSize(result.size);
-        } else {
-          // Daily text preview logic: show a toast or a simple dialog with the variables
-          toast({ title: "Synthesis Verified", description: "Daily text template variables generated successfully." });
+          setPreviewSize(result.size || '0 KB');
         }
       } else {
         throw new Error(result.error);
@@ -204,6 +204,15 @@ export default function AutomationGovernance() {
       setUpdating(false);
     }
   };
+
+  if (userLoading) {
+    return (
+      <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
+        <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
+        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Initializing Governance Hub</p>
+      </div>
+    );
+  }
 
   if (profile?.role !== 'super_admin') {
     return (

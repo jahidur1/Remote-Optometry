@@ -257,6 +257,7 @@ export const whatsappStatusWebhook = onRequest({
   }
 
   res.sendStatus(200);
+  return;
 });
 
 /**

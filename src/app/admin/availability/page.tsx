@@ -240,7 +240,7 @@ export default function MasterMatrix() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth link missing.");
-      // Pass the selected week to generate a 7-day roster
+      // PASS THE SELECTED WEEK TO GENERATE A 7-DAY ROSTER
       const result = await previewEmployeeRosterAction(idToken, employeeId, selectedWeek);
       if (result.success && result.base64) {
         const win = window.open();
