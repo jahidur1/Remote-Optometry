@@ -3,7 +3,7 @@
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v3.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v4.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
  * DESIGN: Corporate Modern, Navy & White.
@@ -187,7 +187,7 @@ export async function generateWeeklyRosterPdf(input: {
   doc.setFillColor(bgSoft);
   doc.rect(0, 0, 210, 297, 'F');
 
-  // 2. Header
+  // 2. Header Hub
   doc.setTextColor(primaryNavy);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
@@ -204,27 +204,29 @@ export async function generateWeeklyRosterPdf(input: {
     } catch (e) {}
   }
 
-  // 3. Identity
+  // 3. Identity Trace
   doc.setTextColor(textMain);
   doc.setFontSize(18);
   doc.text(`HELLO, ${employeeName.split(' ')[0].toUpperCase()}`, 20, 45);
   
   doc.setTextColor(textSecondary);
   doc.setFontSize(9);
-  doc.text(`ID: ${employeeId} | HUB: ${officeName?.toUpperCase() || 'N/A'} | CYCLE: ${weekRange.toUpperCase()}`, 20, 52);
+  const officeStr = officeName ? `| HUB: ${officeName.toUpperCase()}` : '';
+  doc.text(`ID: ${employeeId} ${officeStr} | CYCLE: ${weekRange.toUpperCase()}`, 20, 52);
 
-  // 4. Section Title
+  // 4. Section Header
   doc.setTextColor(primaryNavy);
   doc.setFontSize(10);
   doc.text('YOUR WEEKLY ROSTER', 20, 68);
   doc.setDrawColor(226, 232, 240);
   doc.line(65, 67, pageWidth - 20, 67);
 
-  // 5. 7-Day Matrix (Mon-Sun)
+  // 5. 7-Day Clinical Matrix
   let yOffset = 75;
   rosterDays.forEach((d) => {
     const shiftId = (d.shiftId || '').toUpperCase();
-    const isOff = d.shift.toUpperCase().includes('WEEK OFF') || d.shift.toUpperCase().includes('WEEK-OFF') || shiftId === 'NONE';
+    const shiftName = d.shift.toUpperCase();
+    const isOff = shiftName.includes('WEEK OFF') || shiftName.includes('WEEK-OFF') || shiftId === 'NONE';
 
     let indicatorColor = textSecondary;
     if (isOff) indicatorColor = successGreen;
@@ -232,16 +234,16 @@ export async function generateWeeklyRosterPdf(input: {
     else if (shiftId === 'MD') indicatorColor = accentCyan;
     else if (shiftId.startsWith('C') || shiftId === 'SC') indicatorColor = primaryNavy;
 
-    // Card
+    // Daily Card
     doc.setDrawColor(226, 232, 240);
     doc.setFillColor('#FFFFFF');
     doc.roundedRect(20, yOffset, pageWidth - 40, 26, 3, 3, 'FD');
 
-    // Indicator
+    // Vertical Pulse Indicator
     doc.setFillColor(indicatorColor);
     doc.rect(20, yOffset, 2, 26, 'F');
 
-    // Day & Date
+    // Temporal Meta
     doc.setTextColor(textSecondary);
     doc.setFontSize(8);
     doc.text(d.day.toUpperCase(), 28, yOffset + 10);
@@ -249,7 +251,7 @@ export async function generateWeeklyRosterPdf(input: {
     doc.setFontSize(9);
     doc.text(d.date, 28, yOffset + 17);
 
-    // Shift Info
+    // Shift Metadata
     doc.setTextColor(isOff ? successGreen : primaryNavy);
     doc.setFontSize(14);
     doc.text(d.shift, pageWidth - 30, yOffset + 13, { align: 'right' });
@@ -260,18 +262,26 @@ export async function generateWeeklyRosterPdf(input: {
       doc.text(d.time, pageWidth - 30, yOffset + 20, { align: 'right' });
     }
 
-    yOffset += 30;
+    yOffset += 28;
   });
 
-  // 6. Footer
+  // 6. Professional Compliance Note
   doc.setDrawColor(226, 232, 240);
-  doc.line(20, 280, pageWidth - 20, 280);
+  doc.setFillColor('#FFFFFF');
+  doc.roundedRect(20, 271, pageWidth - 40, 10, 2, 2, 'F');
+  doc.setTextColor(textSecondary);
+  doc.setFontSize(8);
+  doc.text("Please report to the office on time and follow your assigned shift timings.", pageWidth / 2, 277, { align: 'center' });
+
+  // 7. Corporate Footer Hub
+  doc.setDrawColor(226, 232, 240);
+  doc.line(20, 282, pageWidth - 20, 282);
   doc.setTextColor(primaryNavy);
   doc.setFontSize(10);
-  doc.text('TEAM REMOTE OPTOMETRY', pageWidth / 2, 288, { align: 'center' });
+  doc.text('TEAM REMOTE OPTOMETRY', pageWidth / 2, 290, { align: 'center' });
   doc.setTextColor('#94A3B8');
   doc.setFontSize(7);
-  doc.text('YOUR SCHEDULE. YOUR RESPONSIBILITY. YOUR TEAM.', pageWidth / 2, 293, { align: 'center' });
+  doc.text('YOUR SCHEDULE. YOUR RESPONSIBILITY. YOUR TEAM.', pageWidth / 2, 295, { align: 'center' });
 
   const pdfArrayBuffer = doc.output('arraybuffer');
   return Buffer.from(pdfArrayBuffer);

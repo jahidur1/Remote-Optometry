@@ -29,20 +29,14 @@ service firebase.storage {
       return isUserActive() && profile.role == 'super_admin';
     }
 
-    // --- CLINICAL REGISTRY: ROSTER DOCUMENTS (PDF Protocol) ---
-    // Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/{fileName}
+    // --- CLINICAL REGISTRY: DAILY ROSTER DOCUMENTS ---
     match /whatsapp-roster-pdfs/{year}/{month}/{employeeId}/{fileName} {
-      // 1. READ: A professional can strictly only read their own roster PDFs.
-      // 2. READ: Admins/Super Admins can read for clinical oversight.
       allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
-      
-      // 3. WRITE: Client-side writes are STRICTLY FORBIDDEN.
-      // Managed exclusively by the trusted Admin SDK pulse server-side.
       allow write: if false;
     }
 
-    // --- LEGACY CLINICAL REGISTRY (Image Protocol) ---
-    match /whatsapp-roster-images/{year}/{month}/{employeeId}/{fileName} {
+    // --- CLINICAL REGISTRY: WEEKLY ROSTER DOCUMENTS ---
+    match /weekly-roster-pdfs/{officeId}/{weekId}/{employeeId}/{fileName} {
       allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
       allow write: if false;
     }
