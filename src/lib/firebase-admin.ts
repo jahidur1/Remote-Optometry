@@ -16,9 +16,10 @@ function getAdminApp(): App {
   if (getApps().length > 0) {
     return getApp();
   }
-  // Initialize with the standard web config's project ID
+  // Initialize with the standard web config's project ID and storage bucket
   return initializeApp({
     projectId: firebaseConfig.projectId,
+    storageBucket: firebaseConfig.storageBucket,
   });
 }
 
