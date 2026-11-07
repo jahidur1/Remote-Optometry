@@ -40,49 +40,6 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
   }
 }
 
-/**
- * sendTestBriefingAction
- * Dispatches a real WhatsApp briefing for QA.
- */
-export async function sendTestBriefingAction(idToken: string, employeeId: string, testPhone: string) {
-  try {
-    const profile = await getAuthorizedUser(idToken);
-    if (profile.role !== 'super_admin') throw new Error("Super Admin pulse required.");
-
-    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
-    if (!empSnap.exists) throw new Error("Professional not found.");
-    const emp = empSnap.data()!;
-
-    const nextTwoDays = await getNextTwoDaysData(employeeId, emp.office);
-    
-    const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
-    const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
-
-    const pngBuffer = await generateRosterImage({
-      employeeName: emp.fullName,
-      employeeId: employeeId,
-      logoBase64,
-      nextTwoDays
-    });
-
-    const dispatch = await sendWhatsAppShiftBriefingWithImage(
-      testPhone,
-      emp.fullName,
-      pngBuffer,
-      `test_briefing_${employeeId}.png`
-    );
-
-    if (dispatch.success) {
-      await logAuditServer(profile.uid, 'ADMIN_TEST_DISPATCH', employeeId, { testPhone });
-      return { success: true, messageId: dispatch.messageId };
-    } else {
-      throw new Error(dispatch.error);
-    }
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
 async function getNextTwoDaysData(employeeId: string, office: string, mockCase?: number) {
   // QA Mock Cases for Preview Tool
   if (mockCase !== undefined) {
@@ -90,16 +47,16 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
     const dayAfter = addDays(new Date(), 2);
     
     if (mockCase === 1) return [
-      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'SUPER OPENING', time: '09:30 AM - 06:30 PM', shiftId: 'SO' },
-      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'CLOSING', time: '12:00 PM - 09:00 PM', shiftId: 'C1' }
+      { date: format(tomorrow, 'dd MMMM yyyy').toUpperCase(), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'SUPER OPENING', time: '09:30 AM - 06:30 PM', shiftId: 'SO' },
+      { date: format(dayAfter, 'dd MMMM yyyy').toUpperCase(), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'CLOSING', time: '12:00 PM - 09:00 PM', shiftId: 'C1' }
     ];
     if (mockCase === 2) return [
-      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'OPENING', time: '10:00 AM - 07:00 PM', shiftId: 'OP' },
-      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
+      { date: format(tomorrow, 'dd MMMM yyyy').toUpperCase(), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'OPENING', time: '10:00 AM - 07:00 PM', shiftId: 'OP' },
+      { date: format(dayAfter, 'dd MMMM yyyy').toUpperCase(), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
     ];
     if (mockCase === 3) return [
-      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' },
-      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
+      { date: format(tomorrow, 'dd MMMM yyyy').toUpperCase(), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' },
+      { date: format(dayAfter, 'dd MMMM yyyy').toUpperCase(), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
     ];
   }
 
@@ -220,6 +177,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           nextTwoDays
         });
 
+        // 1. SAVE TO INSTITUTIONAL REGISTRY (Storage)
         const storagePath = `whatsapp-roster-images/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.png`;
         const file = bucket.file(storagePath);
         
@@ -238,6 +196,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           }
         });
 
+        // 2. DISPATCH VIA META CLOUD API
         const dispatch = await sendWhatsAppShiftBriefingWithImage(
           emp.whatsappNumber,
           emp.fullName,

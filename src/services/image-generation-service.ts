@@ -22,21 +22,19 @@ type RosterDay = {
 
 /**
  * loadFont
- * Fetches institutional Inter font using a multi-source resilient pulse.
- * Bypasses potential CDN rate limits by attempting multiple high-availability nodes.
+ * Fetches institutional Inter-Black font using a resilient multi-source pulse.
  */
 async function loadFont() {
   const sources = [
-    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf',
-    'https://github.com/googlefonts/inter/raw/master/fonts/ttf/Inter-Black.ttf',
-    'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf'
+    'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf',
+    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf'
   ];
 
   for (const url of sources) {
     try {
       const response = await fetch(url, { 
         cache: 'force-cache',
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(8000)
       });
       
       if (response.ok) {
@@ -74,12 +72,10 @@ export async function generateRosterImage(input: {
   const { employeeName, employeeId, logoBase64, nextTwoDays } = input;
   const fontData = await loadFont();
 
-  /**
-   * renderSvg
-   * Generates a deterministic SVG layout using Satori.
-   * Responsive scaling factor allows recursive size optimization.
-   */
   const renderSvg = async (scale = 1) => {
+    const width = 1080 * scale;
+    const height = 1350 * scale;
+
     return await satori(
       React.createElement(
         'div',
@@ -122,9 +118,9 @@ export async function generateRosterImage(input: {
           logoBase64 ? React.createElement('img', {
             src: logoBase64,
             style: { 
-              height: `${70 * scale}px`, 
+              height: `${80 * scale}px`, 
               width: 'auto',
-              maxWidth: `${240 * scale}px`, 
+              maxWidth: `${260 * scale}px`, 
               objectFit: 'contain'
             }
           }) : null
@@ -133,10 +129,10 @@ export async function generateRosterImage(input: {
         // B. EMPLOYEE INFORMATION
         React.createElement(
           'div',
-          { style: { display: 'flex', flexDirection: 'column', marginBottom: `${50 * scale}px` } },
+          { style: { display: 'flex', flexDirection: 'column', marginBottom: `${60 * scale}px` } },
           React.createElement(
             'span',
-            { style: { fontSize: `${36 * scale}px`, fontWeight: 900, color: '#172B4D', textTransform: 'uppercase' } },
+            { style: { fontSize: `${38 * scale}px`, fontWeight: 900, color: '#172B4D', textTransform: 'uppercase' } },
             `HELLO, ${employeeName.split(' ')[0]}`
           ),
           React.createElement(
@@ -149,10 +145,10 @@ export async function generateRosterImage(input: {
         // C. UPCOMING SCHEDULE SECTION
         React.createElement(
           'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: `${24 * scale}px` } },
+          { style: { display: 'flex', flexDirection: 'column', gap: `${32 * scale}px` } },
           React.createElement(
             'span',
-            { style: { fontSize: `${14 * scale}px`, fontWeight: 900, color: '#102A43', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: `${8 * scale}px` } },
+            { style: { fontSize: `${14 * scale}px`, fontWeight: 900, color: '#102A43', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: `${10 * scale}px` } },
             'YOUR UPCOMING SCHEDULE'
           ),
           nextTwoDays.map((d, i) => {
@@ -166,30 +162,30 @@ export async function generateRosterImage(input: {
                 style: {
                   display: 'flex',
                   backgroundColor: '#FFFFFF',
-                  borderRadius: `${32 * scale}px`,
+                  borderRadius: `${40 * scale}px`,
                   border: `1px solid #E2E8F0`,
                   overflow: 'hidden',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)',
                 },
               },
               // Color Indicator Bar
-              React.createElement('div', { style: { width: `${14 * scale}px`, backgroundColor: shiftColor } }),
+              React.createElement('div', { style: { width: `${16 * scale}px`, backgroundColor: shiftColor } }),
               
               // Card Content
               React.createElement(
                 'div',
-                { style: { flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: `${48 * scale}px` } },
+                { style: { flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: `${50 * scale}px` } },
                 React.createElement(
                   'div',
                   { style: { display: 'flex', flexDirection: 'column' } },
                   React.createElement(
                     'span',
-                    { style: { fontSize: `${14 * scale}px`, fontWeight: 900, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1px' } },
+                    { style: { fontSize: `${16 * scale}px`, fontWeight: 900, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1px' } },
                     `DAY 0${i + 1} — ${d.day}`
                   ),
                   React.createElement(
                     'span',
-                    { style: { fontSize: `${20 * scale}px`, fontWeight: 700, color: '#172B4D', marginTop: `${6 * scale}px` } },
+                    { style: { fontSize: `${22 * scale}px`, fontWeight: 700, color: '#172B4D', marginTop: `${6 * scale}px` } },
                     d.date
                   )
                 ),
@@ -198,12 +194,12 @@ export async function generateRosterImage(input: {
                   { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' } },
                   React.createElement(
                     'span',
-                    { style: { fontSize: `${28 * scale}px`, fontWeight: 900, color: isOff ? '#10B981' : '#102A43', textTransform: 'uppercase' } },
+                    { style: { fontSize: `${32 * scale}px`, fontWeight: 900, color: isOff ? '#10B981' : '#102A43', textTransform: 'uppercase' } },
                     d.shift
                   ),
                   !isOff && React.createElement(
                     'span',
-                    { style: { fontSize: `${18 * scale}px`, fontWeight: 700, color: '#2563EB', marginTop: `${6 * scale}px` } },
+                    { style: { fontSize: `${20 * scale}px`, fontWeight: 700, color: '#2563EB', marginTop: `${6 * scale}px` } },
                     d.time
                   )
                 )
@@ -220,13 +216,13 @@ export async function generateRosterImage(input: {
               marginTop: 'auto',
               padding: `${40 * scale}px`,
               backgroundColor: '#F8FAFC',
-              borderRadius: `${24 * scale}px`,
+              borderRadius: `${32 * scale}px`,
               border: `1px dashed #E2E8F0`,
             },
           },
           React.createElement(
             'span',
-            { style: { fontSize: `${14 * scale}px`, fontWeight: 600, color: '#64748B', textAlign: 'center', width: '100%', lineHeight: 1.5 } },
+            { style: { fontSize: `${14 * scale}px`, fontWeight: 600, color: '#64748B', textAlign: 'center', width: '100%', lineHeight: 1.6 } },
             'Please report to the office on time and follow your assigned shift timings. Wishing you a productive day!'
           )
         ),
@@ -236,29 +232,29 @@ export async function generateRosterImage(input: {
           'div',
           {
             style: {
-              marginTop: `${40 * scale}px`,
+              marginTop: `${60 * scale}px`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               borderTop: `1px solid #E2E8F0`,
-              paddingTop: `${30 * scale}px`,
+              paddingTop: `${40 * scale}px`,
             },
           },
           React.createElement(
             'span',
-            { style: { fontSize: `${16 * scale}px`, fontWeight: 900, color: '#102A43', textTransform: 'uppercase' } },
+            { style: { fontSize: `${18 * scale}px`, fontWeight: 900, color: '#102A43', textTransform: 'uppercase' } },
             'TEAM REMOTE OPTOMETRY'
           ),
           React.createElement(
             'span',
-            { style: { fontSize: `${11 * scale}px`, fontWeight: 600, color: '#94A3B8', marginTop: `${6 * scale}px`, textTransform: 'uppercase', letterSpacing: '1px' } },
+            { style: { fontSize: `${12 * scale}px`, fontWeight: 600, color: '#94A3B8', marginTop: `${8 * scale}px`, textTransform: 'uppercase', letterSpacing: '2px' } },
             'Your schedule. Your responsibility. Your team.'
           )
         )
       ),
       {
-        width: 1080 * scale,
-        height: 1350 * scale,
+        width,
+        height,
         fonts: [
           {
             name: 'Inter',
@@ -273,11 +269,11 @@ export async function generateRosterImage(input: {
 
   /**
    * RECURSIVE QUALITY LOOP: BYTE-SIZE ENFORCEMENT
-   * STRICT CEILING: 60 KB (61440 bytes).
+   * STRICT CEILING: 61,440 bytes.
    */
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
-  const MAX_BYTES = 61000; // Safety buffer
+  const MAX_BYTES = 60000; // Targeting 60KB with safety margin
   
   while (qualityScale > 0.3) {
     const svg = await renderSvg(qualityScale);
