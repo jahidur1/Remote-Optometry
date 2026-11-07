@@ -36,7 +36,7 @@ service firebase.storage {
       allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
       
       // 3. WRITE: Client-side writes are STRICTLY FORBIDDEN.
-      // These assets are exclusively synthesized and managed by Cloud Functions (Admin SDK).
+      // These assets are exclusively synthesized and managed by the Admin SDK.
       allow write: if false;
     }
 

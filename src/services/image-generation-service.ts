@@ -8,6 +8,7 @@ import React from 'react';
  * ROC WORKFORCE — PREMIUM CLINICAL IMAGE ORCHESTRATOR v6.0
  * 
  * Generates corporate-grade portrait roster images for WhatsApp delivery.
+ * DESIGN: Modern, minimal, clean and elegant.
  * PROTOCOL: Pure-Logic Rendering & Strict < 60KB Quality Guard.
  */
 
@@ -22,32 +23,31 @@ type RosterDay = {
 /**
  * loadFont
  * Fetches institutional Inter font using a multi-source resilient pulse.
- * Uses forced caching to minimize external network dependencies during synthesis.
+ * Bypasses potential CDN rate limits by attempting multiple high-availability nodes.
  */
 async function loadFont() {
   const sources = [
-    'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf',
+    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf',
     'https://github.com/googlefonts/inter/raw/master/fonts/ttf/Inter-Black.ttf',
-    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf'
+    'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf'
   ];
 
   for (const url of sources) {
     try {
       const response = await fetch(url, { 
         cache: 'force-cache',
-        signal: AbortSignal.timeout(5000) // 5s timeout per source
+        signal: AbortSignal.timeout(6000)
       });
       
       if (response.ok) {
         return await response.arrayBuffer();
       }
-      console.warn(`FONT_PULSE_WARN: ${url} returned ${response.status}`);
     } catch (e: any) {
-      console.warn(`FONT_PULSE_SKIP: Failed to fetch from ${url} - ${e.message}`);
+      console.warn(`FONT_PULSE_WARN: Failed source ${url} - ${e.message}`);
     }
   }
 
-  throw new Error("FONT_FETCH_FAILURE");
+  throw new Error("FONT_FETCH_FAILURE: Registry exhausted all sources.");
 }
 
 /**
@@ -75,8 +75,9 @@ export async function generateRosterImage(input: {
   const fontData = await loadFont();
 
   /**
-   * Satori SVG Rendering (Deterministic React-to-SVG)
-   * Premium Corporate Design Protocol.
+   * renderSvg
+   * Generates a deterministic SVG layout using Satori.
+   * Responsive scaling factor allows recursive size optimization.
    */
   const renderSvg = async (scale = 1) => {
     return await satori(
@@ -156,7 +157,7 @@ export async function generateRosterImage(input: {
           ),
           nextTwoDays.map((d, i) => {
             const shiftColor = getShiftColor(d.shift, d.shiftId);
-            const isOff = d.shift.toUpperCase().includes('WEEK OFF');
+            const isOff = d.shift.toUpperCase().includes('WEEK OFF') || d.shift.toUpperCase().includes('WEEK-OFF');
             
             return React.createElement(
               'div',
@@ -168,7 +169,7 @@ export async function generateRosterImage(input: {
                   borderRadius: `${32 * scale}px`,
                   border: `1px solid #E2E8F0`,
                   overflow: 'hidden',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
                 },
               },
               // Color Indicator Bar
@@ -276,7 +277,7 @@ export async function generateRosterImage(input: {
    */
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
-  const MAX_BYTES = 61000; // Safety threshold for PNG overhead
+  const MAX_BYTES = 61000; // Safety buffer
   
   while (qualityScale > 0.3) {
     const svg = await renderSvg(qualityScale);
