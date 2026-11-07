@@ -5,7 +5,7 @@ import { logAuditServer } from './audit-service';
 import { getTemplateStatus } from './whatsapp-action';
 
 /**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE v5.0
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE v7.0
  * 
  * Manages institutional switches, template approval traces, and activity monitoring.
  * SECURITY: SUPER_ADMIN restricted.
@@ -72,18 +72,27 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: any
     const oldSnap = await configRef.get();
     const oldData = oldSnap.data() || {};
 
+    // Strictly whitelist modifiable fields
+    const whitelist = ['whatsappEnabled', 'masterEnabled', 'weeklyEnabled', 'dailyReminderEnabled', 'weeklyTemplate', 'dailyTemplate', 'logoBase64'];
+    const filteredUpdates: any = {};
+    
+    Object.keys(updates).forEach(key => {
+      if (whitelist.includes(key)) filteredUpdates[key] = updates[key];
+    });
+
     const payload = {
-      ...updates,
+      ...filteredUpdates,
       updatedAt: new Date().toISOString(),
       updatedBy: caller.uid
     };
 
     await configRef.set(payload, { merge: true });
     
-    // Institutional Audit Protocol
+    // Institutional Audit Protocol - Log detailed differences
     await logAuditServer(caller.uid, 'UPDATE_WHATSAPP_CONFIG', 'system_governance', {
-      changes: updates,
-      previousState: oldData
+      changedFields: Object.keys(filteredUpdates),
+      previousState: oldData,
+      newState: payload
     });
 
     return { success: true };
