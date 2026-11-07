@@ -209,9 +209,11 @@ exports.whatsappStatusWebhook = (0, https_1.onRequest)({
     if (req.method === 'GET') {
         const verifyToken = WHATSAPP_WEBHOOK_VERIFY_TOKEN.value();
         if (req.query['hub.verify_token'] === verifyToken) {
-            return res.status(200).send(req.query['hub.challenge']);
+            res.status(200).send(req.query['hub.challenge']);
+            return;
         }
-        return res.status(403).send('Forbidden');
+        res.status(403).send('Forbidden');
+        return;
     }
     const db = admin.firestore();
     const statuses = req.body?.entry?.[0]?.changes?.[0]?.value?.statuses;
@@ -244,6 +246,8 @@ exports.cleanupExpiredRosterPdfs = (0, scheduler_1.onSchedule)('every hour', asy
     const now = new Date();
     for (const file of files) {
         const [metadata] = await file.getMetadata();
+        if (!metadata.timeCreated)
+            continue;
         const created = new Date(metadata.timeCreated);
         const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
         if (diffHours > 48) {
@@ -285,7 +289,7 @@ async function sendWhatsApp(to, template, vars, jobKey, office, employeeId, type
 async function uploadToMeta(buffer, name) {
     const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/media`;
     const fd = new FormData();
-    fd.append('file', new Blob([buffer]), name);
+    fd.append('file', new Blob([new Uint8Array(buffer)]), name);
     fd.append('type', 'application/pdf');
     fd.append('messaging_product', 'whatsapp');
     const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
