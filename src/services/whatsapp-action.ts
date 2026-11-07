@@ -6,8 +6,8 @@
  * Supports both Document (PDF) and Text-only templates.
  */
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+const PHONE_NUMBER_ID = process.env.WHAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID;
+const ACCESS_TOKEN = process.env.WHAPP_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
 const API_VERSION = 'v21.0';
 
 export type WhatsAppSendResult = {
@@ -131,4 +131,16 @@ export async function sendWhatsAppGenericTemplate(input: {
     console.error('WHATSAPP_GENERIC_DISPATCH_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * LEGACY WRAPPER (Maintains compatibility during transition)
+ */
+export async function sendWhatsAppShiftBriefingWithDocument(to: string, name: string, buffer: Buffer, filename: string) {
+  return sendWhatsAppGenericTemplate({
+    to,
+    templateName: 'roc_two_day_roster_pdf',
+    headerMedia: { type: 'document', buffer, filename },
+    bodyVariables: [name]
+  });
 }

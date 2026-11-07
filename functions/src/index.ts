@@ -6,7 +6,7 @@ import { format, addDays } from 'date-fns';
 admin.initializeApp();
 
 /**
- * PROTOCOL A (LEGACY/REFACTORING): Automated Roster Briefing (10 PM IST)
+ * PROTOCOL A (REFACTORING): Automated Roster Briefing (10 PM IST)
  * Hit the Next.js API route for orchestration.
  */
 export const dailyRosterBriefing = functions.region('asia-south1').runWith({
@@ -64,7 +64,6 @@ export const storageCleanupPulse = functions.region('asia-south1').pubsub
   .schedule('0 * * * *')
   .onRun(async (context: functions.EventContext) => {
     const bucket = admin.storage().bucket();
-    const db = admin.firestore();
     const now = new Date();
     const prefixes = ['whatsapp-roster-pdfs/'];
     let purgedCount = 0;
