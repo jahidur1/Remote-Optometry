@@ -21,13 +21,27 @@ type RosterDay = {
 
 /**
  * loadFont
- * Fetches institutional Inter font to support satori layout engine.
+ * Fetches institutional Inter font from a high-availability CDN to support satori layout engine.
  */
 async function loadFont() {
-  const fontUrl = 'https://github.com/google/fonts/raw/main/ofl/inter/Inter-Black.ttf';
-  const response = await fetch(fontUrl);
-  if (!response.ok) throw new Error("FONT_FETCH_FAILURE");
-  return await response.arrayBuffer();
+  // Using jsDelivr for high-reliability font delivery
+  const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/inter/static/Inter-Black.ttf';
+  
+  try {
+    const response = await fetch(fontUrl, {
+      next: { revalidate: 3600 } // Cache for 1 hour
+    });
+    
+    if (!response.ok) {
+      console.error(`FONT_PULSE_ERROR: Received ${response.status} from CDN`);
+      throw new Error(`HTTP_${response.status}`);
+    }
+    
+    return await response.arrayBuffer();
+  } catch (e: any) {
+    console.error('FONT_FETCH_CRITICAL_FAILURE:', e.message);
+    throw new Error("FONT_FETCH_FAILURE");
+  }
 }
 
 /**
