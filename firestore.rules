@@ -56,7 +56,7 @@ service cloud.firestore {
     match /employees/{employeeId} {
       allow read: if isSignedIn();
       allow create, delete: if isSuperAdmin();
-      allow update: if isUserActive() && (isAdmin() || (getProfile().employeeId == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age'])));
+      allow update: if isUserActive() && (isAdmin() || (getProfile() != null && getProfile().employeeId == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age'])));
     }
 
     match /published_rosters/{rosterId} { 
@@ -104,6 +104,16 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isSuperAdmin();
       allow create: if isSignedIn();
+    }
+
+    match /weekly_roster_campaigns/{campaignId} {
+      allow read: if isAdmin();
+      allow write: if isSuperAdmin();
+    }
+    
+    match /whatsapp_jobs/{jobId} {
+      allow read: if isAdmin();
+      allow write: if isSuperAdmin();
     }
   }
 }

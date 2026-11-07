@@ -254,7 +254,6 @@ export const whatsappStatusWebhook = onRequest({
   }
 
   res.sendStatus(200);
-  return;
 });
 
 /**
@@ -396,7 +395,7 @@ async function generateWeeklyPdf(emp: any, weekId: string, rosterDays: any[], lo
   doc.text(`ID: ${emp.id} | CYCLE: ${weekId}`, 20, 52);
 
   let y = 70;
-  rosterDays.forEach(d => {
+  rosterDays.forEach((d: any) => {
     doc.setFontSize(10);
     doc.text(`${d.day.toUpperCase()} (${d.date})`, 25, y);
     doc.text(`${d.shift} [${d.time}]`, 120, y);

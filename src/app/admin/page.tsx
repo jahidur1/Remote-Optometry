@@ -93,6 +93,7 @@ export default function AdminDashboard() {
       if (!idToken) throw new Error("Authentication pulse missing.");
 
       // Institutional Protocol: Store strictly as Base64 for consistent PDF embedding
+      // The service also handles storage upload server-side
       const result = await updateWhatsAppSettingsAction(idToken, { 
         logoBase64: pendingLogo
       });
@@ -111,7 +112,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const isSuperAdmin = profile?.role?.toLowerCase() === 'super_admin';
+  const role = profile?.role?.toLowerCase();
+  const isSuperAdmin = role === 'super_admin';
   const officeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || "---";
 
   const kpis = useMemo(() => {

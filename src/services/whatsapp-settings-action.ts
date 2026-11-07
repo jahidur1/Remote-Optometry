@@ -4,9 +4,10 @@
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { logAuditServer } from './audit-service';
 import { getTemplateStatus } from './whatsapp-action';
+import { getStorage } from 'firebase-admin/storage';
 
 /**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE v7.0
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE v8.0
  * 
  * Manages institutional switches, template approval traces, and activity monitoring.
  * SECURITY: SUPER_ADMIN restricted.
@@ -85,6 +86,34 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: any
     Object.keys(updates).forEach(key => {
       if (whitelist.includes(key)) filteredUpdates[key] = updates[key];
     });
+
+    // TASK: Dual-Storage Protocol for Branding Logo
+    if (filteredUpdates.logoBase64) {
+      try {
+        const storage = getStorage();
+        const bucket = storage.bucket();
+        
+        const base64Data = filteredUpdates.logoBase64.includes(',') 
+          ? filteredUpdates.logoBase64.split(',')[1] 
+          : filteredUpdates.logoBase64;
+          
+        const buffer = Buffer.from(base64Data, 'base64');
+        const file = bucket.file('system_assets/institutional_logo.png');
+        
+        await file.save(buffer, {
+          contentType: 'image/png',
+          public: true,
+          metadata: {
+            cacheControl: 'public, max-age=31536000',
+            updatedBy: caller.uid
+          }
+        });
+        
+        filteredUpdates.logoUrl = file.publicUrl();
+      } catch (storageErr) {
+        console.warn("LOGO_STORAGE_WARN: Failed binary archival, continuing with Firestore Base64.");
+      }
+    }
 
     const payload = {
       ...filteredUpdates,
