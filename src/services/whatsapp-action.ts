@@ -23,7 +23,6 @@ export type WhatsAppSendResult = {
 
 /**
  * TASK 1: Validates that Meta credentials are available in the current execution context.
- * Secrets must be provisioned via `firebase functions:secrets:set` for backend tasks.
  */
 function verifyCredentials() {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {

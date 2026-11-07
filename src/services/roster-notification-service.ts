@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -10,7 +9,7 @@ import { formatWeekId } from '@/lib/date-utils';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE v6.0
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v6.0
  * 
  * Orchestrates premium image synthesis and Meta API dispatch.
  * PROTOCOL: Strict 60KB Verification & Metadata Archiving.
@@ -91,16 +90,16 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
     const dayAfter = addDays(new Date(), 2);
     
     if (mockCase === 1) return [
-      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE'), shift: 'SUPER OPENING', time: '09:30 AM - 06:30 PM', shiftId: 'SO' },
-      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE'), shift: 'CLOSING', time: '12:00 PM - 09:00 PM', shiftId: 'C1' }
+      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'SUPER OPENING', time: '09:30 AM - 06:30 PM', shiftId: 'SO' },
+      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'CLOSING', time: '12:00 PM - 09:00 PM', shiftId: 'C1' }
     ];
     if (mockCase === 2) return [
-      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE'), shift: 'OPENING', time: '10:00 AM - 07:00 PM', shiftId: 'OP' },
-      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE'), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
+      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'OPENING', time: '10:00 AM - 07:00 PM', shiftId: 'OP' },
+      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
     ];
     if (mockCase === 3) return [
-      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE'), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' },
-      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE'), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
+      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' },
+      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE').toUpperCase(), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
     ];
   }
 
@@ -130,8 +129,8 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
     const isOff = !assign || assign.shiftId === 'none';
 
     return {
-      date: format(new Date(date), 'dd MMMM yyyy'),
-      day: format(new Date(date), 'EEEE'),
+      date: format(new Date(date), 'dd MMMM yyyy').toUpperCase(),
+      day: format(new Date(date), 'EEEE').toUpperCase(),
       shift: isOff ? 'WEEK OFF' : (shift?.name || 'UNASSIGNED'),
       time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`,
       shiftId: assign?.shiftId || 'none'
