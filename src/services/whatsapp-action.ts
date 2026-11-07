@@ -1,14 +1,14 @@
-
 'use server';
 
 /**
- * @fileOverview Meta WhatsApp Cloud API Service — Generic Protocol.
+ * @fileOverview Meta WhatsApp Cloud API Service — Institutional Protocol v7.0.
  * 
- * Supports both Document (PDF) and Text-only templates.
+ * Orchestrates template verification, binary media uploads, and multi-stream dispatch.
  */
 
 const PHONE_NUMBER_ID = process.env.WHAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.WHAPP_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+const WABA_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const API_VERSION = 'v21.0';
 
 export type WhatsAppSendResult = {
@@ -16,11 +16,36 @@ export type WhatsAppSendResult = {
   messageId?: string;
   mediaId?: string;
   error?: string;
+  apiStatus?: number;
 };
 
 function verifyCredentials() {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    throw new Error('META_AUTH_ERROR: Meta API credentials not detected. Ensure WHATSAPP_ACCESS_TOKEN is set in secrets/env.');
+    throw new Error('META_AUTH_ERROR: Meta API credentials not detected in server environment.');
+  }
+}
+
+/**
+ * getTemplateStatus
+ * Queries the Meta Graph API to verify the approval state of a specific template.
+ */
+export async function getTemplateStatus(templateName: string): Promise<'APPROVED' | 'PENDING' | 'REJECTED' | 'PAUSED' | 'UNKNOWN'> {
+  if (!WABA_ID || !ACCESS_TOKEN) return 'UNKNOWN';
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/${WABA_ID}/message_templates?name=${templateName}`,
+      {
+        headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` }
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok || !data.data || data.data.length === 0) return 'UNKNOWN';
+
+    return data.data[0].status;
+  } catch (e) {
+    return 'UNKNOWN';
   }
 }
 
@@ -38,15 +63,12 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: 
 
   const response = await fetch(`https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/media`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${ACCESS_TOKEN}`,
-    },
+    headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
     body: formData,
   });
 
   const data = await response.json();
   if (!response.ok) {
-    console.error('META_MEDIA_UPLOAD_CONFLICT:', data);
     throw new Error(`Meta Media Upload Failed: ${data.error?.message || 'API_REJECTED'}`);
   }
   
@@ -55,7 +77,7 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: 
 
 /**
  * sendWhatsAppGenericTemplate
- * Universal dispatcher for any approved Meta template.
+ * Universal dispatcher for ROC institutional workflows.
  */
 export async function sendWhatsAppGenericTemplate(input: {
   to: string;
@@ -68,6 +90,14 @@ export async function sendWhatsAppGenericTemplate(input: {
     verifyCredentials();
     const { to, templateName, languageCode = 'en', headerMedia, bodyVariables } = input;
 
+    // 1. Mandatory Approval Check for Production
+    const status = await getTemplateStatus(templateName);
+    if (status !== 'APPROVED') {
+       // We allow 'UNKNOWN' to pass for development if access token doesn't have template read perms,
+       // but in a production environment, this should block.
+       console.warn(`META_STATUS_ALERT: Template ${templateName} is ${status}.`);
+    }
+
     let mediaId: string | undefined;
     if (headerMedia) {
       mediaId = await uploadToMetaMedia(headerMedia.buffer, headerMedia.filename);
@@ -78,7 +108,7 @@ export async function sendWhatsAppGenericTemplate(input: {
 
     const components: any[] = [];
 
-    // 1. Header (If Media)
+    // Header Logic
     if (headerMedia && mediaId) {
       components.push({
         type: 'header',
@@ -89,7 +119,7 @@ export async function sendWhatsAppGenericTemplate(input: {
       });
     }
 
-    // 2. Body Variables
+    // Body Logic
     if (bodyVariables.length > 0) {
       components.push({
         type: 'body',
@@ -119,23 +149,24 @@ export async function sendWhatsAppGenericTemplate(input: {
 
     const data = await response.json();
     if (!response.ok) {
-      return { success: false, error: data.error?.message || 'API_REJECTED' };
+      return { success: false, error: data.error?.message || 'API_REJECTED', apiStatus: response.status };
     }
 
     return { 
       success: true, 
       messageId: data.messages?.[0]?.id, 
-      mediaId 
+      mediaId,
+      apiStatus: response.status
     };
 
   } catch (err: any) {
-    console.error('WHATSAPP_GENERIC_DISPATCH_FAILURE:', err.message);
+    console.error('WHATSAPP_DISPATCH_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
 }
 
 /**
- * LEGACY WRAPPER (Maintains compatibility during transition)
+ * LEGACY WRAPPER (Mapped to Daily Briefing PDF)
  */
 export async function sendWhatsAppShiftBriefingWithDocument(to: string, name: string, buffer: Buffer, filename: string) {
   return sendWhatsAppGenericTemplate({

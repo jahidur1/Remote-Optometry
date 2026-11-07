@@ -25,7 +25,10 @@ import {
   Calendar,
   ChevronRight,
   Monitor,
-  Bell
+  Bell,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -72,8 +75,8 @@ export default function AutomationGovernance() {
     try {
       const data = await getWhatsAppSettingsAction();
       setSettings(data);
-      if (data?.automation?.base64Logo) {
-        setStagedLogo(data.automation.base64Logo);
+      if (data?.logoBase64) {
+        setStagedLogo(data.logoBase64);
       }
     } catch (e: any) {
       toast({ title: "Fetch Failure", description: e.message, variant: "destructive" });
@@ -137,7 +140,7 @@ export default function AutomationGovernance() {
     reader.onload = async (event) => {
       const base64 = event.target?.result as string;
       setStagedLogo(base64);
-      toast({ title: "Base64 Staged", description: "Ready for institutional commit." });
+      toast({ title: "Base64 Staged" });
     };
     reader.readAsDataURL(file);
   };
@@ -150,12 +153,11 @@ export default function AutomationGovernance() {
       if (!idToken) throw new Error("Auth link failed.");
 
       const result = await updateWhatsAppSettingsAction(idToken, { 
-        logoBase64: stagedLogo,
-        rawLogoBase64: stagedLogo 
+        logoBase64: stagedLogo
       });
       
       if (result.success) {
-        toast({ title: "Registry Synchronized" });
+        toast({ title: "Branding Synchronized" });
         fetchSettings();
       }
     } catch (e: any) {
@@ -196,9 +198,18 @@ export default function AutomationGovernance() {
     }
   };
 
+  const getHealthIcon = (status: string) => {
+    switch (status) {
+      case 'APPROVED': return <CheckCircle2 className="size-4 text-emerald-500" />;
+      case 'PENDING': return <Clock className="size-4 text-amber-500" />;
+      case 'REJECTED': return <XCircle className="size-4 text-destructive" />;
+      default: return <AlertTriangle className="size-4 text-slate-300" />;
+    }
+  };
+
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
-  const hasUnsavedChanges = stagedLogo !== settings?.automation?.base64Logo;
+  const hasUnsavedChanges = stagedLogo !== settings?.logoBase64;
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
@@ -221,17 +232,17 @@ export default function AutomationGovernance() {
 
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Master Pulse</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Master Logic</label>
               <div className="flex items-center gap-3">
                  <div className={cn("size-2 rounded-full", settings?.masterEnabled ? 'bg-emerald-500 shadow-[0_0_10px_emerald]' : 'bg-slate-300')} />
-                 <span className="font-black uppercase tracking-widest text-[11px]">{settings?.masterEnabled ? 'ACTIVE' : 'SUSPENDED'}</span>
+                 <span className="font-black uppercase tracking-widest text-[11px]">{settings?.masterEnabled ? 'ACTIVE' : 'OFF'}</span>
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
-              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Meta API Link</label>
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">API Gateway</label>
               <div className="flex items-center gap-2">
                  <div className={cn("size-2 rounded-full", settings?.whatsappEnabled ? 'bg-emerald-500' : 'bg-destructive')} />
-                 <span className="font-black uppercase tracking-widest text-[11px]">{settings?.whatsappEnabled ? 'CONNECTED' : 'DISCONNECTED'}</span>
+                 <span className="font-black uppercase tracking-widest text-[11px]">{settings?.whatsappEnabled ? 'CONNECTED' : 'DISABLED'}</span>
               </div>
            </div>
         </div>
@@ -241,98 +252,92 @@ export default function AutomationGovernance() {
         <div className="lg:col-span-5 space-y-8">
           <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-primary">
             <CardHeader className="bg-slate-50/50 border-b p-10">
-              <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Protocol Switches</CardTitle>
+              <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Governance Switches</CardTitle>
+              <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-3">Independent logic gates for operational dispatches.</CardDescription>
             </CardHeader>
             <CardContent className="p-10 space-y-6">
-               <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
+               <div className="flex items-center justify-between p-6 rounded-2xl bg-primary text-white">
                   <div className="space-y-1">
                      <p className="text-[12px] font-black uppercase tracking-tight">Master Automation</p>
-                     <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Global Logic Gate</p>
+                     <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">Global Logic Gate</p>
                   </div>
-                  <Switch checked={settings?.masterEnabled || false} onCheckedChange={(v) => handleToggle('masterEnabled', v)} disabled={updating} />
+                  <Switch checked={settings?.masterEnabled || false} onCheckedChange={(v) => handleToggle('masterEnabled', v)} disabled={updating} className="data-[state=checked]:bg-secondary" />
                </div>
 
-               <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="space-y-1">
-                     <p className="text-[12px] font-black uppercase tracking-tight">WhatsApp API Gateway</p>
-                     <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Binary Transmission Link</p>
+               <div className="grid grid-cols-1 gap-4">
+                  <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                     <div className="space-y-1">
+                        <p className="text-[12px] font-black uppercase tracking-tight">WhatsApp Integration</p>
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Binary Dispatch Link</p>
+                     </div>
+                     <Switch checked={settings?.whatsappEnabled || false} onCheckedChange={(v) => handleToggle('whatsappEnabled', v)} disabled={updating} />
                   </div>
-                  <Switch checked={settings?.whatsappEnabled || false} onCheckedChange={(v) => handleToggle('whatsappEnabled', v)} disabled={updating} />
-               </div>
 
-               <div className="flex items-center justify-between p-6 rounded-2xl bg-emerald-50 border border-emerald-100">
-                  <div className="space-y-1">
-                     <p className="text-[12px] font-black uppercase tracking-tight text-emerald-900">Daily 10PM Reminders</p>
-                     <p className="text-[9px] text-emerald-600/60 font-bold uppercase tracking-widest">Autonomous Text Pulse</p>
+                  <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                     <div className="space-y-1">
+                        <p className="text-[12px] font-black uppercase tracking-tight">Weekly Roster Bulk</p>
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">PDF Campaign Trigger</p>
+                     </div>
+                     <Switch checked={settings?.weeklyEnabled || false} onCheckedChange={(v) => handleToggle('weeklyEnabled', v)} disabled={updating} />
                   </div>
-                  <Switch checked={settings?.dailyReminderEnabled || false} onCheckedChange={(v) => handleToggle('dailyReminderEnabled', v)} disabled={updating} />
+
+                  <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                     <div className="space-y-1">
+                        <p className="text-[12px] font-black uppercase tracking-tight">Daily Shift Reminder</p>
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">10PM Text Pulse</p>
+                     </div>
+                     <Switch checked={settings?.dailyReminderEnabled || false} onCheckedChange={(v) => handleToggle('dailyReminderEnabled', v)} disabled={updating} />
+                  </div>
                </div>
             </CardContent>
-            <CardFooter className="bg-slate-50/50 p-10 border-t border-slate-100">
-               <div className="w-full space-y-6">
-                  <div className="flex justify-between items-center">
-                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Latest Daily Pulse</p>
-                     <p className="text-[10px] font-bold uppercase text-black">{settings?.automation?.dailyLastRun ? new Date(settings.automation.dailyLastRun).toLocaleString() : 'NEVER'}</p>
-                  </div>
-                  <Button 
-                    className="w-full h-14 bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all"
+          </Card>
+
+          <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
+             <CardHeader className="bg-slate-50/50 border-b p-10">
+               <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Template Health</CardTitle>
+               <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-3">Meta Graph API Approval Verification</CardDescription>
+             </CardHeader>
+             <CardContent className="p-10 space-y-6">
+                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group">
+                   <div className="space-y-1">
+                      <p className="text-[11px] font-black uppercase tracking-tight flex items-center gap-2">
+                        {settings?.weeklyTemplate}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Weekly PDF Stream</p>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-white">
+                         {settings?.templateHealth?.weekly || 'UNKNOWN'}
+                      </Badge>
+                      {getHealthIcon(settings?.templateHealth?.weekly)}
+                   </div>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group">
+                   <div className="space-y-1">
+                      <p className="text-[11px] font-black uppercase tracking-tight flex items-center gap-2">
+                        {settings?.dailyTemplate}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Daily Text Stream</p>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-white">
+                         {settings?.templateHealth?.daily || 'UNKNOWN'}
+                      </Badge>
+                      {getHealthIcon(settings?.templateHealth?.daily)}
+                   </div>
+                </div>
+             </CardContent>
+             <CardFooter className="bg-slate-50/50 p-10 border-t border-slate-100">
+                <Button 
+                    className="w-full h-14 bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl hover:bg-emerald-700 transition-all"
                     onClick={handleManualReminderPulse}
                     disabled={runningManual}
                   >
                     {runningManual ? <Loader2 className="size-4 animate-spin mr-2" /> : <Bell className="size-4 mr-2" />}
                     INITIATE MANUAL DAILY PULSE
-                  </Button>
-               </div>
-            </CardFooter>
-          </Card>
-
-          <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
-             <CardHeader className="bg-slate-50/50 border-b p-10">
-               <CardTitle className="text-xl uppercase font-black tracking-tight leading-none flex items-center gap-3">
-                 <Settings2 className="size-5 text-secondary" /> Institutional Branding
-               </CardTitle>
-             </CardHeader>
-             <CardContent className="p-10 space-y-8">
-                <div className="relative aspect-video rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 p-8 flex items-center justify-center group overflow-hidden shadow-inner">
-                   {stagedLogo ? (
-                     <img src={stagedLogo} alt="Institutional Logo" className="max-h-32 object-contain animate-in zoom-in-95" />
-                   ) : (
-                     <div className="flex flex-col items-center justify-center gap-4 opacity-30">
-                        <ImageIcon className="size-12 text-slate-300" />
-                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em]">No Logo Registry Found</p>
-                     </div>
-                   )}
-                </div>
-                
-                <div className="space-y-6">
-                   <div className="space-y-3">
-                      <div className="flex justify-between items-center ml-1">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
-                          <FileJson className="size-3" /> Base64 Payload
-                        </Label>
-                        <Label className="cursor-pointer text-[10px] font-black text-secondary hover:underline flex items-center gap-2">
-                           <Upload className="size-3" /> Load File
-                           <input type="file" className="hidden" accept="image/*" onChange={handleFileToBase64} />
-                        </Label>
-                      </div>
-                      <Textarea 
-                        className="h-32 font-mono text-[10px] border-2 border-slate-100 rounded-2xl bg-slate-50 focus:border-secondary transition-all resize-none shadow-inner"
-                        value={stagedLogo || ''}
-                        onChange={(e) => setStagedLogo(e.target.value)}
-                        disabled={savingBranding}
-                      />
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                      <Button variant="outline" className="h-14 font-black uppercase text-[10px] tracking-widest rounded-xl border-2" onClick={() => setStagedLogo(settings?.automation?.base64Logo || null)} disabled={!hasUnsavedChanges || savingBranding}>
-                         <RotateCcw className="size-4 mr-2" /> Reset
-                      </Button>
-                      <Button className="h-14 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl transition-all" onClick={handleSaveBranding} disabled={!hasUnsavedChanges || savingBranding}>
-                         {savingBranding ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />} Commit Branding
-                      </Button>
-                   </div>
-                </div>
-             </CardContent>
+                </Button>
+             </CardFooter>
           </Card>
         </div>
 

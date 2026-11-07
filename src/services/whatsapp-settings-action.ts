@@ -2,9 +2,12 @@
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { logAuditServer } from './audit-service';
+import { getTemplateStatus } from './whatsapp-action';
 
 /**
- * ROC WORKFORCE — WHATSAPP GOVERNANCE v2.0
+ * ROC WORKFORCE — WHATSAPP GOVERNANCE v3.0
+ * 
+ * Manages institutional switches and template approval traces.
  */
 
 async function assertSuperAdmin(idToken: string) {
@@ -22,12 +25,24 @@ export async function getWhatsAppSettingsAction() {
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const data = configSnap.data() || {};
 
+    const weeklyTemplate = data.weeklyTemplate || 'roc_weekly_roster_pdf';
+    const dailyTemplate = data.dailyTemplate || 'roc_daily_two_day_shift_reminder';
+
+    // Verify Actual Meta Status
+    const weeklyStatus = await getTemplateStatus(weeklyTemplate);
+    const dailyStatus = await getTemplateStatus(dailyTemplate);
+
     return {
-      whatsappEnabled: data.whatsappEnabled || false,
-      masterEnabled: data.masterEnabled || false,
-      dailyReminderEnabled: data.dailyReminderEnabled || false,
-      weeklyTemplate: data.weeklyTemplate || 'roc_weekly_roster_pdf',
-      dailyTemplate: data.dailyTemplate || 'roc_daily_two_day_shift_reminder',
+      whatsappEnabled: data.whatsappEnabled ?? false,
+      masterEnabled: data.masterEnabled ?? false,
+      weeklyEnabled: data.weeklyEnabled ?? false,
+      dailyReminderEnabled: data.dailyReminderEnabled ?? false,
+      weeklyTemplate,
+      dailyTemplate,
+      templateHealth: {
+        weekly: weeklyStatus,
+        daily: dailyStatus
+      },
       automation: {
         lastRun: data.automation?.lastRun || null,
         dailyLastRun: data.automation?.dailyLastRun || null,
@@ -35,13 +50,23 @@ export async function getWhatsAppSettingsAction() {
       }
     };
   } catch (e) {
-    return { whatsappEnabled: false, masterEnabled: false, dailyReminderEnabled: false };
+    return { 
+      whatsappEnabled: false, 
+      masterEnabled: false, 
+      weeklyEnabled: false,
+      dailyReminderEnabled: false,
+      templateHealth: { weekly: 'UNKNOWN', daily: 'UNKNOWN' }
+    };
   }
 }
 
 export async function updateWhatsAppSettingsAction(idToken: string, updates: any) {
   try {
     const uid = await assertSuperAdmin(idToken);
+    
+    // Defensive Logic: If Master is disabled, certain child switches can't be true (policy only)
+    // But we preserve raw settings for flexibility.
+
     await adminDb.collection('system_settings').doc('whatsapp_config').set({
       ...updates,
       updatedAt: new Date().toISOString(),
