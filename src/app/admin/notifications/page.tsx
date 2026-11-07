@@ -28,12 +28,15 @@ import {
   Settings2,
   FileSearch,
   Save,
-  RotateCcw
+  RotateCcw,
+  Key,
+  FileJson
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
 import { previewEmployeeRosterAction, sendTestBriefingAction } from '@/services/roster-notification-service';
 import { cn } from '@/lib/utils';
@@ -52,14 +55,11 @@ export default function AutomationGovernance() {
   
   // Branding Staging State
   const [stagedLogo, setStagedLogo] = useState<string | null>(null);
-  const [stagedRawLogo, setStagedRawLogo] = useState<string | null>(null);
   const [savingBranding, setSavingBranding] = useState(false);
 
   // Diagnostic State
   const [selectedEmp, setSelectedEmp] = useState('');
-  const [testPhone, setTestPhone] = useState('');
   const [previewing, setPreviewing] = useState(false);
-  const [dispatching, setDispatching] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState('');
   const [previewByteSize, setPreviewByteSize] = useState(0);
@@ -80,7 +80,6 @@ export default function AutomationGovernance() {
     try {
       const data = await getWhatsAppSettingsAction();
       setSettings(data);
-      // Initialize staged from persisted
       if (data?.automation?.base64Logo) {
         setStagedLogo(data.automation.base64Logo);
       }
@@ -116,7 +115,7 @@ export default function AutomationGovernance() {
     }
   };
 
-  const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileToBase64 = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -127,7 +126,7 @@ export default function AutomationGovernance() {
       
       img.onload = async () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 600; // Professional standard for branding
+        const MAX_WIDTH = 400; // Optimized for clinical document synthesis
         const scale = MAX_WIDTH / img.width;
         canvas.width = MAX_WIDTH;
         canvas.height = img.height * scale;
@@ -137,8 +136,7 @@ export default function AutomationGovernance() {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           const optimizedBase64 = canvas.toDataURL('image/png', 0.9);
           setStagedLogo(optimizedBase64);
-          setStagedRawLogo(originalBase64);
-          toast({ title: "Branding Staged", description: "Logo ready for institutional commit." });
+          toast({ title: "Base64 Staged", description: "Image converted and ready for commit." });
         }
       };
       img.src = originalBase64;
@@ -155,13 +153,12 @@ export default function AutomationGovernance() {
 
       const result = await updateWhatsAppSettingsAction(idToken, { 
         logoBase64: stagedLogo,
-        rawLogoBase64: stagedRawLogo || stagedLogo
+        rawLogoBase64: stagedLogo // Storing same for now as we don't have separate raw in simple flow
       });
       
       if (result.success) {
         toast({ title: "Registry Synchronized", description: "Branding secured for clinical documents." });
         fetchSettings();
-        setStagedRawLogo(null); // Clear raw staging after success
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failure", description: e.message });
@@ -184,7 +181,6 @@ export default function AutomationGovernance() {
       
       if (result.success) {
         setStagedLogo(null);
-        setStagedRawLogo(null);
         fetchSettings();
         toast({ title: "Branding Purged" });
       }
@@ -221,31 +217,6 @@ export default function AutomationGovernance() {
     }
   };
 
-  const handleTestDispatch = async () => {
-    if (!selectedEmp || !testPhone) {
-      toast({ title: "Validation Error", description: "Select professional and enter test number.", variant: "destructive" });
-      return;
-    }
-    if (!confirm(`Trigger real dispatch to ${testPhone}?`)) return;
-
-    setDispatching(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Auth link failed.");
-
-      const result = await sendTestBriefingAction(idToken, selectedEmp, testPhone);
-      if (result.success) {
-        toast({ title: "Test Pulse Successful", description: `Message dispatched to ${testPhone}.` });
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Dispatch Failure", description: e.message });
-    } finally {
-      setDispatching(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
@@ -275,7 +246,7 @@ export default function AutomationGovernance() {
     );
   }
 
-  const hasUnsavedChanges = stagedRawLogo !== null;
+  const hasUnsavedChanges = stagedLogo !== settings?.automation?.base64Logo;
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
@@ -359,7 +330,7 @@ export default function AutomationGovernance() {
                    
                    {stagedLogo && (
                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4">
-                        <Badge className="bg-secondary text-white font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full">OPTIMIZED PREVIEW</Badge>
+                        <Badge className="bg-secondary text-white font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full">INSTITUTIONAL PREVIEW</Badge>
                         <Button variant="ghost" size="icon" className="text-white hover:bg-destructive/20 hover:text-destructive rounded-full" onClick={handleClearBranding}>
                            <Trash2 className="size-6" />
                         </Button>
@@ -369,18 +340,29 @@ export default function AutomationGovernance() {
                 
                 <div className="space-y-6">
                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Upload Branding (PNG/JPG)</Label>
-                      <div className="relative">
-                         <Input type="file" accept="image/*" className="h-14 pt-3.5 font-black border-2 border-slate-100 rounded-2xl cursor-pointer" onChange={handleLogoSelect} disabled={savingBranding} />
-                         <Upload className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-slate-300 pointer-events-none" />
+                      <div className="flex justify-between items-center ml-1">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                          <FileJson className="size-3" /> Base64 Logo Payload
+                        </Label>
+                        <Label className="cursor-pointer text-[10px] font-black text-secondary hover:underline transition-all flex items-center gap-2">
+                           <Upload className="size-3" /> Load from Image
+                           <input type="file" className="hidden" accept="image/*" onChange={handleFileToBase64} />
+                        </Label>
                       </div>
+                      <Textarea 
+                        placeholder="data:image/png;base64,..." 
+                        className="h-32 font-mono text-[10px] border-2 border-slate-100 rounded-2xl bg-slate-50 focus:border-secondary transition-all resize-none shadow-inner"
+                        value={stagedLogo || ''}
+                        onChange={(e) => setStagedLogo(e.target.value)}
+                        disabled={savingBranding}
+                      />
                    </div>
 
                    <div className="grid grid-cols-2 gap-4">
                       <Button 
                         variant="outline" 
                         className="h-14 font-black uppercase text-[10px] tracking-widest rounded-xl border-2"
-                        onClick={() => { setStagedLogo(settings?.automation?.base64Logo || null); setStagedRawLogo(null); }}
+                        onClick={() => setStagedLogo(settings?.automation?.base64Logo || null)}
                         disabled={!hasUnsavedChanges || savingBranding}
                       >
                          <RotateCcw className="size-4 mr-2" /> Reset Staging
