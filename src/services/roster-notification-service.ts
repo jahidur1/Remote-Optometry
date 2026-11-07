@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -6,7 +7,6 @@ import { sendWhatsAppShiftBriefingWithImage } from './whatsapp-action';
 import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId } from '@/lib/date-utils';
-import { logAuditServer } from './audit-service';
 
 /**
  * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v6.0
@@ -153,7 +153,8 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     const dayAfter = addDays(new Date(), 2);
     const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
 
-    const bucket = getStorage().bucket();
+    const storage = getStorage();
+    const bucket = storage.bucket();
 
     for (const empDoc of empSnap.docs) {
       const emp = empDoc.data();

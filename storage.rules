@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -36,7 +37,7 @@ service firebase.storage {
       allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
       
       // 3. WRITE: Client-side writes are STRICTLY FORBIDDEN.
-      // These assets are exclusively synthesized and managed by the Admin SDK.
+      // These assets are exclusively synthesized and managed by the Admin SDK server-side.
       allow write: if false;
     }
 
