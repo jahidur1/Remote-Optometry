@@ -23,12 +23,11 @@ import {
   MessageSquare,
   Zap,
   FileText,
-  ExternalLink,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-  MapPin
+  AlertTriangle,
+  ChevronRight,
+  TrendingUp,
+  XCircle,
+  FileCheck
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId, getISTNow } from '@/lib/date-utils';
@@ -43,10 +42,19 @@ import { DemoBadge } from '@/components/ui/demo-badge';
 import { logAudit } from '@/lib/audit';
 import { useToast } from '@/hooks/use-toast';
 import { dispatchOfficeBriefingsAction, previewEmployeeRosterAction } from '@/services/roster-notification-service';
+import { initiateWeeklyRosterCampaignAction } from '@/services/weekly-roster-pdf-service';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-export default function AvailabilitySummary() {
+export default function MasterMatrix() {
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useUser();
@@ -62,15 +70,16 @@ export default function AvailabilitySummary() {
   const [dispatching, setDispatching] = useState(false);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
 
+  // Weekly Campaign States
+  const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
+  const [campaignStarting, setCampaignStarting] = useState(false);
+  const [activeCampaign, setActiveCampaign] = useState<any>(null);
+
   const todayStr = useMemo(() => format(getISTNow(), 'yyyy-MM-dd'), []);
 
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
   }, []);
-
-  useEffect(() => {
-    setAssignments([]);
-  }, [selectedWeek, selectedOffice]);
 
   const empQuery = useMemo(() => {
     if (!profile || !selectedOffice) return null;
@@ -104,9 +113,9 @@ export default function AvailabilitySummary() {
     const draftId = `draft_${selectedWeek}_${selectedOffice}`;
     const activeId = `active_${selectedWeek}_${selectedOffice}`;
 
+    let hasActiveDraft = false;
     let draftData: any[] = [];
     let activeData: any[] = [];
-    let hasActiveDraft = false;
 
     const unsubDraft = onSnapshot(doc(db, 'roster_drafts', draftId), (snap) => {
       if (snap.exists() && snap.data().status === 'draft') {
@@ -125,8 +134,7 @@ export default function AvailabilitySummary() {
     });
 
     function updateState() {
-      const finalAssignments = hasActiveDraft ? draftData : activeData;
-      setAssignments(finalAssignments);
+      setAssignments(hasActiveDraft ? draftData : activeData);
       setLoadingAssignments(false);
     }
 
@@ -147,6 +155,26 @@ export default function AvailabilitySummary() {
       return name.includes(search) || id.includes(search);
     });
   }, [employees, searchTerm]);
+
+  // Campaign Eligibility Logic
+  const campaignEligibility = useMemo(() => {
+    if (!employees || !assignments.length) return { total: 0, eligible: 0, missingWA: 0, missingOptIn: 0, missingRoster: 0 };
+    
+    let eligible = 0;
+    let missingWA = 0;
+    let missingOptIn = 0;
+    let missingRoster = 0;
+
+    employees.forEach(emp => {
+      const hasRoster = assignments.some(a => a.employeeId === emp.id);
+      if (!hasRoster) { missingRoster++; return; }
+      if (!emp.whatsappNumber) { missingWA++; return; }
+      if (emp.whatsappOptIn === false) { missingOptIn++; return; }
+      eligible++;
+    });
+
+    return { total: employees.length, eligible, missingWA, missingOptIn, missingRoster };
+  }, [employees, assignments]);
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
@@ -177,9 +205,7 @@ export default function AvailabilitySummary() {
         actorId: profile?.uid,
         generationMethod: 'manual'
       });
-
-      logAudit(db, profile?.uid || 'system', 'SAVE_MANUAL_ROSTER_DRAFT', draftId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Draft Synchronized", description: "Manual assignments secured in registry." });
+      toast({ title: "Draft Synchronized" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -202,12 +228,7 @@ export default function AvailabilitySummary() {
         publisherId: profile?.uid,
         status: 'active'
       });
-
-      const draftId = `draft_${selectedWeek}_${selectedOffice}`;
-      await setDoc(doc(db, 'roster_drafts', draftId), { status: 'published' }, { merge: true });
-
-      logAudit(db, profile?.uid || 'system', 'PUBLISH_MANUAL_ROSTER', activeId, { weekId: selectedWeek, office: selectedOffice });
-      toast({ title: "Clinical Roster Live", description: "Shift data released to professional portals." });
+      toast({ title: "Clinical Roster Live" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rollout Failed", description: e.message });
     } finally {
@@ -215,51 +236,45 @@ export default function AvailabilitySummary() {
     }
   };
 
-  const handleDispatchWhatsApp = async () => {
-    if (!selectedOffice) return;
-    setDispatching(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Authentication pulse failed.");
-
-      const result = await dispatchOfficeBriefingsAction(idToken, selectedOffice);
-      if (result.success) {
-        toast({ 
-          title: "Briefings Dispatched", 
-          description: `Successfully queued ${result.count} WhatsApp roster notifications for ROC ${selectedOffice}.` 
-        });
-        logAudit(db, profile?.uid || 'system', 'DISPATCH_OFFICE_WHATSAPP', selectedOffice, { count: result.count });
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Dispatch Conflict", description: e.message });
-    } finally {
-      setDispatching(false);
-    }
-  };
-
-  const handlePreviewEmployeePDF = async (employeeId: string) => {
+  const handlePreviewPDF = async (employeeId: string) => {
     setPreviewingId(employeeId);
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Authentication pulse failed.");
-
+      if (!idToken) throw new Error("Auth link missing.");
       const result = await previewEmployeeRosterAction(idToken, employeeId);
       if (result.success && result.base64) {
         const win = window.open();
-        if (win) {
-          win.document.write(`<iframe src="${result.base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-          win.document.title = `ROC_Briefing_${employeeId}`;
-        }
-        logAudit(db, profile?.uid || 'system', 'PREVIEW_EMPLOYEE_PDF', employeeId);
-      } else {
-        throw new Error(result.error || "Failed to synthesize document.");
+        win?.document.write(`<iframe src="${result.base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Synthesis Error", description: e.message });
     } finally {
       setPreviewingId(null);
+    }
+  };
+
+  const handleStartWeeklyCampaign = async () => {
+    if (!selectedOffice || !selectedWeek) return;
+    setCampaignStarting(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Authentication failed.");
+
+      const result = await initiateWeeklyRosterCampaignAction(idToken, selectedOffice, selectedWeek);
+      if (result.success) {
+        toast({ title: "Campaign Initiated", description: `Weekly distribution for ${selectedOffice} is processing in the background.` });
+        setIsCampaignDialogOpen(false);
+        // Start listening to the new campaign document
+        const unsub = onSnapshot(doc(db, 'weekly_roster_campaigns', result.campaignId!), (snap) => {
+           if (snap.exists()) setActiveCampaign(snap.data());
+        });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Campaign Conflict", description: e.message });
+    } finally {
+      setCampaignStarting(false);
     }
   };
 
@@ -316,7 +331,7 @@ export default function AvailabilitySummary() {
            <div className="flex gap-2 p-1">
               <Button 
                 variant="outline"
-                className="bg-white border-2 border-slate-100 text-black h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-slate-50"
+                className="bg-white border-2 border-slate-100 text-black h-10 px-6 font-black uppercase text-[10px] transition-all rounded-xl hover:bg-slate-50"
                 onClick={handleSaveDraft}
                 disabled={saving || publishing || !selectedOffice || !selectedWeek}
               >
@@ -324,16 +339,7 @@ export default function AvailabilitySummary() {
                 Save Draft
               </Button>
               <Button 
-                variant="outline"
-                className="bg-white border-2 border-emerald-500/20 text-emerald-600 h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-emerald-50 group"
-                onClick={handleDispatchWhatsApp}
-                disabled={dispatching || !selectedOffice}
-              >
-                {dispatching ? <Loader2 className="size-4 animate-spin mr-2" /> : <MessageSquare className="size-4 mr-2 group-hover:scale-110 transition-transform" />}
-                Dispatch WhatsApp
-              </Button>
-              <Button 
-                className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
+                className="bg-secondary text-white h-10 px-8 font-black uppercase text-[10px] transition-all rounded-xl shadow-xl shadow-secondary/20 group" 
                 onClick={handlePublish}
                 disabled={saving || publishing || !selectedOffice || !selectedWeek}
               >
@@ -343,6 +349,78 @@ export default function AvailabilitySummary() {
            </div>
         </div>
       </div>
+
+      {/* NEW: Weekly Roster Distribution UI */}
+      <Card className="shadow-xl border-none rounded-[2.5rem] bg-primary text-white overflow-hidden relative group">
+         <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={200} /></div>
+         <CardHeader className="p-10 pb-6 border-b border-white/5 relative z-10">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+               <div className="space-y-1">
+                  <CardTitle className="text-2xl font-black uppercase tracking-tight leading-none">Weekly Roster Distribution</CardTitle>
+                  <CardDescription className="text-[10px] font-bold uppercase text-white/40 tracking-[0.3em] mt-3">Office-wise bulk dispatch protocol via Meta Document API.</CardDescription>
+               </div>
+               <Button 
+                 className="bg-secondary text-white h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                 onClick={() => setIsCampaignDialogOpen(true)}
+                 disabled={!selectedOffice || !selectedWeek || assignments.length === 0}
+               >
+                 <Zap className="mr-3 size-5 fill-white" /> SEND WEEKLY ROSTER TO ALL
+               </Button>
+            </div>
+         </CardHeader>
+         <CardContent className="p-10 grid gap-10 md:grid-cols-4 relative z-10">
+            {[
+              { label: 'Eligible Pool', value: campaignEligibility.eligible, sub: 'Ready for Dispatch', icon: CheckCircle2, color: 'text-emerald-400' },
+              { label: 'Missing Phone', value: campaignEligibility.missingWA, sub: 'Registry Incomplete', icon: XCircle, color: 'text-destructive' },
+              { label: 'Missing Opt-In', value: campaignEligibility.missingOptIn, sub: 'Pulse Restricted', icon: ShieldCheck, color: 'text-amber-400' },
+              { label: 'Missing Roster', value: campaignEligibility.missingRoster, sub: 'Empty Cycle Data', icon: AlertTriangle, color: 'text-slate-400' }
+            ].map((stat, i) => (
+              <div key={i} className="p-6 rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
+                 <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{stat.label}</span>
+                    <stat.icon className={cn("size-4", stat.color)} />
+                 </div>
+                 <div className="space-y-1">
+                    <p className="text-4xl font-black tabular-nums">{stat.value}</p>
+                    <p className="text-[8px] font-bold uppercase text-white/20 tracking-widest">{stat.sub}</p>
+                 </div>
+              </div>
+            ))}
+         </CardContent>
+         {activeCampaign && (
+           <CardFooter className="bg-black/20 p-10 border-t border-white/5">
+              <div className="flex-1 space-y-4">
+                 <div className="flex justify-between items-end">
+                    <div className="space-y-1">
+                       <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Active Campaign Trace</p>
+                       <p className="text-[12px] font-bold uppercase text-white/60">ID: {activeCampaign.id.slice(-8)} • {activeCampaign.status?.toUpperCase()}</p>
+                    </div>
+                    <div className="text-right">
+                       <span className="text-2xl font-black text-white tabular-nums">
+                         {Math.round(((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100) || 0}%
+                       </span>
+                    </div>
+                 </div>
+                 <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                    <div 
+                      className="h-full bg-secondary transition-all duration-1000" 
+                      style={{ width: `${((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100}%` }} 
+                    />
+                 </div>
+                 <div className="flex gap-8 pt-2">
+                    <div className="flex items-center gap-3">
+                       <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
+                       <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Success: {activeCampaign.stats.success}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <div className="size-2 rounded-full bg-destructive" />
+                       <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Failed: {activeCampaign.stats.failed}</span>
+                    </div>
+                 </div>
+              </div>
+           </CardFooter>
+         )}
+      </Card>
 
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -427,30 +505,20 @@ export default function AvailabilitySummary() {
                          <div className="flex items-center justify-between pr-4">
                             <div className="flex flex-col gap-1.5">
                                <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
-                               <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
+                               <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
+                                  {emp.whatsappOptIn === false && <Badge className="bg-destructive text-white border-none text-[7px] font-black uppercase px-2 py-0 rounded-sm">OPT-OUT</Badge>}
+                               </div>
                             </div>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="size-8 rounded-lg hover:bg-secondary/10 text-secondary transition-all"
-                                    onClick={() => handlePreviewEmployeePDF(emp.id)}
-                                    disabled={previewingId === emp.id}
-                                  >
-                                    {previewingId === emp.id ? (
-                                      <Loader2 className="size-4 animate-spin" />
-                                    ) : (
-                                      <FileText className="size-4" />
-                                    )}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className="bg-primary text-white font-black text-[9px] uppercase tracking-widest border-none p-3 rounded-xl shadow-2xl">
-                                  Synthesis PDF Preview
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="size-8 rounded-lg hover:bg-secondary/10 text-secondary transition-all"
+                              onClick={() => handlePreviewPDF(emp.id)}
+                              disabled={previewingId === emp.id}
+                            >
+                              {previewingId === emp.id ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+                            </Button>
                          </div>
                       </TableCell>
                       {DAYS.map((day, idx) => {
@@ -531,6 +599,62 @@ export default function AvailabilitySummary() {
            </div>
         </CardFooter>
       </Card>
+
+      {/* Campaign Confirmation Dialog */}
+      <Dialog open={isCampaignDialogOpen} onOpenChange={setIsCampaignDialogOpen}>
+        <DialogContent className="sm:max-w-[550px] rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden bg-white text-black">
+          <div className="bg-primary p-12 text-white relative">
+             <div className="absolute top-0 right-0 p-10 opacity-5"><MessageSquare size={160} /></div>
+             <DialogTitle className="text-3xl font-black uppercase tracking-tight leading-none relative z-10">Initiate Distribution</DialogTitle>
+             <DialogDescription className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mt-4 relative z-10">Institutional Weekly Roster Dispatch Protocol</DialogDescription>
+          </div>
+          <div className="p-12 space-y-10">
+             <div className="space-y-6">
+                <div className="flex justify-between items-center p-6 rounded-2xl bg-slate-50 border-2 border-slate-100 group">
+                   <div className="space-y-1">
+                      <p className="text-[10px] font-black uppercase text-slate-400">Target Hub</p>
+                      <p className="text-lg font-black uppercase text-primary tracking-tight">{authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'GLOBAL'} ROC</p>
+                   </div>
+                   <TrendingUp className="size-6 text-secondary" />
+                </div>
+
+                <div className="flex justify-between items-center p-6 rounded-2xl bg-slate-50 border-2 border-slate-100 group">
+                   <div className="space-y-1">
+                      <p className="text-[10px] font-black uppercase text-slate-400">Clinical Cycle</p>
+                      <p className="text-lg font-black uppercase text-primary tracking-tight">{displayWeekRange(selectedWeek)}</p>
+                   </div>
+                   <CalendarDays className="size-6 text-secondary" />
+                </div>
+             </div>
+
+             <div className="p-8 rounded-3xl bg-secondary/5 border-2 border-secondary/10 space-y-4">
+                <div className="flex items-center gap-4 text-secondary">
+                   <ShieldCheck className="size-6" />
+                   <p className="text-[12px] font-black uppercase tracking-widest">Campaign Summary</p>
+                </div>
+                <div className="space-y-3 pt-2">
+                   <p className="text-[13px] font-medium leading-relaxed uppercase">
+                     Dispatching <span className="font-black text-secondary">{campaignEligibility.eligible} personalized PDFs</span> to authorized mobile endpoints.
+                   </p>
+                   <p className="text-[11px] text-black/40 font-bold uppercase tracking-widest leading-relaxed">
+                     Professionals without valid rosters or opt-ins will be automatically skipped to maintain registry integrity.
+                   </p>
+                </div>
+             </div>
+          </div>
+          <DialogFooter className="p-12 bg-slate-50 border-t border-slate-100 flex gap-4">
+             <Button variant="ghost" className="flex-1 h-16 font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl" onClick={() => setIsCampaignDialogOpen(false)}>Abort Pulse</Button>
+             <Button 
+                className="flex-1 h-16 bg-primary text-white font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-[1.02] transition-all"
+                onClick={handleStartWeeklyCampaign}
+                disabled={campaignStarting}
+             >
+                {campaignStarting ? <Loader2 className="size-6 animate-spin mr-3" /> : <Zap className="size-6 mr-3 fill-white" />}
+                Authorize Batch
+             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
