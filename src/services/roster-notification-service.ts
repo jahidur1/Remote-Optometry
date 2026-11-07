@@ -9,21 +9,22 @@ import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId, getISTNow } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v9.0 (Secure PDF)
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v10.0 (Secure PDF Protocol)
  * 
  * Orchestrates premium document synthesis, private storage, and Meta API dispatch.
- * PROTOCOL: 
+ * 
+ * PROTOCOL REQUIREMENTS: 
  * 1. Deterministic Idempotency Key (UID + Dates)
  * 2. Private Storage Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/
- * 3. 48-Hour Lifecycle Metadata
- * 4. Meta Cloud Document API Dispatch
+ * 3. Meta Cloud Document API Dispatch (upload -> send)
+ * 4. 48-Hour Lifecycle Metadata Enforcement
  */
 
 async function getAuthorizedUser(idToken: string) {
-  if (!idToken) throw new Error("Unauthorized.");
+  if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
   const decoded = await adminAuth.verifyIdToken(idToken, true);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
-  if (!userSnap.exists) throw new Error("Profile not found.");
+  if (!userSnap.exists) throw new Error("Registry Error: Identity node not found.");
   return { uid: decoded.uid, ...userSnap.data() } as any;
 }
 
@@ -84,10 +85,14 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
   return results;
 }
 
+/**
+ * previewEmployeeRosterAction
+ * Generates a real-time PDF preview for administrative validation.
+ */
 export async function previewEmployeeRosterAction(idToken: string, employeeId: string, mockCase?: number) {
   try {
     const profile = await getAuthorizedUser(idToken);
-    if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized.");
+    if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized Access.");
     
     let emp: any = { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL', id: 'EMP-PREVIEW-001' };
     
@@ -121,10 +126,15 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
   }
 }
 
+/**
+ * dispatchOfficeBriefingsAction
+ * Manual trigger for an entire cluster center.
+ */
 export async function dispatchOfficeBriefingsAction(idToken: string, officeId: string) {
   try {
     const profile = await getAuthorizedUser(idToken);
     
+    // Authorization Scoping
     if (profile.role !== 'super_admin') {
       const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
       if (!authorizedOffices.includes(officeId)) {
@@ -142,10 +152,17 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
  * runAutomatedRosterBriefing
  * 
  * High-intensity orchestration pulse.
- * Handles generation, storage, and Meta dispatch with strict idempotency.
+ * Workflow:
+ * 1. Eligibility Check (Published Roster, Opt-in, Valid Number)
+ * 2. Idempotency Lock
+ * 3. PDF Synthesis
+ * 4. Private Storage (with metadata)
+ * 5. Meta Document Dispatch
+ * 6. Audit Logging
  */
 export async function runAutomatedRosterBriefing(officeId?: string, bypassMasterCheck = false) {
   const executionId = `exec_${Date.now()}`;
+  const start = Date.now();
   let successCount = 0;
   let failCount = 0;
 
@@ -154,15 +171,16 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
-    // 1. Governance Gate
+    // 1. Master Governance Gate
     if (!bypassMasterCheck) {
       if (!configSnap.data()?.whatsappEnabled || !autoSnap.data()?.masterEnabled) {
-        throw new Error("AUTOMATION_SUSPENDED: Master Pulse is OFF.");
+        return { success: false, error: "AUTOMATION_SUSPENDED: Master toggle is OFF." };
       }
     }
 
     const automation = autoSnap.exists ? autoSnap.data() : { base64Logo: null };
     
+    // Fetch Professionals
     let empBaseQuery = adminDb.collection('employees').where('status', '==', 'Active');
     if (officeId) {
       empBaseQuery = empBaseQuery.where('office', '==', officeId);
@@ -177,13 +195,19 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     const bucket = storage.bucket();
 
     for (const empDoc of empSnap.docs) {
+      // Emergency Cut-off: Check if master was disabled mid-execution
+      if (!bypassMasterCheck) {
+        const liveAutoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
+        if (!liveAutoSnap.data()?.masterEnabled) break;
+      }
+
       const emp = empDoc.data();
       
-      // REQUIREMENT: Valid number and Opt-in
+      // Eligibility Gate
       if (!emp.whatsappNumber || emp.whatsappOptIn === false) continue;
 
       try {
-        // 2. Idempotency Lock
+        // 2. Deterministic Idempotency Lock
         const jobKey = `${empDoc.id}_${dates[0]}_${dates[1]}`;
         const existingJob = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
@@ -203,6 +227,8 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           nextTwoDays
         });
 
+        if (pdfBuffer.length === 0) throw new Error("Synthesis Failure: Empty buffer generated.");
+
         // 4. Secure Storage Registry
         // Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/
         const yearMonth = format(new Date(), 'yyyy/MM');
@@ -211,25 +237,26 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         const file = bucket.file(storagePath);
         
         const generatedAt = new Date().toISOString();
-        const expiresAt = addDays(new Date(), 2).toISOString(); // Strict 48-hour lifecycle
+        const expiresAt = addDays(new Date(), 2).toISOString(); // 48-Hour Lifecycle
 
         await file.save(pdfBuffer, {
           contentType: 'application/pdf',
           metadata: {
             metadata: {
-              employeeUid: emp.authUid || 'none',
+              employeeUid: emp.authUid || 'unmapped',
               employeeId: empDoc.id,
               officeId: emp.office,
               rosterDates: dates.join(','),
               generatedAt,
               expiresAt,
               docSize: `${pdfBuffer.length}`,
-              waStatus: 'pending_dispatch'
+              waStatus: 'pending_dispatch',
+              cleanupStatus: 'active'
             }
           }
         });
 
-        // 5. Meta Cloud Document Dispatch
+        // 5. Meta Cloud Document API Handshake
         const dispatch = await sendWhatsAppShiftBriefingWithDocument(
           emp.whatsappNumber,
           emp.fullName,
@@ -239,7 +266,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
 
         if (dispatch.success) {
           successCount++;
-          // 6. Audit & Metadata Pulse
+          // 6. Institutional Audit Pulse
           await adminDb.collection('whatsapp_logs').add({
             executionId,
             jobKey,
@@ -257,13 +284,13 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             cleanupStatus: 'pending'
           });
 
-          // Update storage metadata with delivery success
+          // Update storage metadata with Meta ID and confirmation
           await file.setMetadata({
-             metadata: { waStatus: 'success', messageId: dispatch.messageId }
+             metadata: { waStatus: 'sent', messageId: dispatch.messageId }
           });
 
         } else {
-          throw new Error(dispatch.error);
+          throw new Error(dispatch.error || "Meta API Rejected Payload");
         }
 
       } catch (empErr: any) {
@@ -280,7 +307,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
       }
     }
 
-    // 7. Executive Telemetry
+    // 7. Pulse Telemetry
     if (autoSnap.exists) {
       await adminDb.collection('system_settings').doc('whatsapp_automation').update({
         lastRun: new Date().toISOString(),
@@ -289,9 +316,10 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
       });
     }
 
-    return { success: true, count: successCount, total: successCount + failCount };
+    return { success: true, count: successCount, total: successCount + failCount, latency: Date.now() - start };
 
   } catch (globalErr: any) {
+    console.error('CRITICAL_DISPATCH_FAILURE:', globalErr.message);
     return { success: false, error: globalErr.message };
   }
 }
