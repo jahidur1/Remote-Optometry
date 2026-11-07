@@ -59,9 +59,8 @@ export async function generateRosterPdf(input: {
 
   if (logoBase64) {
     try {
-      // Proportional Logo Placement
-      // jsPDF addImage works best with raw Base64 (strip prefix if present)
       const rawB64 = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
+      // Proportional placement (scaled to height 22mm)
       doc.addImage(rawB64, 'PNG', pageWidth - 65, 15, 45, 22, undefined, 'FAST');
     } catch (e) {
       console.warn("PDF_LOGO_ALERT: Invalid logo buffer format.");
@@ -71,7 +70,7 @@ export async function generateRosterPdf(input: {
   // 4. Professional Identity
   doc.setTextColor(textMain);
   doc.setFontSize(22);
-  doc.text(`HELLO, ${employeeName.split(' ')[0]}`, 20, 60);
+  doc.text(`HELLO, ${employeeName.split(' ')[0].toUpperCase()}`, 20, 60);
   
   doc.setTextColor(textSecondary);
   doc.setFontSize(10);
@@ -89,7 +88,7 @@ export async function generateRosterPdf(input: {
   nextTwoDays.forEach((d, i) => {
     const shiftId = (d.shiftId || '').toUpperCase();
     const shiftName = d.shift.toUpperCase();
-    const isOff = shiftName.includes('WEEK OFF') || shiftName.includes('WEEK-OFF') || shiftId === 'NONE';
+    const isOff = shiftName.includes('WEEK OFF') || shiftName.includes('WEEK-OFF') || shiftId === 'NONE' || shiftId === 'NONE';
 
     // Determine Indicator Color
     let indicatorColor = textSecondary;
