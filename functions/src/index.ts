@@ -102,7 +102,8 @@ export const startWeeklyRosterCampaign = onCall({
   const profile = userSnap.data();
   if (!profile || profile.status !== 'Active') throw new HttpsError('permission-denied', 'Account suspended.');
   
-  if (profile.role !== 'super_admin') {
+  const role = profile.role?.toLowerCase();
+  if (role !== 'super_admin') {
     const authorized = profile.officeIds || [profile.office];
     if (!authorized.includes(officeId)) throw new HttpsError('permission-denied', "Unauthorized cluster.");
   }

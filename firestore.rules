@@ -21,12 +21,12 @@ service cloud.firestore {
     
     function isAdmin() {
       let profile = getProfile();
-      return isUserActive() && profile != null && profile.role in ['admin', 'super_admin'];
+      return isUserActive() && profile != null && (profile.role == 'admin' || profile.role == 'super_admin' || profile.role == 'ADMIN' || profile.role == 'SUPER_ADMIN');
     }
 
     function isSuperAdmin() {
       let profile = getProfile();
-      return isUserActive() && profile != null && profile.role == 'super_admin';
+      return isUserActive() && profile != null && (profile.role == 'super_admin' || profile.role == 'SUPER_ADMIN');
     }
 
     // --- SYSTEM GOVERNANCE ---

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, orderBy, limit, onSnapshot, doc, where } from 'firebase/firestore';
 import { useFirestore, useUser, useAuth, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -36,7 +36,8 @@ import {
   Smartphone,
   Info,
   ShieldAlert,
-  Target
+  Target,
+  Upload
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -61,6 +62,7 @@ export default function AutomationGovernance() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [runningManual, setRunningManual] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [dailyLogs, setDailyLogs] = useState<any[]>([]);
@@ -74,12 +76,15 @@ export default function AutomationGovernance() {
   const [testMode, setTestMode] = useState<'daily' | 'weekly' | null>(null);
   const [isTestConfirmOpen, setIsTestConfirmOpen] = useState(false);
 
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const empQuery = useMemo(() => query(collection(db, 'employees'), orderBy('fullName', 'asc')), [db]);
   const { data: employees } = useCollection(empQuery);
 
   useEffect(() => {
     if (userLoading || !profile) return;
-    if (profile.role !== 'super_admin') return;
+    const role = profile.role?.toLowerCase();
+    if (role !== 'super_admin') return;
     fetchSettings();
     fetchActivity();
   }, [profile, userLoading]);
@@ -101,7 +106,6 @@ export default function AutomationGovernance() {
       const campRes = await getRecentCampaignsAction();
       if (campRes.success) setCampaigns(campRes.campaigns);
 
-      // Latest daily logs
       const q = query(collection(db, 'whatsapp_logs'), where('notificationType', '==', 'daily_shift_reminder'), orderBy('timestamp', 'desc'), limit(50));
       onSnapshot(q, (snap) => {
         setDailyLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -130,6 +134,34 @@ export default function AutomationGovernance() {
     }
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("Auth missing.");
+
+        const result = await updateWhatsAppSettingsAction(idToken, { logoBase64: base64 });
+        if (result.success) {
+          toast({ title: "Logo Synchronized", description: "Institutional branding updated in PDF registry." });
+          fetchSettings();
+        } else {
+          throw new Error(result.error);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Upload Failure", description: err.message });
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   const handleManualDailyPulse = async () => {
     if (!confirm("EMERGENCY PULSE: Dispatch text reminders to all eligible professionals immediately?")) return;
     
@@ -149,7 +181,7 @@ export default function AutomationGovernance() {
     } catch (e: any) {
       toast({ variant: "destructive", title: "Pulse Failure", description: e.message });
     } finally {
-      runningManual && setRunningManual(false);
+      setRunningManual(false);
     }
   };
 
@@ -202,7 +234,7 @@ export default function AutomationGovernance() {
     }
   };
 
-  if (userLoading || !profile) {
+  if (userLoading) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
         <Loader2 className="size-14 animate-spin text-secondary opacity-30" />
@@ -211,7 +243,8 @@ export default function AutomationGovernance() {
     );
   }
 
-  if (profile.role !== 'super_admin') {
+  const role = profile?.role?.toLowerCase();
+  if (role !== 'super_admin') {
     return (
       <div className="flex h-[80vh] items-center justify-center p-10">
          <Card className="max-w-md border-destructive/20 bg-destructive/5 p-10 text-center space-y-6 rounded-[2rem]">
@@ -227,7 +260,6 @@ export default function AutomationGovernance() {
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
-      {/* Precision Header Hub */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
@@ -276,56 +308,88 @@ export default function AutomationGovernance() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: System Controls */}
         <TabsContent value="controls" className="space-y-10 animate-in">
           <div className="grid gap-8 lg:grid-cols-12">
-            <Card className="lg:col-span-5 shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-primary overflow-hidden">
-               <CardHeader className="bg-slate-50/50 border-b p-10">
-                  <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Logic Gates</CardTitle>
-                  <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-4 leading-relaxed">
-                    Mandatory operational switches for institutional WhatsApp distribution.
-                  </CardDescription>
-               </CardHeader>
-               <CardContent className="p-10 space-y-6">
-                  <div className="flex items-center justify-between p-8 rounded-3xl bg-primary text-white group shadow-2xl shadow-primary/20">
-                     <div className="space-y-1">
-                        <p className="text-[13px] font-black uppercase tracking-widest">MASTER AUTOMATION</p>
-                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-[0.2em] italic">Global Protocol Override</p>
-                     </div>
-                     <Switch 
-                        checked={settings?.masterEnabled || false} 
-                        onCheckedChange={(v) => handleToggle('masterEnabled', v)} 
-                        disabled={updating} 
-                        className="data-[state=checked]:bg-secondary" 
-                     />
-                  </div>
-
-                  <div className="grid gap-4">
-                     {[
-                       { label: 'Meta Cloud API Hub', sub: 'Binary Gateway Link', field: 'whatsappEnabled', icon: Smartphone },
-                       { label: 'Weekly Roster Bulk', sub: 'PDF Distribution Stream', field: 'weeklyEnabled', icon: FileText },
-                       { label: 'Daily Shift BRIEFINGS', sub: '10:00 PM IST Automated Text', field: 'dailyReminderEnabled', icon: Bell }
-                     ].map((item, i) => (
-                       <div key={i} className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-secondary/20 transition-all">
-                          <div className="flex items-center gap-5">
-                             <div className="size-12 rounded-xl bg-white flex items-center justify-center border border-slate-200 shadow-sm">
-                                <item.icon className="size-5 text-secondary" />
-                             </div>
-                             <div className="space-y-0.5">
-                                <p className="text-[12px] font-black uppercase tracking-tight text-black">{item.label}</p>
-                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">{item.sub}</p>
-                             </div>
-                          </div>
-                          <Switch 
-                             checked={settings?.[item.field] || false} 
-                             onCheckedChange={(v) => handleToggle(item.field, v)} 
-                             disabled={updating || !settings?.masterEnabled} 
-                          />
+            <div className="lg:col-span-5 space-y-8">
+              <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-primary overflow-hidden">
+                 <CardHeader className="bg-slate-50/50 border-b p-10">
+                    <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Logic Gates</CardTitle>
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-4">Operational Switches</CardDescription>
+                 </CardHeader>
+                 <CardContent className="p-10 space-y-6">
+                    <div className="flex items-center justify-between p-8 rounded-3xl bg-primary text-white group shadow-2xl shadow-primary/20">
+                       <div className="space-y-1">
+                          <p className="text-[13px] font-black uppercase tracking-widest">MASTER AUTOMATION</p>
+                          <p className="text-[9px] text-white/40 font-bold uppercase tracking-[0.2em] italic">Global Protocol Override</p>
                        </div>
-                     ))}
-                  </div>
-               </CardContent>
-            </Card>
+                       <Switch 
+                          checked={settings?.masterEnabled || false} 
+                          onCheckedChange={(v) => handleToggle('masterEnabled', v)} 
+                          disabled={updating} 
+                          className="data-[state=checked]:bg-secondary" 
+                       />
+                    </div>
+
+                    <div className="grid gap-4">
+                       {[
+                         { label: 'Meta Cloud API Hub', sub: 'Binary Gateway Link', field: 'whatsappEnabled', icon: Smartphone },
+                         { label: 'Weekly Roster Bulk', sub: 'PDF Distribution Stream', field: 'weeklyEnabled', icon: FileText },
+                         { label: 'Daily Shift BRIEFINGS', sub: '10:00 PM IST Automated Text', field: 'dailyReminderEnabled', icon: Bell }
+                       ].map((item, i) => (
+                         <div key={i} className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-secondary/20 transition-all">
+                            <div className="flex items-center gap-5">
+                               <div className="size-12 rounded-xl bg-white flex items-center justify-center border border-slate-200 shadow-sm">
+                                  <item.icon className="size-5 text-secondary" />
+                               </div>
+                               <div className="space-y-0.5">
+                                  <p className="text-[12px] font-black uppercase tracking-tight text-black">{item.label}</p>
+                                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">{item.sub}</p>
+                               </div>
+                            </div>
+                            <Switch 
+                               checked={settings?.[item.field] || false} 
+                               onCheckedChange={(v) => handleToggle(item.field, v)} 
+                               disabled={updating || !settings?.masterEnabled} 
+                            />
+                         </div>
+                       ))}
+                    </div>
+                 </CardContent>
+              </Card>
+
+              <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-secondary overflow-hidden">
+                <CardHeader className="bg-slate-50/50 border-b p-10">
+                  <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Branding Hub</CardTitle>
+                  <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-4">Institutional PDF Identity</CardDescription>
+                </CardHeader>
+                <CardContent className="p-10 space-y-8">
+                   <div className="flex flex-col items-center gap-8">
+                      <div className="size-40 rounded-[2rem] bg-slate-50 border-4 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group relative">
+                         {settings?.logoBase64 ? (
+                           <img src={settings.logoBase64} alt="Brand Logo" className="w-full h-full object-contain p-4" />
+                         ) : (
+                           <ImageIcon className="size-12 text-slate-200" />
+                         )}
+                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Button variant="ghost" className="text-white font-black uppercase text-[10px] tracking-widest" onClick={() => logoInputRef.current?.click()}>
+                               {logoUploading ? <Loader2 className="animate-spin" /> : 'REPLACE'}
+                            </Button>
+                         </div>
+                      </div>
+                      <div className="text-center space-y-2">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-primary">Base64 Mirror Protocol</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed">
+                          Synchronizes logo across weekly PDFs. <br /> Max 500KB recommended.
+                        </p>
+                      </div>
+                      <input type="file" ref={logoInputRef} className="hidden" accept="image/png,image/jpeg" onChange={handleLogoUpload} />
+                      <Button className="w-full bg-slate-100 text-black hover:bg-slate-200 font-black uppercase text-[10px] tracking-widest h-12 rounded-xl" onClick={() => logoInputRef.current?.click()} disabled={logoUploading}>
+                        <Upload className="size-4 mr-3" /> {logoUploading ? 'SYNCING...' : 'UPLOAD BRAND LOGO'}
+                      </Button>
+                   </div>
+                </CardContent>
+              </Card>
+            </div>
 
             <Card className="lg:col-span-7 shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-secondary overflow-hidden">
                <CardHeader className="bg-slate-50/50 border-b p-10">
@@ -380,7 +444,6 @@ export default function AutomationGovernance() {
           </div>
         </TabsContent>
 
-        {/* Tab 2: Intelligence Matrix (Monitoring) */}
         <TabsContent value="monitoring" className="space-y-10 animate-in">
            <div className="grid gap-10 lg:grid-cols-1">
               <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
@@ -500,7 +563,6 @@ export default function AutomationGovernance() {
            </div>
         </TabsContent>
 
-        {/* Tab 3: Sandbox Lab */}
         <TabsContent value="sandbox" className="space-y-10 animate-in">
            <div className="grid gap-10 lg:grid-cols-12">
               <div className="lg:col-span-5 space-y-10">

@@ -14,14 +14,18 @@ import { getTemplateStatus } from './whatsapp-action';
 
 async function assertSuperAdmin(idToken: string) {
   if (!idToken) throw new Error("Unauthorized: Session Link Missing.");
-  const decoded = await adminAuth.verifyIdToken(idToken); // Standard verification
+  const decoded = await adminAuth.verifyIdToken(idToken);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   
-  if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
+  if (!userSnap.exists) throw new Error("Identity pulse missing.");
+  const profile = userSnap.data()!;
+  
+  const role = profile.role?.toLowerCase();
+  if (role !== 'super_admin') {
     throw new Error("Privilege Block: Super Admin access required for governance modifications.");
   }
   
-  return { uid: decoded.uid, profile: userSnap.data() };
+  return { uid: decoded.uid, profile };
 }
 
 export async function getWhatsAppSettingsAction() {
