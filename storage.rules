@@ -29,24 +29,27 @@ service firebase.storage {
       return isUserActive() && profile.role == 'super_admin';
     }
 
-    // --- CLINICAL REGISTRY: ROSTER IMAGES ---
-    // Storage Path: whatsapp-roster-images/{year}/{month}/{employeeId}/{fileName}
-    match /whatsapp-roster-images/{year}/{month}/{employeeId}/{fileName} {
-      // 1. READ: A professional can only read their own roster briefings.
-      // 2. READ: Admins/Super Admins can read all for institutional oversight.
+    // --- CLINICAL REGISTRY: ROSTER DOCUMENTS (PDF Protocol) ---
+    // Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/{fileName}
+    match /whatsapp-roster-pdfs/{year}/{month}/{employeeId}/{fileName} {
+      // 1. READ: A professional can strictly only read their own roster PDFs.
+      // 2. READ: Admins/Super Admins can read for clinical oversight.
       allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
       
       // 3. WRITE: Client-side writes are STRICTLY FORBIDDEN.
-      // These assets are exclusively synthesized and managed by the Admin SDK server-side.
+      // Managed exclusively by the trusted Admin SDK pulse server-side.
+      allow write: if false;
+    }
+
+    // --- LEGACY CLINICAL REGISTRY (Image Protocol) ---
+    match /whatsapp-roster-images/{year}/{month}/{employeeId}/{fileName} {
+      allow read: if isUserActive() && (getProfile().employeeId == employeeId || isAdmin());
       allow write: if false;
     }
 
     // --- SYSTEM ASSETS: LOGOS & BRANDING ---
     match /system_assets/{allPaths=**} {
-      // Branding is readable by all authorized professionals for portal UI consistency.
       allow read: if isUserActive();
-      
-      // Modifications restricted to Super Admin node only.
       allow write: if isSuperAdmin();
     }
     

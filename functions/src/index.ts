@@ -8,8 +8,8 @@ admin.initializeApp();
 /**
  * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING (10 PM IST)
  * 
- * Deterministic scheduler that triggers the clinical briefing pulse.
- * Orchestrates: Identity fetching, Roster lookup, and Dispatch initiation.
+ * Cron: 0 22 * * * (Asia/Kolkata)
+ * Orchestrates: Identity fetching, PDF synthesis, Private storage, and Meta dispatch.
  */
 export const dailyRosterBriefing = functions.region('asia-south1').runWith({
   secrets: ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'INTERNAL_TRIGGER_KEY'],
@@ -35,18 +35,12 @@ export const dailyRosterBriefing = functions.region('asia-south1').runWith({
       return null;
     }
 
-    console.log('ROC_PULSE_INIT: Orchestrating daily clinical briefings...');
+    console.log('ROC_PULSE_INIT: Orchestrating daily clinical briefings (PDF Protocol)...');
     
-    /**
-     * NOTE: We call the internal briefing orchestration logic.
-     * We use a fetch pulse to the main application's secure endpoint 
-     * to reuse the complex image generation (Satori/Resvg) logic.
-     */
     const APP_URL = process.env.APP_URL || 'https://studio-9087637488-aa952.web.app';
     const SECRET_KEY = process.env.INTERNAL_TRIGGER_KEY || 'roc_internal_pulse';
 
     try {
-      // Using built-in fetch available in Node 18+
       const response = await fetch(`${APP_URL}/api/cron/roster-briefing`, {
         method: 'POST',
         headers: {
@@ -65,40 +59,55 @@ export const dailyRosterBriefing = functions.region('asia-south1').runWith({
   });
 
 /**
- * ROC WORKFORCE — STORAGE LIFECYCLE GUARD
+ * ROC WORKFORCE — STORAGE LIFECYCLE GUARD (48h EXPR)
  * 
- * Periodically purges roster images older than 48 hours to maintain 
+ * Periodically purges roster PDFs older than 48 hours to maintain 
  * institutional registry hygiene and minimize storage overhead.
  */
 export const storageCleanupPulse = functions.region('asia-south1').pubsub
-  .schedule('0 * * * *') // Runs every hour
+  .schedule('0 * * * *') // Runs hourly
   .onRun(async (context: functions.EventContext) => {
     const bucket = admin.storage().bucket();
-    const [files] = await bucket.getFiles({ prefix: 'whatsapp-roster-images/' });
+    const db = admin.firestore();
     const now = new Date();
+    
+    // Scan both legacy images and new PDF protocol paths
+    const prefixes = ['whatsapp-roster-images/', 'whatsapp-roster-pdfs/'];
     let purgedCount = 0;
 
-    console.log(`ROC_CLEANUP_INIT: Scanning ${files.length} media assets...`);
+    for (const prefix of prefixes) {
+      const [files] = await bucket.getFiles({ prefix });
+      console.log(`ROC_CLEANUP_INIT: Scanning ${files.length} assets in ${prefix}...`);
 
-    for (const file of files) {
-      const [metadata] = await file.getMetadata();
-      const expiresAtStr = metadata.metadata?.expiresAt;
+      for (const file of files) {
+        const [metadata] = await file.getMetadata();
+        const expiresAtStr = metadata.metadata?.expiresAt;
 
-      // Type guard: Ensure we have a string to prevent Date constructor errors
-      if (expiresAtStr && typeof expiresAtStr === 'string') {
-        const expiresAt = new Date(expiresAtStr);
-        if (now > expiresAt) {
-          try {
-            await file.delete();
-            purgedCount++;
-            console.log(`ROC_CLEANUP_SUCCESS: Purged expired roster image: ${file.name}`);
-          } catch (e: any) {
-            console.error(`ROC_CLEANUP_ERROR: Failed to delete ${file.name}:`, e.message);
+        if (expiresAtStr && typeof expiresAtStr === 'string') {
+          const expiresAt = new Date(expiresAtStr);
+          if (now > expiresAt) {
+            try {
+              await file.delete();
+              purgedCount++;
+              
+              // Update log registry if storagePath matches
+              const logSnap = await db.collection('whatsapp_logs')
+                .where('storagePath', '==', file.name)
+                .limit(1).get();
+              
+              if (!logSnap.empty) {
+                await logSnap.docs[0].ref.update({ cleanupStatus: 'purged', purgedAt: now.toISOString() });
+              }
+
+              console.log(`ROC_CLEANUP_SUCCESS: Purged expired asset: ${file.name}`);
+            } catch (e: any) {
+              console.error(`ROC_CLEANUP_ERROR: Failed to delete ${file.name}:`, e.message);
+            }
           }
         }
       }
     }
 
-    console.log(`ROC_CLEANUP_COMPLETE: Decommissioned ${purgedCount} expired assets.`);
+    console.log(`ROC_CLEANUP_COMPLETE: Decommissioned ${purgedCount} expired clinical assets.`);
     return { purgedCount, timestamp: now.toISOString() };
   });

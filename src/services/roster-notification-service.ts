@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -8,10 +9,14 @@ import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId, getISTNow } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v8.0 (PDF)
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v9.0 (Secure PDF)
  * 
- * Orchestrates premium document synthesis and Meta API dispatch.
- * PROTOCOL: Secure Document Registry & Metadata Archiving.
+ * Orchestrates premium document synthesis, private storage, and Meta API dispatch.
+ * PROTOCOL: 
+ * 1. Deterministic Idempotency Key (UID + Dates)
+ * 2. Private Storage Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/
+ * 3. 48-Hour Lifecycle Metadata
+ * 4. Meta Cloud Document API Dispatch
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -22,6 +27,10 @@ async function getAuthorizedUser(idToken: string) {
   return { uid: decoded.uid, ...userSnap.data() } as any;
 }
 
+/**
+ * getNextTwoDaysData
+ * Correctly identifies tomorrow and the day after in Asia/Kolkata.
+ */
 async function getNextTwoDaysData(employeeId: string, office: string, mockCase?: number) {
   const istNow = getISTNow();
   
@@ -129,6 +138,12 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
   }
 }
 
+/**
+ * runAutomatedRosterBriefing
+ * 
+ * High-intensity orchestration pulse.
+ * Handles generation, storage, and Meta dispatch with strict idempotency.
+ */
 export async function runAutomatedRosterBriefing(officeId?: string, bypassMasterCheck = false) {
   const executionId = `exec_${Date.now()}`;
   let successCount = 0;
@@ -139,6 +154,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     
+    // 1. Governance Gate
     if (!bypassMasterCheck) {
       if (!configSnap.data()?.whatsappEnabled || !autoSnap.data()?.masterEnabled) {
         throw new Error("AUTOMATION_SUSPENDED: Master Pulse is OFF.");
@@ -162,9 +178,12 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
 
     for (const empDoc of empSnap.docs) {
       const emp = empDoc.data();
-      if (!emp.whatsappNumber) continue;
+      
+      // REQUIREMENT: Valid number and Opt-in
+      if (!emp.whatsappNumber || emp.whatsappOptIn === false) continue;
 
       try {
+        // 2. Idempotency Lock
         const jobKey = `${empDoc.id}_${dates[0]}_${dates[1]}`;
         const existingJob = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
@@ -173,6 +192,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         
         if (!existingJob.empty && !bypassMasterCheck) continue;
 
+        // 3. Document Synthesis
         const nextTwoDays = await getNextTwoDaysData(empDoc.id, emp.office);
 
         const pdfBuffer = await generateRosterPdf({
@@ -183,35 +203,43 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           nextTwoDays
         });
 
-        // 1. SAVE TO INSTITUTIONAL REGISTRY
-        const storagePath = `whatsapp-roster-documents/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.pdf`;
+        // 4. Secure Storage Registry
+        // Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/
+        const yearMonth = format(new Date(), 'yyyy/MM');
+        const filename = `Team_Remote_Optometry_${empDoc.id}_${dates[0]}_${dates[1]}.pdf`;
+        const storagePath = `whatsapp-roster-pdfs/${yearMonth}/${empDoc.id}/${filename}`;
         const file = bucket.file(storagePath);
         
+        const generatedAt = new Date().toISOString();
+        const expiresAt = addDays(new Date(), 2).toISOString(); // Strict 48-hour lifecycle
+
         await file.save(pdfBuffer, {
           contentType: 'application/pdf',
           metadata: {
             metadata: {
               employeeUid: emp.authUid || 'none',
               employeeId: empDoc.id,
+              officeId: emp.office,
               rosterDates: dates.join(','),
-              expiresAt: addDays(new Date(), 2).toISOString(),
+              generatedAt,
+              expiresAt,
               docSize: `${pdfBuffer.length}`,
-              generationStatus: 'success',
-              dispatchTime: new Date().toISOString()
+              waStatus: 'pending_dispatch'
             }
           }
         });
 
-        // 2. DISPATCH VIA META CLOUD API
+        // 5. Meta Cloud Document Dispatch
         const dispatch = await sendWhatsAppShiftBriefingWithDocument(
           emp.whatsappNumber,
           emp.fullName,
           pdfBuffer,
-          `Team_Remote_Optometry_${empDoc.id}_${dates[0]}_${dates[1]}.pdf`
+          filename
         );
 
         if (dispatch.success) {
           successCount++;
+          // 6. Audit & Metadata Pulse
           await adminDb.collection('whatsapp_logs').add({
             executionId,
             jobKey,
@@ -222,9 +250,18 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             docType: 'application/pdf',
             docSize: `${(pdfBuffer.length / 1024).toFixed(1)} KB`,
             byteSize: pdfBuffer.length,
+            storagePath,
             messageId: dispatch.messageId,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            expiresAt,
+            cleanupStatus: 'pending'
           });
+
+          // Update storage metadata with delivery success
+          await file.setMetadata({
+             metadata: { waStatus: 'success', messageId: dispatch.messageId }
+          });
+
         } else {
           throw new Error(dispatch.error);
         }
@@ -243,6 +280,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
       }
     }
 
+    // 7. Executive Telemetry
     if (autoSnap.exists) {
       await adminDb.collection('system_settings').doc('whatsapp_automation').update({
         lastRun: new Date().toISOString(),

@@ -1,11 +1,12 @@
+
 'use server';
 
 /**
- * @fileOverview Meta WhatsApp Cloud API Service.
+ * @fileOverview Meta WhatsApp Cloud API Service — Document Protocol.
  * 
- * Implements the official Media API workflow for Document Headers:
- * 1. Upload PDF binary to Meta Media endpoint.
- * 2. Dispatch Template Message using the returned Media ID.
+ * Implements the official Media API workflow for high-fidelity PDF delivery:
+ * 1. uploadToMetaMedia - Uploads PDF binary to Meta Media endpoint.
+ * 2. sendWhatsAppShiftBriefingWithDocument - Dispatches Template using Media ID.
  * 
  * PROTOCOL: Institutional Document Pulse (PDF)
  */
@@ -30,6 +31,7 @@ function verifyCredentials() {
 /**
  * uploadToMetaMedia
  * Uploads a document buffer to Meta's Media API.
+ * This is the mandatory first step for sending local PDF files.
  */
 async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: string = 'application/pdf'): Promise<string> {
   verifyCredentials();
@@ -59,8 +61,13 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: 
 
 /**
  * sendWhatsAppShiftBriefingWithDocument
- * Dispatches a Shift Briefing Template with a PDF document header.
- * REQUIREMENT: Template 'roc_two_day_roster_notification' must be configured with a DOCUMENT header.
+ * Dispatches the premium Shift Briefing Template with a PDF document header.
+ * 
+ * TEMPLATE REQUIREMENT: 
+ * Name: roc_two_day_roster_pdf
+ * Category: Utility
+ * Header: DOCUMENT
+ * Body: "Hello {{1}}, ..."
  */
 export async function sendWhatsAppShiftBriefingWithDocument(
   to: string,
@@ -69,10 +76,10 @@ export async function sendWhatsAppShiftBriefingWithDocument(
   fileName: string
 ): Promise<WhatsAppSendResult> {
   try {
-    // 1. Meta Media Handshake
+    // 1. Meta Media Handshake (Upload binary to Meta cloud)
     const mediaId = await uploadToMetaMedia(docBuffer, fileName, 'application/pdf');
 
-    // 2. Template Dispatch
+    // 2. Template Dispatch (Send message using obtained Media ID)
     let formattedTo = to.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
 
@@ -81,7 +88,7 @@ export async function sendWhatsAppShiftBriefingWithDocument(
       to: formattedTo,
       type: 'template',
       template: {
-        name: 'roc_two_day_roster_notification',
+        name: 'roc_two_day_roster_pdf',
         language: { code: 'en_US' },
         components: [
           {
