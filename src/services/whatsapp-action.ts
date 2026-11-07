@@ -1,14 +1,9 @@
-
 'use server';
 
 /**
- * @fileOverview Meta WhatsApp Cloud API Service — Document Protocol.
+ * @fileOverview Meta WhatsApp Cloud API Service — Generic Protocol.
  * 
- * Implements the official Media API workflow for high-fidelity PDF delivery:
- * 1. uploadToMetaMedia - Uploads PDF binary to Meta Media endpoint.
- * 2. sendWhatsAppShiftBriefingWithDocument - Dispatches Template using Media ID.
- * 
- * PROTOCOL: Institutional Document Pulse (PDF)
+ * Supports both Document (PDF) and Text-only templates.
  */
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -30,8 +25,6 @@ function verifyCredentials() {
 
 /**
  * uploadToMetaMedia
- * Uploads a document buffer to Meta's Media API.
- * This is the mandatory first step for sending local PDF files.
  */
 async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: string = 'application/pdf'): Promise<string> {
   verifyCredentials();
@@ -60,54 +53,57 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: 
 }
 
 /**
- * sendWhatsAppShiftBriefingWithDocument
- * Dispatches the premium Shift Briefing Template with a PDF document header.
- * 
- * TEMPLATE REQUIREMENT: 
- * Name: roc_two_day_roster_pdf
- * Category: Utility
- * Header: DOCUMENT
- * Body: "Hello {{1}}, ..."
+ * sendWhatsAppGenericTemplate
+ * Universal dispatcher for any approved Meta template.
  */
-export async function sendWhatsAppShiftBriefingWithDocument(
-  to: string,
-  employeeName: string,
-  docBuffer: Buffer,
-  fileName: string
-): Promise<WhatsAppSendResult> {
+export async function sendWhatsAppGenericTemplate(input: {
+  to: string;
+  templateName: string;
+  languageCode?: string;
+  headerMedia?: { type: 'document' | 'image'; buffer: Buffer; filename: string };
+  bodyVariables: string[];
+}): Promise<WhatsAppSendResult> {
   try {
-    // 1. Meta Media Handshake (Upload binary to Meta cloud)
-    const mediaId = await uploadToMetaMedia(docBuffer, fileName, 'application/pdf');
+    verifyCredentials();
+    const { to, templateName, languageCode = 'en', headerMedia, bodyVariables } = input;
 
-    // 2. Template Dispatch (Send message using obtained Media ID)
+    let mediaId: string | undefined;
+    if (headerMedia) {
+      mediaId = await uploadToMetaMedia(headerMedia.buffer, headerMedia.filename);
+    }
+
     let formattedTo = to.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
+
+    const components: any[] = [];
+
+    // 1. Header (If Media)
+    if (headerMedia && mediaId) {
+      components.push({
+        type: 'header',
+        parameters: [{
+          type: headerMedia.type,
+          [headerMedia.type]: { id: mediaId, filename: headerMedia.filename }
+        }]
+      });
+    }
+
+    // 2. Body Variables
+    if (bodyVariables.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: bodyVariables.map(v => ({ type: 'text', text: String(v) }))
+      });
+    }
 
     const payload = {
       messaging_product: 'whatsapp',
       to: formattedTo,
       type: 'template',
       template: {
-        name: 'roc_two_day_roster_pdf',
-        language: { code: 'en_US' },
-        components: [
-          {
-            type: 'header',
-            parameters: [{ 
-                type: 'document', 
-                document: { 
-                    id: mediaId,
-                    filename: fileName 
-                } 
-            }]
-          },
-          {
-            type: 'body',
-            parameters: [
-              { type: 'text', text: employeeName }
-            ]
-          }
-        ]
+        name: templateName,
+        language: { code: languageCode },
+        components
       }
     };
 
@@ -121,20 +117,18 @@ export async function sendWhatsAppShiftBriefingWithDocument(
     });
 
     const data = await response.json();
-    
     if (!response.ok) {
-        console.error('META_MESSAGE_DISPATCH_CONFLICT:', data);
-        return { success: false, error: data.error?.message || 'API_REJECTED' };
+      return { success: false, error: data.error?.message || 'API_REJECTED' };
     }
 
     return { 
       success: true, 
       messageId: data.messages?.[0]?.id, 
-      mediaId
+      mediaId 
     };
 
   } catch (err: any) {
-    console.error('WHATSAPP_ORCHESTRATION_FAILURE:', err.message);
+    console.error('WHATSAPP_GENERIC_DISPATCH_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
 }
