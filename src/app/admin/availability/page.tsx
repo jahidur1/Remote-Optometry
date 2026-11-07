@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -350,7 +351,7 @@ export default function MasterMatrix() {
         </div>
       </div>
 
-      {/* NEW: Weekly Roster Distribution UI */}
+      {/* Weekly Roster Distribution UI */}
       <Card className="shadow-xl border-none rounded-[2.5rem] bg-primary text-white overflow-hidden relative group">
          <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={200} /></div>
          <CardHeader className="p-10 pb-6 border-b border-white/5 relative z-10">
@@ -536,12 +537,12 @@ export default function MasterMatrix() {
                           )}>
                              {isOff ? (
                                <div className="flex flex-col items-center gap-2 animate-in zoom-in-95">
-                                  <Badge className="bg-secondary text-white font-black text-[9px] uppercase px-4 py-1 rounded-xl shadow-lg shadow-secondary/20">WEEK-OFF</Badge>
+                                  <Badge className="bg-secondary text-white font-black text-[9px] uppercase px-4 py-1.5 rounded-xl shadow-lg shadow-secondary/20">WEEK-OFF</Badge>
                                   <Lock className="size-3 text-secondary opacity-30" />
                                </div>
                              ) : onLeave ? (
                                <div className="flex flex-col items-center gap-2 animate-in zoom-in-95">
-                                  <Badge className="bg-accent text-primary font-black text-[9px] uppercase px-4 py-1 rounded-xl border border-primary/10">LEAVE</Badge>
+                                  <Badge className="bg-accent text-primary font-black text-[9px] uppercase px-4 py-1.5 rounded-xl border border-primary/10">LEAVE</Badge>
                                   <PlaneTakeoff className="size-3 text-accent" />
                                </div>
                              ) : (
@@ -552,7 +553,7 @@ export default function MasterMatrix() {
                                  >
                                    <SelectTrigger className={cn(
                                      "h-10 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
-                                     currentAssignment ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600 shadow-sm" : "bg-slate-50 border-2 border-dashed border-slate-200 text-slate-300"
+                                     currentAssignment ? "bg-emerald-50/5 border-emerald-500/20 text-emerald-600 shadow-sm" : "bg-slate-50 border-2 border-dashed border-slate-200 text-slate-300"
                                    )}>
                                      <SelectValue placeholder="-" />
                                    </SelectTrigger>
