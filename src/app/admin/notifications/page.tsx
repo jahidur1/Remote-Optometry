@@ -14,33 +14,28 @@ import {
   MessageSquare, 
   Loader2, 
   Upload, 
-  Trash2, 
   Eye, 
-  Send, 
   Clock, 
-  CheckCircle2, 
-  AlertTriangle,
   Image as ImageIcon,
-  Smartphone,
-  Server,
-  Info,
-  ChevronLeft,
   Settings2,
-  FileSearch,
   Save,
   RotateCcw,
-  Key,
   FileJson,
-  FileText
+  FileText,
+  Calendar,
+  ChevronRight,
+  Monitor
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
 import { previewEmployeeRosterAction } from '@/services/roster-notification-service';
+import { previewWeeklyRosterAction } from '@/services/weekly-roster-pdf-service';
 import { cn } from '@/lib/utils';
+import { getCurrentWeekId } from '@/lib/date-utils';
 
 export default function AutomationGovernance() {
   const db = useFirestore();
@@ -60,11 +55,10 @@ export default function AutomationGovernance() {
   const [previewDoc, setPreviewDoc] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState('');
 
-  const empQuery = useMemo(() => query(collection(db, 'employees'), orderBy('fullName', 'asc')), [db]);
-  const logsQuery = useMemo(() => query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(50)), [db]);
+  const [activeTab, setActiveTab] = useState('daily');
 
+  const empQuery = useMemo(() => query(collection(db, 'employees'), orderBy('fullName', 'asc')), [db]);
   const { data: employees } = useCollection(empQuery);
-  const { data: logs } = useCollection(logsQuery);
 
   useEffect(() => {
     fetchSettings();
@@ -157,7 +151,13 @@ export default function AutomationGovernance() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth link failed.");
 
-      const result = await previewEmployeeRosterAction(idToken, selectedEmp || 'TEST-EMP', mockCase);
+      let result;
+      if (activeTab === 'daily') {
+        result = await previewEmployeeRosterAction(idToken, selectedEmp || 'TEST-EMP', mockCase);
+      } else {
+        result = await previewWeeklyRosterAction(idToken, selectedEmp || 'TEST-EMP', getCurrentWeekId(), mockCase);
+      }
+
       if (result.success) {
         setPreviewDoc(result.base64);
         setPreviewSize(result.size);
@@ -187,7 +187,7 @@ export default function AutomationGovernance() {
               <h1 className="text-4xl font-black tracking-tight uppercase leading-none">Automation Hub</h1>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
-                  Institutional PDF Document Pulse <ShieldCheck className="size-3 text-secondary animate-pulse" />
+                  Institutional Document Pulse <ShieldCheck className="size-3 text-secondary animate-pulse" />
                 </p>
               </div>
             </div>
@@ -222,7 +222,7 @@ export default function AutomationGovernance() {
                <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100 group">
                   <div className="space-y-1">
                      <p className="text-[12px] font-black uppercase tracking-tight">Master Automation</p>
-                     <p className="text-[9px] text-muted-foreground font-bold uppercase">10 PM IST Document Loop</p>
+                     <p className="text-[9px] text-muted-foreground font-bold uppercase">Institutional Logic Gate</p>
                   </div>
                   <Switch checked={settings?.automation?.masterEnabled || false} onCheckedChange={(v) => handleToggle('master', v)} disabled={updating} />
                </div>
@@ -230,7 +230,7 @@ export default function AutomationGovernance() {
                <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="space-y-1">
                      <p className="text-[12px] font-black uppercase tracking-tight">Meta Gateway</p>
-                     <p className="text-[9px] text-muted-foreground font-bold uppercase">Document API Transmission</p>
+                     <p className="text-[9px] text-muted-foreground font-bold uppercase">Binary Transmission Link</p>
                   </div>
                   <Switch checked={settings?.whatsappEnabled || false} onCheckedChange={(v) => handleToggle('api', v)} disabled={updating} />
                </div>
@@ -291,30 +291,63 @@ export default function AutomationGovernance() {
         <div className="lg:col-span-7 space-y-8">
           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white border-t-8 border-t-secondary">
              <CardHeader className="p-10 pb-4 border-b border-white/5">
-                <CardTitle className="text-2xl uppercase font-black tracking-tight leading-none">PDF Intelligence Preview</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">High-fidelity vector document synthesis</CardDescription>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-2xl uppercase font-black tracking-tight leading-none">Synthesis Workspace</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">Validation Pulse for Clinical Briefings</CardDescription>
+                    </div>
+                    <TabsList className="bg-white/5 border border-white/10 h-10 rounded-xl p-1">
+                      <TabsTrigger value="daily" className="rounded-lg px-6 font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-primary">Daily Briefing</TabsTrigger>
+                      <TabsTrigger value="weekly" className="rounded-lg px-6 font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-primary">Weekly Roster</TabsTrigger>
+                    </TabsList>
+                  </div>
+                </Tabs>
              </CardHeader>
              <CardContent className="p-10 grid gap-10 md:grid-cols-2">
                 <div className="space-y-8">
                    <div className="space-y-4">
                       <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1">QA Validation Cases</Label>
                       <div className="grid grid-cols-1 gap-3">
-                         {[
-                           { id: 1, label: 'Two Working Days', sub: 'Consecutive Shifts' },
-                           { id: 2, label: 'Work + Week Off', sub: 'Mixed Eligibility' },
-                           { id: 3, label: 'Double Week Off', sub: 'Clinical Closure' }
-                         ].map(test => (
-                           <Button key={test.id} variant="outline" className="h-14 border-2 border-white/10 bg-white/5 hover:bg-white/10 text-white flex items-center justify-between px-6 rounded-xl group" onClick={() => handlePreview(test.id)} disabled={previewing}>
-                              <div className="flex items-center gap-4">
-                                 <FileText className="size-4 text-secondary opacity-40 group-hover:opacity-100" />
-                                 <div className="text-left">
-                                    <p className="text-[11px] font-black uppercase">{test.label}</p>
-                                    <p className="text-[9px] text-white/30 uppercase">{test.sub}</p>
-                                 </div>
-                              </div>
-                              <ChevronLeft className="size-4 rotate-180 opacity-20" />
-                           </Button>
-                         ))}
+                         {activeTab === 'daily' ? (
+                           <>
+                             {[
+                               { id: 1, label: 'Two Working Days', sub: 'Consecutive Shifts' },
+                               { id: 2, label: 'Work + Week Off', sub: 'Mixed Eligibility' },
+                               { id: 3, label: 'Double Week Off', sub: 'Clinical Closure' }
+                             ].map(test => (
+                               <Button key={test.id} variant="outline" className="h-14 border-2 border-white/10 bg-white/5 hover:bg-white/10 text-white flex items-center justify-between px-6 rounded-xl group" onClick={() => handlePreview(test.id)} disabled={previewing}>
+                                  <div className="flex items-center gap-4">
+                                     <FileText className="size-4 text-secondary opacity-40 group-hover:opacity-100" />
+                                     <div className="text-left">
+                                        <p className="text-[11px] font-black uppercase">{test.label}</p>
+                                        <p className="text-[9px] text-white/30 uppercase">{test.sub}</p>
+                                     </div>
+                                  </div>
+                                  <ChevronRight className="size-4 opacity-20" />
+                               </Button>
+                             ))}
+                           </>
+                         ) : (
+                           <>
+                             {[
+                               { id: 1, label: 'Full Spectrum Week', sub: 'Varied Shift Distribution' },
+                               { id: 2, label: 'Standard Week', sub: '1 Off-Day Protocol' },
+                               { id: 3, label: 'High Availability', sub: 'Multiple Week-Offs' }
+                             ].map(test => (
+                               <Button key={test.id} variant="outline" className="h-14 border-2 border-white/10 bg-white/5 hover:bg-white/10 text-white flex items-center justify-between px-6 rounded-xl group" onClick={() => handlePreview(test.id)} disabled={previewing}>
+                                  <div className="flex items-center gap-4">
+                                     <Calendar className="size-4 text-secondary opacity-40 group-hover:opacity-100" />
+                                     <div className="text-left">
+                                        <p className="text-[11px] font-black uppercase">{test.label}</p>
+                                        <p className="text-[9px] text-white/30 uppercase">{test.sub}</p>
+                                     </div>
+                                  </div>
+                                  <ChevronRight className="size-4 opacity-20" />
+                               </Button>
+                             ))}
+                           </>
+                         )}
                       </div>
                    </div>
 
@@ -333,7 +366,7 @@ export default function AutomationGovernance() {
                         </Select>
                       </div>
                       <Button className="w-full h-14 bg-secondary text-white font-black uppercase text-[10px] tracking-widest rounded-xl hover:scale-105 transition-all" onClick={() => handlePreview()} disabled={!selectedEmp || previewing}>
-                        {previewing ? <Loader2 className="size-4 animate-spin mr-2" /> : <Eye className="size-4 mr-2" />} PREVIEW PDF BRIEFING
+                        {previewing ? <Loader2 className="size-4 animate-spin mr-2" /> : <Eye className="size-4 mr-2" />} PREVIEW DOCUMENT
                       </Button>
                    </div>
                 </div>
@@ -346,7 +379,7 @@ export default function AutomationGovernance() {
                            <Badge className="bg-emerald-500 text-white font-black text-[10px] uppercase border-none px-4 py-1.5 shadow-lg">
                              PDF GENERATED — {previewSize}
                            </Badge>
-                           <p className="text-[9px] text-white/30 uppercase font-black tracking-widest">Target: Meta Cloud Document API</p>
+                           <p className="text-[9px] text-white/30 uppercase font-black tracking-widest">Vector Searchable Document</p>
                         </div>
                         <Button variant="ghost" className="bg-black/60 text-white font-black uppercase text-[9px] h-8 rounded-lg mt-2" onClick={() => setPreviewDoc(null)}>CLEAR WORKSPACE</Button>
                      </div>
