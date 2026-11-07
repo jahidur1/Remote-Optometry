@@ -5,11 +5,12 @@ import { generateWeeklyRosterPdf } from './roster-document-service';
 import { getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
+import { FieldValue } from 'firebase-admin/firestore';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v7.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v8.0
  * 
  * Orchestrates bulk distribution with Meta Document API and multi-switch logic gates.
  * Workflow A Implementation: Bulk PDF dispatch per ROC Center.
@@ -95,11 +96,14 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           .limit(1).get();
 
         if (!existing.empty) {
-           await campaignRef.update({ 'stats.pending': adminDb.FieldValue.increment(-1), 'stats.success': adminDb.FieldValue.increment(1) });
+           await campaignRef.update({ 
+             'stats.pending': FieldValue.increment(-1), 
+             'stats.success': FieldValue.increment(1) 
+           });
            continue;
         }
 
-        // 3. Document Synthesis (Prompt 2 Service)
+        // 3. Document Synthesis
         const rosterDays = weekDates.map(date => {
           const dateStr = format(date, 'yyyy-MM-dd');
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStr);
@@ -148,12 +152,18 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
         });
 
         if (dispatch.success) {
-           await campaignRef.update({ 'stats.pending': adminDb.FieldValue.increment(-1), 'stats.success': adminDb.FieldValue.increment(1) });
+           await campaignRef.update({ 
+             'stats.pending': FieldValue.increment(-1), 
+             'stats.success': FieldValue.increment(1) 
+           });
         } else {
            throw new Error(dispatch.error);
         }
       } catch (e) {
-        await campaignRef.update({ 'stats.pending': adminDb.FieldValue.increment(-1), 'stats.failed': adminDb.FieldValue.increment(1) });
+        await campaignRef.update({ 
+          'stats.pending': FieldValue.increment(-1), 
+          'stats.failed': FieldValue.increment(1) 
+        });
       }
     }
 

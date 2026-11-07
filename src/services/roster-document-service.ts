@@ -1,10 +1,9 @@
-
 'use server';
 
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v5.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v6.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
  * DESIGN: Corporate Modern, Navy & White.
@@ -77,7 +76,8 @@ export async function generateRosterPdf(input: {
   
   doc.setTextColor(textSecondary);
   doc.setFontSize(10);
-  doc.text(`ID TRACE: ${employeeId} ${officeName ? `| HUB: ${officeName.toUpperCase()}` : ''}`, 20, 68);
+  const officeStr = officeName ? `| HUB: ${officeName.toUpperCase()}` : '';
+  doc.text(`ID TRACE: ${employeeId} ${officeStr}`, 20, 68);
 
   // 4. Clinical Schedule Header
   doc.setTextColor(primaryNavy);

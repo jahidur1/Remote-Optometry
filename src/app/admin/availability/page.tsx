@@ -208,7 +208,7 @@ export default function MasterMatrix() {
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
-      setSaving(false);
+      saving ? null : setSaving(false);
     }
   };
 
@@ -240,7 +240,6 @@ export default function MasterMatrix() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth link missing.");
-      // PASS THE SELECTED WEEK TO GENERATE A 7-DAY ROSTER
       const result = await previewEmployeeRosterAction(idToken, employeeId, selectedWeek);
       if (result.success && result.base64) {
         const win = window.open();
@@ -264,7 +263,6 @@ export default function MasterMatrix() {
       if (result.success) {
         toast({ title: "Campaign Initiated", description: `Weekly distribution for ${selectedOffice} is processing in the background.` });
         setIsCampaignDialogOpen(false);
-        // Start listening to the new campaign document
         const unsub = onSnapshot(doc(db, 'weekly_roster_campaigns', result.campaignId!), (snap) => {
            if (snap.exists()) setActiveCampaign(snap.data());
         });
@@ -277,6 +275,9 @@ export default function MasterMatrix() {
       setCampaignStarting(false);
     }
   };
+
+  const currentOfficeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'Selected';
+  const displayOfficeHeader = currentOfficeName.toUpperCase().includes('ROC') ? currentOfficeName : `${currentOfficeName} ROC`;
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
@@ -309,7 +310,7 @@ export default function MasterMatrix() {
                 <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
                   {authorizedOffices.map(o => (
                     <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
-                      {o.officeName} Hub
+                      {o.officeName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -351,7 +352,6 @@ export default function MasterMatrix() {
         </div>
       </div>
 
-      {/* Institutional Weekly Roster Distribution Module */}
       <Card className="shadow-xl border-none rounded-[2.5rem] bg-primary text-white overflow-hidden relative group">
          <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={200} /></div>
          <CardHeader className="p-10 pb-6 border-b border-white/5 relative z-10">
@@ -413,7 +413,6 @@ export default function MasterMatrix() {
          )}
       </Card>
 
-      {/* Roster Assignment Ledger */}
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
            <div className="flex items-center gap-6">
@@ -423,7 +422,7 @@ export default function MasterMatrix() {
               <div className="space-y-1">
                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Pulse</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Direct shift assignment for {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'Selected Cluster'}.
+                    Direct shift assignment for {displayOfficeHeader}.
                  </CardDescription>
               </div>
            </div>
@@ -605,7 +604,7 @@ export default function MasterMatrix() {
                 <div className="flex justify-between items-center p-6 rounded-2xl bg-slate-50 border-2 border-slate-100 group">
                    <div className="space-y-1">
                       <p className="text-[10px] font-black uppercase text-slate-400">Target Hub</p>
-                      <p className="text-lg font-black uppercase text-primary tracking-tight">{authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'GLOBAL'} ROC</p>
+                      <p className="text-lg font-black uppercase text-primary tracking-tight">{currentOfficeName}</p>
                    </div>
                    <TrendingUp className="size-6 text-secondary" />
                 </div>
