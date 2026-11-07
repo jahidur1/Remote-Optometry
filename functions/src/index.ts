@@ -19,7 +19,7 @@ const IST_TZ = 'Asia/Kolkata';
 /**
  * 1. dailyTwoDayShiftReminder
  * Triggered at 10:00 PM IST daily.
- * Text-only 7-variable notification.
+ * Text-only 7-variable notification for Tomorrow and Day After.
  */
 export const dailyTwoDayShiftReminder = onSchedule({
   schedule: '0 22 * * *',
@@ -32,7 +32,10 @@ export const dailyTwoDayShiftReminder = onSchedule({
   // Logic Gate Audit
   const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
   const config = configSnap.data() || {};
-  if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) return;
+  if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
+    console.log('DAILY_PULSE_SKIP: Automation switches are OFF.');
+    return;
+  }
 
   const tomorrow = addDays(new Date(), 1);
   const dayAfter = addDays(new Date(), 2);
@@ -58,7 +61,10 @@ export const dailyTwoDayShiftReminder = onSchedule({
       const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
       const assign = assignments.find((a: any) => a.employeeId === empDoc.id && a.date === dStr);
       
-      if (!assign) { missingRoster = true; break; }
+      if (!assign) { 
+        missingRoster = true; 
+        break; 
+      }
       
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
@@ -70,7 +76,15 @@ export const dailyTwoDayShiftReminder = onSchedule({
     if (missingRoster) continue;
 
     const jobKey = `daily_${empDoc.id}_${dateStrings[0]}_${dateStrings[1]}`;
-    await sendWhatsApp(emp.whatsappNumber, config.dailyTemplate || 'roc_daily_two_day_shift_reminder', templateVars, jobKey, emp.office, empDoc.id);
+    await sendWhatsApp(
+      emp.whatsappNumber, 
+      config.dailyTemplate || 'roc_daily_two_day_shift_reminder', 
+      templateVars, 
+      jobKey, 
+      emp.office, 
+      empDoc.id,
+      'daily_text'
+    );
   }
 });
 
@@ -128,7 +142,7 @@ export const startWeeklyRosterCampaign = onCall({
 
 /**
  * 3. processWeeklyRosterJobs
- * Handles PDF synthesis and Meta dispatch.
+ * Handles PDF synthesis and Meta dispatch for the bulk campaign.
  */
 export const processWeeklyRosterJobs = onDocumentCreated({
   document: 'whatsapp_jobs/{jobId}',
@@ -179,7 +193,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
     
     const bucket = admin.storage().bucket();
     const filePath = `weekly-roster-pdfs/${job.officeId}/${job.weekId}/${job.employeeId}/Roster.pdf`;
-    await bucket.file(filePath).save(pdfBuffer, { contentType: 'application/pdf', metadata: { metadata: { employeeId: job.employeeId, weekId: job.weekId } } });
+    await bucket.file(filePath).save(pdfBuffer, { contentType: 'application/pdf' });
     
     const mediaId = await uploadToMeta(pdfBuffer, 'Roster.pdf');
     const jobKey = `weekly_${job.employeeId}_${job.weekId}`;
@@ -201,6 +215,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
     });
 
   } catch (e: any) {
+    console.error(`JOB_FAILED_${event.params.jobId}:`, e.message);
     await jobRef?.update({ status: 'failed', error: e.message });
     await db.collection('weekly_roster_campaigns').doc(job.campaignId).update({
       'stats.pending': admin.firestore.FieldValue.increment(-1),
@@ -260,7 +275,7 @@ export const retryFailedWhatsAppJobs = onSchedule('every 15 minutes', async (eve
 
 /**
  * 6. cleanupExpiredRosterPdfs
- * Hourly purge of objects older than 48 hours.
+ * Hourly purge of PDF objects older than 48 hours.
  */
 export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) => {
   const bucket = admin.storage().bucket();
@@ -292,7 +307,7 @@ function getDatesForWeek(weekId: string): Date[] {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
-async function sendWhatsApp(to: string, template: string, vars: string[], jobKey: string, office: string, employeeId: string) {
+async function sendWhatsApp(to: string, template: string, vars: string[], jobKey: string, office: string, employeeId: string, type: string) {
   const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`;
   const res = await fetch(url, {
     method: 'POST',
@@ -304,10 +319,10 @@ async function sendWhatsApp(to: string, template: string, vars: string[], jobKey
       template: { name: template, language: { code: "en" }, components: [{ type: "body", parameters: vars.map(v => ({ type: "text", text: v })) }] }
     })
   });
-  const data = await res.json();
+  const data: any = await res.json();
   
   await admin.firestore().collection('whatsapp_logs').add({
-    jobKey, to, template, office, employeeId,
+    jobKey, to, template, office, employeeId, notificationType: type,
     messageId: data.messages?.[0]?.id || null,
     status: res.ok ? 'success' : 'failed',
     error: data.error?.message || null,
@@ -322,7 +337,7 @@ async function uploadToMeta(buffer: Buffer, name: string): Promise<string> {
   fd.append('type', 'application/pdf');
   fd.append('messaging_product', 'whatsapp');
   const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
-  const data = await res.json();
+  const data: any = await res.json();
   if (!res.ok) throw new Error(data.error?.message || 'Meta Upload Failed');
   return data.id;
 }
@@ -346,10 +361,10 @@ async function sendWhatsAppDocument(to: string, mediaId: string, template: strin
       }
     })
   });
-  const data = await res.json();
+  const data: any = await res.json();
   
   await admin.firestore().collection('whatsapp_logs').add({
-    jobKey, to, template, office, employeeId,
+    jobKey, to, template, office, employeeId, notificationType: 'weekly_pdf',
     messageId: data.messages?.[0]?.id || null,
     status: res.ok ? 'success' : 'failed',
     error: data.error?.message || null,
