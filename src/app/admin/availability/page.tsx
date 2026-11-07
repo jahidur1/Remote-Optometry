@@ -30,7 +30,7 @@ import {
   TooltipTrigger
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
+import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId, getISTNow } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -60,6 +60,8 @@ export default function AvailabilitySummary() {
   const [publishing, setPublishing] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
+
+  const todayStr = useMemo(() => format(getISTNow(), 'yyyy-MM-dd'), []);
 
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
@@ -357,16 +359,35 @@ export default function AvailabilitySummary() {
               <TableHeader className="bg-slate-50/30">
                 <TableRow>
                   <TableHead className="w-[320px] pl-10 py-8 uppercase text-[11px] font-black tracking-[0.4em] text-primary/60 border-r border-slate-100 bg-white/95 backdrop-blur-md sticky left-0 z-20 shadow-[4px_0_10px_rgba(0,0,0,0.02)]">Professional Identity</TableHead>
-                  {DAYS.map((day, idx) => (
-                    <TableHead key={day} className="text-center w-[200px] border-r border-slate-100 last:border-0 py-8">
-                       <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-primary/30">{day.substring(0,3)}</span>
-                          <span className="text-[12px] font-black text-black/20 tabular-nums">
-                             {weekDates[idx] ? format(weekDates[idx], 'dd MMM') : '-- --'}
-                          </span>
-                       </div>
-                    </TableHead>
-                  ))}
+                  {DAYS.map((day, idx) => {
+                    const date = weekDates[idx];
+                    const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
+                    const isToday = dateStr === todayStr;
+                    
+                    return (
+                      <TableHead key={day} className={cn(
+                        "text-center w-[200px] border-r border-slate-100 last:border-0 py-8 transition-all relative overflow-hidden",
+                        isToday && "bg-primary text-white border-x-secondary/40 shadow-inner"
+                      )}>
+                         <div className="flex flex-col gap-1 relative z-10">
+                            <span className={cn(
+                              "text-[10px] font-black uppercase tracking-widest transition-colors",
+                              isToday ? "text-secondary" : "text-primary/30"
+                            )}>{day.substring(0,3)}</span>
+                            <span className={cn(
+                              "text-[12px] font-black tabular-nums transition-colors",
+                              isToday ? "text-white" : "text-black/20"
+                            )}>
+                               {date ? format(date, 'dd MMM') : '-- --'}
+                            </span>
+                            {isToday && (
+                              <span className="text-[7px] font-black uppercase tracking-[0.4em] text-secondary mt-1 animate-pulse">Pulse Today</span>
+                            )}
+                         </div>
+                         {isToday && <div className="absolute top-0 left-0 w-full h-1 bg-secondary shadow-[0_0_10px_hsl(var(--secondary))]" />}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -424,9 +445,13 @@ export default function AvailabilitySummary() {
                         const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
                         const onLeave = leaves?.find(l => l.employeeId === emp.id && dateStr >= l.startDate && dateStr <= l.endDate);
                         const currentAssignment = assignments.find(a => a.employeeId === emp.id && a.date === dateStr);
+                        const isToday = dateStr === todayStr;
 
                         return (
-                          <TableCell key={day} className="py-8 border-r border-slate-100 last:border-0 text-center px-4">
+                          <TableCell key={day} className={cn(
+                            "py-8 border-r border-slate-100 last:border-0 text-center px-4 transition-colors relative",
+                            isToday && "bg-secondary/[0.02]"
+                          )}>
                              {isOff ? (
                                <div className="flex flex-col items-center gap-2 animate-in zoom-in-95">
                                   <Badge className="bg-secondary text-white font-black text-[9px] uppercase px-4 py-1 rounded-xl shadow-lg shadow-secondary/20">WEEK-OFF</Badge>
@@ -461,6 +486,8 @@ export default function AvailabilitySummary() {
                                  {currentAssignment && <CheckCircle2 className="size-3 text-emerald-500/40" />}
                                </div>
                              )}
+                             {isToday && <div className="absolute inset-y-0 left-0 w-[1px] bg-secondary/10" />}
+                             {isToday && <div className="absolute inset-y-0 right-0 w-[1px] bg-secondary/10" />}
                           </TableCell>
                         )
                       })}
