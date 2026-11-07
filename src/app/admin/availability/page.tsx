@@ -22,7 +22,9 @@ import {
   Loader2,
   Database,
   MessageSquare,
-  Zap
+  Zap,
+  FileText,
+  ExternalLink
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId } from '@/lib/date-utils';
@@ -36,7 +38,7 @@ import { cn } from '@/lib/utils';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { logAudit } from '@/lib/audit';
 import { useToast } from '@/hooks/use-toast';
-import { dispatchOfficeBriefingsAction } from '@/services/roster-notification-service';
+import { dispatchOfficeBriefingsAction, previewEmployeeRosterAction } from '@/services/roster-notification-service';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -54,6 +56,7 @@ export default function AvailabilitySummary() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [dispatching, setDispatching] = useState(false);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedWeek(getCurrentWeekId());
@@ -232,6 +235,30 @@ export default function AvailabilitySummary() {
     }
   };
 
+  const handlePreviewEmployeePDF = async (employeeId: string) => {
+    setPreviewingId(employeeId);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Authentication pulse failed.");
+
+      const result = await previewEmployeeRosterAction(idToken, employeeId);
+      if (result.success && result.base64) {
+        const win = window.open();
+        if (win) {
+          win.document.write(`<iframe src="${result.base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+          win.document.title = `ROC_Briefing_${employeeId}`;
+        }
+        logAudit(db, profile?.uid || 'system', 'PREVIEW_EMPLOYEE_PDF', employeeId);
+      } else {
+        throw new Error(result.error || "Failed to synthesize document.");
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Synthesis Error", description: e.message });
+    } finally {
+      setPreviewingId(null);
+    }
+  };
+
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
@@ -359,9 +386,24 @@ export default function AvailabilitySummary() {
                       emp.status !== 'Active' && "opacity-40 grayscale"
                     )}>
                       <TableCell className="pl-10 py-8 border-r border-slate-100 bg-white group-hover:bg-slate-50 transition-colors sticky left-0 z-10 shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
-                         <div className="flex flex-col gap-1.5">
-                            <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
-                            <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
+                         <div className="flex items-center justify-between pr-4">
+                            <div className="flex flex-col gap-1.5">
+                               <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
+                               <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="size-8 rounded-lg hover:bg-secondary/10 text-secondary transition-all"
+                              onClick={() => handlePreviewEmployeePDF(emp.id)}
+                              disabled={previewingId === emp.id}
+                            >
+                               {previewingId === emp.id ? (
+                                 <Loader2 className="size-4 animate-spin" />
+                               ) : (
+                                 <FileText className="size-4" />
+                               )}
+                            </Button>
                          </div>
                       </TableCell>
                       {DAYS.map((day, idx) => {
@@ -439,3 +481,4 @@ export default function AvailabilitySummary() {
     </div>
   );
 }
+
