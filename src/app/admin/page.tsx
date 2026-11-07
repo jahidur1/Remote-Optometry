@@ -1,10 +1,10 @@
 
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
-import { useUser, useAuth } from "@/firebase"
+import { useMemo, useState, useEffect, useRef } from "react"
+import { useUser, useAuth, useFirestore } from "@/firebase"
 import { useOffice } from "@/context/office-context"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { 
   Users, 
   Activity, 
@@ -14,28 +14,56 @@ import {
   ShieldCheck, 
   PlaneTakeoff, 
   ArrowRightLeft,
-  Loader2
+  Loader2,
+  Upload,
+  Save,
+  Image as ImageIcon,
+  AlertTriangle,
+  Target
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getRegionalStatsAction, getOfficeDashboardStatsAction } from "@/services/analytics-actions"
+import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from "@/services/whatsapp-settings-action"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { useFirebaseApp } from "@/firebase"
+import { getStorage } from "firebase/storage"
+import { Button } from "@/components/ui/button"
 
 export default function AdminDashboard() {
   const auth = useAuth();
-  const { profile } = useUser();
+  const db = useFirestore();
+  const firebaseApp = useFirebaseApp();
+  const { profile, loading: userLoading } = useUser();
   const { selectedOffice, authorizedOffices } = useOffice();
+  const { toast } = useToast();
   
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Branding Hub States
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [pendingLogo, setPendingLogo] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [savingLogo, setSavingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function fetchData() {
+      if (userLoading || !profile) return;
       setLoading(true);
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
 
-        if (profile?.role === 'super_admin') {
+        // Fetch Branding Settings if Super Admin
+        if (profile?.role?.toLowerCase() === 'super_admin') {
+          const settings = await getWhatsAppSettingsAction();
+          setLogoBase64(settings.logoBase64 || null);
+        }
+
+        if (profile?.role?.toLowerCase() === 'super_admin') {
           const res = await getRegionalStatsAction(idToken);
           if (res.success) setStats(res.data);
         } else if (selectedOffice) {
@@ -49,9 +77,55 @@ export default function AdminDashboard() {
       }
     }
     fetchData();
-  }, [profile?.role, selectedOffice, auth.currentUser]);
+  }, [profile, selectedOffice, auth.currentUser, userLoading]);
 
-  const isSuperAdmin = profile?.role === 'super_admin';
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPendingLogo(reader.result as string);
+      setPendingFile(file);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveLogo = async () => {
+    if (!pendingLogo || !pendingFile) return;
+    setSavingLogo(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Authentication pulse missing.");
+
+      // 1. Storage Registry Upload
+      const storage = getStorage(firebaseApp);
+      const storageRef = ref(storage, 'system_assets/logo.png');
+      await uploadBytes(storageRef, pendingFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // 2. Firestore Sync (Base64 + URL metadata)
+      const result = await updateWhatsAppSettingsAction(idToken, { 
+        logoBase64: pendingLogo,
+        logoUrl: downloadURL 
+      });
+
+      if (result.success) {
+        setLogoBase64(pendingLogo);
+        setPendingLogo(null);
+        setPendingFile(null);
+        toast({ title: "Branding Secured", description: "Institutional identity updated globally." });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Sync Conflict", description: err.message });
+    } finally {
+      setSavingLogo(false);
+    }
+  };
+
+  const isSuperAdmin = profile?.role?.toLowerCase() === 'super_admin';
   const officeName = authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || "---";
 
   const kpis = useMemo(() => {
@@ -138,47 +212,119 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Institutional Insights */}
-      <div className="grid gap-6 md:gap-8 lg:grid-cols-2">
-        <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-white p-6 md:p-12 space-y-6 md:space-y-8 group">
-           <div className="size-16 md:size-20 rounded-2xl md:rounded-[1.75rem] bg-primary flex items-center justify-center shadow-2xl shrink-0">
-              <Activity className="size-8 md:size-10 text-white" />
-           </div>
-           <div className="space-y-3 md:space-y-4">
-              <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Operational Oversight</h3>
-              <p className="text-sm text-black/50 leading-relaxed font-medium">
-                {isSuperAdmin 
-                  ? "Consolidated regional metrics for institutional governance. Monitor global coverage and cluster center integrity."
-                  : `Real-time management for ROC ${officeName}. Review assignments, swaps, and unavailability overrides.`}
-              </p>
-           </div>
-           <div className="grid grid-cols-2 gap-3 md:gap-4 pt-2">
-              <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
-                 <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Requests</p>
-                 <p className="text-xl md:text-2xl font-black text-black">{stats?.pendingLeaves + stats?.pendingSwaps || 0}</p>
+      {/* Institutional Insights & Branding */}
+      <div className="grid gap-6 md:gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-8 space-y-8">
+            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-white p-6 md:p-12 space-y-6 md:space-y-8 group">
+              <div className="size-16 md:size-20 rounded-2xl md:rounded-[1.75rem] bg-primary flex items-center justify-center shadow-2xl shrink-0">
+                  <Activity className="size-8 md:size-10 text-white" />
               </div>
-              <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
-                 <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">Sync Efficiency</p>
-                 <p className="text-xl md:text-2xl font-black text-secondary">100%</p>
+              <div className="space-y-3 md:space-y-4">
+                  <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Operational Oversight</h3>
+                  <p className="text-sm text-black/50 leading-relaxed font-medium">
+                    {isSuperAdmin 
+                      ? "Consolidated regional metrics for institutional governance. Monitor global coverage and cluster center integrity."
+                      : `Real-time management for ROC ${officeName}. Review assignments, swaps, and unavailability overrides.`}
+                  </p>
               </div>
-           </div>
-        </Card>
+              <div className="grid grid-cols-2 gap-3 md:gap-4 pt-2">
+                  <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
+                    <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Requests</p>
+                    <p className="text-xl md:text-2xl font-black text-black">{stats?.pendingLeaves + stats?.pendingSwaps || 0}</p>
+                  </div>
+                  <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
+                    <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">Sync Efficiency</p>
+                    <p className="text-xl md:text-2xl font-black text-secondary">100%</p>
+                  </div>
+              </div>
+            </Card>
 
-        <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-[#0F172A] text-white p-6 md:p-12 space-y-6 md:space-y-8 relative group">
-           <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000 hidden md:block"><ShieldCheck size={240} /></div>
-           <ShieldCheck className="size-10 md:size-12 text-secondary" />
-           <div className="space-y-3 md:space-y-4 relative z-10">
-              <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Hub</h3>
-              <p className="text-sm text-white/40 leading-relaxed font-medium">
-                 Zero-Trust identity verification is enforced at the server layer. 
-                 Institutional audit logs are trace-linked to specific administrative actors.
-              </p>
-           </div>
-           <div className="pt-4 md:pt-8 flex flex-wrap items-center gap-3 md:gap-4 relative z-10">
-              <div className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-white/10 border border-white/10 font-black uppercase text-[8px] md:text-[10px] tracking-widest">Level 4 Secure</div>
-              <div className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-secondary/20 border border-secondary/20 font-black uppercase text-[8px] md:text-[10px] tracking-widest text-secondary">Audit Active</div>
-           </div>
-        </Card>
+            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-[#0F172A] text-white p-6 md:p-12 space-y-6 md:space-y-8 relative group">
+              <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000 hidden md:block"><ShieldCheck size={240} /></div>
+              <ShieldCheck className="size-10 md:size-12 text-secondary" />
+              <div className="space-y-3 md:space-y-4 relative z-10">
+                  <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Hub</h3>
+                  <p className="text-sm text-white/40 leading-relaxed font-medium">
+                    Zero-Trust identity verification is enforced at the server layer. 
+                    Institutional audit logs are trace-linked to specific administrative actors.
+                  </p>
+              </div>
+              <div className="pt-4 md:pt-8 flex flex-wrap items-center gap-3 md:gap-4 relative z-10">
+                  <div className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-white/10 border border-white/10 font-black uppercase text-[8px] md:text-[10px] tracking-widest">Level 4 Secure</div>
+                  <div className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-secondary/20 border border-secondary/20 font-black uppercase text-[8px] md:text-[10px] tracking-widest text-secondary">Audit Active</div>
+              </div>
+            </Card>
+        </div>
+
+        {isSuperAdmin && (
+          <div className="lg:col-span-4 space-y-8">
+            <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white border-t-8 border-t-secondary sticky top-24">
+              <CardHeader className="bg-slate-50/50 border-b p-8">
+                 <div className="flex items-center gap-4">
+                    <Target className="size-6 text-secondary" />
+                    <CardTitle className="text-xl font-black uppercase tracking-tight">Branding Hub</CardTitle>
+                 </div>
+                 <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Institutional PDF Identity</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-8 text-center">
+                 <div className="relative aspect-video w-full rounded-2xl bg-slate-50 border-4 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group transition-all">
+                    {(pendingLogo || logoBase64) ? (
+                      <img src={pendingLogo || logoBase64!} alt="Logo Preview" className="h-full w-full object-contain p-4 transition-transform group-hover:scale-105" />
+                    ) : (
+                      <ImageIcon className="size-12 text-slate-200" />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                       <Button variant="ghost" className="text-white font-black uppercase text-[10px] tracking-widest" onClick={() => logoInputRef.current?.click()}>
+                          CHANGE LOGO
+                       </Button>
+                    </div>
+                 </div>
+
+                 <input type="file" ref={logoInputRef} className="hidden" accept="image/png,image/jpeg" onChange={handleLogoSelect} />
+
+                 <div className="space-y-3">
+                    {!pendingLogo && (
+                       <Button 
+                         variant="outline" 
+                         className="w-full h-14 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-slate-50"
+                         onClick={() => logoInputRef.current?.click()}
+                       >
+                         <Upload className="size-4 mr-2" /> Select Logo File
+                       </Button>
+                    )}
+
+                    {pendingLogo && (
+                       <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2">
+                          <Button 
+                            className="w-full h-14 bg-secondary text-white font-black uppercase text-[11px] tracking-[0.15em] rounded-xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all"
+                            onClick={handleSaveLogo}
+                            disabled={savingLogo}
+                          >
+                            {savingLogo ? <Loader2 className="size-5 animate-spin mr-3" /> : <Save className="size-5 mr-3" />}
+                            SAVE LOGIC PULSE
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            className="font-black uppercase text-[9px] tracking-widest text-muted-foreground"
+                            onClick={() => { setPendingLogo(null); setPendingFile(null); }}
+                            disabled={savingLogo}
+                          >
+                            Discard Selection
+                          </Button>
+                       </div>
+                    )}
+                 </div>
+
+                 <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-start gap-3 text-left">
+                    <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed tracking-tight">
+                       Logo is stored as a Base64 stream for instant server-side PDF synthesis. Optimized for 500x200 PNG.
+                    </p>
+                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

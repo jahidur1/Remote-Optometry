@@ -65,15 +65,12 @@ export default function AutomationGovernance() {
   const [fetchingSettings, setFetchingSettings] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [runningManual, setRunningManual] = useState(false);
-  const [logoUploading, setLogoUploading] = useState(false);
 
   // Sandbox States
   const [selectedEmp, setSelectedEmp] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState('');
-
-  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Standardized Data Fetches
   const empQuery = useMemo(() => query(collection(db, 'employees'), orderBy('fullName', 'asc')), [db]);
@@ -128,34 +125,6 @@ export default function AutomationGovernance() {
       toast({ variant: "destructive", title: "Governance Conflict", description: e.message });
     } finally {
       setUpdating(false);
-    }
-  };
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setLogoUploading(true);
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        const idToken = await auth.currentUser?.getIdToken();
-        if (!idToken) throw new Error("Auth missing.");
-
-        const result = await updateWhatsAppSettingsAction(idToken, { logoBase64: base64 });
-        if (result.success) {
-          toast({ title: "Logo Synchronized", description: "Institutional branding updated." });
-          fetchSettings();
-        } else {
-          throw new Error(result.error);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Upload Failure", description: err.message });
-    } finally {
-      setLogoUploading(false);
     }
   };
 
@@ -329,33 +298,6 @@ export default function AutomationGovernance() {
                        ))}
                     </div>
                  </CardContent>
-              </Card>
-
-              <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-secondary overflow-hidden">
-                <CardHeader className="bg-slate-50/50 border-b p-10">
-                  <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Branding Hub</CardTitle>
-                  <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-4">Institutional PDF Identity</CardDescription>
-                </CardHeader>
-                <CardContent className="p-10 space-y-8">
-                   <div className="flex flex-col items-center gap-8">
-                      <div className="size-40 rounded-[2rem] bg-slate-50 border-4 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group relative">
-                         {settings?.logoBase64 ? (
-                           <img src={settings.logoBase64} alt="Brand Logo" className="w-full h-full object-contain p-4" />
-                         ) : (
-                           <AlertTriangle className="size-12 text-slate-200" />
-                         )}
-                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button variant="ghost" className="text-white font-black uppercase text-[10px] tracking-widest" onClick={() => logoInputRef.current?.click()}>
-                               {logoUploading ? <Loader2 className="animate-spin" /> : 'REPLACE'}
-                            </Button>
-                         </div>
-                      </div>
-                      <input type="file" ref={logoInputRef} className="hidden" accept="image/png,image/jpeg" onChange={handleLogoUpload} />
-                      <Button className="w-full bg-slate-100 text-black hover:bg-slate-200 font-black uppercase text-[10px] tracking-widest h-12 rounded-xl" onClick={() => logoInputRef.current?.click()} disabled={logoUploading}>
-                        <Upload className="size-4 mr-3" /> {logoUploading ? 'SYNCING...' : 'UPLOAD BRAND LOGO'}
-                      </Button>
-                   </div>
-                </CardContent>
               </Card>
             </div>
 

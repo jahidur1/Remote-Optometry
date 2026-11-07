@@ -50,6 +50,7 @@ export async function getWhatsAppSettingsAction() {
       weeklyTemplate,
       dailyTemplate,
       logoBase64: data.logoBase64 || null,
+      logoUrl: data.logoUrl || null,
       templateHealth: {
         weekly: weeklyStatus,
         daily: dailyStatus
@@ -62,7 +63,7 @@ export async function getWhatsAppSettingsAction() {
     return { 
       whatsappEnabled: false, 
       masterEnabled: false, 
-      weeklyEnabled: false,
+      weeklyEnabled: false, 
       dailyReminderEnabled: false,
       templateHealth: { weekly: 'UNKNOWN', daily: 'UNKNOWN' }
     };
@@ -78,7 +79,7 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: any
     const oldData = oldSnap.data() || {};
 
     // Strictly whitelist modifiable fields
-    const whitelist = ['whatsappEnabled', 'masterEnabled', 'weeklyEnabled', 'dailyReminderEnabled', 'weeklyTemplate', 'dailyTemplate', 'logoBase64'];
+    const whitelist = ['whatsappEnabled', 'masterEnabled', 'weeklyEnabled', 'dailyReminderEnabled', 'weeklyTemplate', 'dailyTemplate', 'logoBase64', 'logoUrl'];
     const filteredUpdates: any = {};
     
     Object.keys(updates).forEach(key => {
