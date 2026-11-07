@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
@@ -26,3 +26,4 @@ const app = getAdminApp();
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
+export { FieldValue };

@@ -385,7 +385,7 @@ async function generateWeeklyPdf(emp: any, weekId: string, rosterDays: any[], lo
   if (logoBase64) {
     try {
       const rawB64 = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
-      doc.addImage(rawB64, 'PNG', 140, 10, 40, 20);
+      doc.addImage(rawB64, 'auto', 140, 10, 40, 20);
     } catch (e) {}
   }
 

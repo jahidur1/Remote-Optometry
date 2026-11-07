@@ -1,16 +1,16 @@
+
 'use server';
 
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, adminAuth, FieldValue } from '@/lib/firebase-admin';
 import { generateWeeklyRosterPdf } from './roster-document-service';
 import { getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
-import { FieldValue } from 'firebase-admin/firestore';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v8.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v9.0
  * 
  * Orchestrates bulk distribution with Meta Document API and multi-switch logic gates.
  * Workflow A Implementation: Bulk PDF dispatch per ROC Center.
@@ -175,16 +175,7 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
   }
 }
 
-export async function getRecentCampaignsAction() {
-  try {
-    const snap = await adminDb.collection('weekly_roster_campaigns').orderBy('createdAt', 'desc').limit(20).get();
-    return { success: true, campaigns: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function previewWeeklyRosterAction(idToken: string, employeeId: string, weekId: string, mockCase?: number) {
+export async function previewWeeklyRosterAction(idToken: string, employeeId: string, weekId: string) {
   try {
     await getAuthorizedUser(idToken);
     let emp: any = { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL', id: 'EMP-W-SANDBOX' };

@@ -1,9 +1,10 @@
+
 'use server';
 
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v6.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v7.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
  * DESIGN: Corporate Modern, Navy & White.
@@ -69,7 +70,7 @@ export async function generateRosterPdf(input: {
     }
   }
 
-  // 3. Professional Identity
+  // 3. Professional Identity (Full Name)
   doc.setTextColor(textMain);
   doc.setFontSize(22);
   doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 60);
@@ -201,8 +202,10 @@ export async function generateWeeklyRosterPdf(input: {
   if (logoBase64) {
     try {
       const rawB64 = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
-      doc.addImage(rawB64, 'PNG', pageWidth - 55, 12, 35, 17, undefined, 'FAST');
-    } catch (e) {}
+      doc.addImage(rawB64, 'auto', pageWidth - 55, 12, 35, 17, undefined, 'FAST');
+    } catch (e) {
+      console.warn("PDF_LOGO_ALERT: Branding render bypassed.");
+    }
   }
 
   // 3. Identity Trace - Full Legal Name
