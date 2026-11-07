@@ -1,3 +1,4 @@
+
 'use server';
 
 import { jsPDF } from 'jspdf';
@@ -72,7 +73,7 @@ export async function generateRosterPdf(input: {
   // 3. Professional Identity
   doc.setTextColor(textMain);
   doc.setFontSize(22);
-  doc.text(`HELLO, ${employeeName.split(' ')[0].toUpperCase()}`, 20, 60);
+  doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 60);
   
   doc.setTextColor(textSecondary);
   doc.setFontSize(10);
@@ -207,7 +208,7 @@ export async function generateWeeklyRosterPdf(input: {
   // 3. Identity Trace
   doc.setTextColor(textMain);
   doc.setFontSize(18);
-  doc.text(`HELLO, ${employeeName.split(' ')[0].toUpperCase()}`, 20, 45);
+  doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 45);
   
   doc.setTextColor(textSecondary);
   doc.setFontSize(9);
