@@ -1,17 +1,17 @@
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { generateRosterImage } from './image-generation-service';
-import { sendWhatsAppShiftBriefingWithImage } from './whatsapp-action';
+import { generateRosterPdf } from './roster-document-service';
+import { sendWhatsAppShiftBriefingWithDocument } from './whatsapp-action';
 import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v6.0
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v7.0 (PDF)
  * 
- * Orchestrates premium image synthesis and Meta API dispatch.
- * PROTOCOL: Strict 60KB Verification & Metadata Archiving.
+ * Orchestrates premium document synthesis and Meta API dispatch.
+ * PROTOCOL: Secure Document Registry & Metadata Archiving.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -23,7 +23,6 @@ async function getAuthorizedUser(idToken: string) {
 }
 
 async function getNextTwoDaysData(employeeId: string, office: string, mockCase?: number) {
-  // QA Mock Cases for Preview Tool
   if (mockCase !== undefined) {
     const tomorrow = addDays(new Date(), 1);
     const dayAfter = addDays(new Date(), 2);
@@ -50,9 +49,7 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
   const dayAfter = addDays(new Date(), 2);
   const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
   
-  // Singleton ID Protocol: Fetching the active roster for the weeks containing these dates
   const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
-
   const tomRosterId = `active_${weekIds[0]}_${office}`;
   const datRosterId = `active_${weekIds[1]}_${office}`;
 
@@ -96,7 +93,7 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
 
     const nextTwoDays = await getNextTwoDaysData(emp.id, emp.office, mockCase);
 
-    const pngBuffer = await generateRosterImage({
+    const pdfBuffer = await generateRosterPdf({
       employeeName: emp.fullName,
       employeeId: emp.id,
       logoBase64,
@@ -105,9 +102,9 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
 
     return { 
       success: true, 
-      base64: `data:image/png;base64,${pngBuffer.toString('base64')}`,
-      size: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
-      byteSize: pngBuffer.length
+      base64: `data:application/pdf;base64,${pdfBuffer.toString('base64')}`,
+      size: `${(pdfBuffer.length / 1024).toFixed(1)} KB`,
+      byteSize: pdfBuffer.length
     };
   } catch (e: any) {
     console.error('PREVIEW_PULSE_FAILURE:', e.message);
@@ -177,7 +174,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
 
         const nextTwoDays = await getNextTwoDaysData(empDoc.id, emp.office);
 
-        const pngBuffer = await generateRosterImage({
+        const pdfBuffer = await generateRosterPdf({
           employeeName: emp.fullName,
           employeeId: empDoc.id,
           logoBase64: automation?.base64Logo,
@@ -185,18 +182,18 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         });
 
         // 1. SAVE TO INSTITUTIONAL REGISTRY (Storage)
-        const storagePath = `whatsapp-roster-images/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.png`;
+        const storagePath = `whatsapp-roster-documents/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.pdf`;
         const file = bucket.file(storagePath);
         
-        await file.save(pngBuffer, {
-          contentType: 'image/png',
+        await file.save(pdfBuffer, {
+          contentType: 'application/pdf',
           metadata: {
             metadata: {
               employeeUid: emp.authUid || 'none',
               employeeId: empDoc.id,
               rosterDates: dates.join(','),
               expiresAt: addDays(new Date(), 2).toISOString(),
-              imageSize: `${pngBuffer.length}`,
+              docSize: `${pdfBuffer.length}`,
               generationStatus: 'success',
               dispatchTime: new Date().toISOString()
             }
@@ -204,11 +201,11 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         });
 
         // 2. DISPATCH VIA META CLOUD API
-        const dispatch = await sendWhatsAppShiftBriefingWithImage(
+        const dispatch = await sendWhatsAppShiftBriefingWithDocument(
           emp.whatsappNumber,
           emp.fullName,
-          pngBuffer,
-          `${empDoc.id}_roster.png`
+          pdfBuffer,
+          `Roster_${format(new Date(), 'dd_MMM')}.pdf`
         );
 
         if (dispatch.success) {
@@ -220,8 +217,8 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             employeeName: emp.fullName,
             office: emp.office,
             status: 'success',
-            imgSize: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
-            byteSize: pngBuffer.length,
+            docSize: `${(pdfBuffer.length / 1024).toFixed(1)} KB`,
+            byteSize: pdfBuffer.length,
             messageId: dispatch.messageId,
             timestamp: new Date().toISOString()
           });

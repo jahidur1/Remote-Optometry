@@ -7,7 +7,7 @@
  * 1. Upload binary buffer to Meta Media endpoint.
  * 2. Dispatch Template Message using the returned Media ID.
  * 
- * PROTOCOL: Institutional Roster Briefing (2-Day Window)
+ * PROTOCOL: Institutional Roster Briefing (PDF Document)
  */
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -21,9 +21,6 @@ export type WhatsAppSendResult = {
   error?: string;
 };
 
-/**
- * TASK 1: Validates that Meta credentials are available in the current execution context.
- */
 function verifyCredentials() {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
     throw new Error('META_AUTH_ERROR: Meta API credentials not detected. Ensure WHATSAPP_ACCESS_TOKEN is set in secrets/env.');
@@ -32,15 +29,15 @@ function verifyCredentials() {
 
 /**
  * uploadToMetaMedia
- * Uploads a roster image buffer to Meta's Media API to generate a temporary Media ID.
+ * Uploads a document buffer to Meta's Media API.
  */
-async function uploadToMetaMedia(buffer: Buffer, fileName: string): Promise<string> {
+async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: string = 'application/pdf'): Promise<string> {
   verifyCredentials();
   
   const formData = new FormData();
-  const blob = new Blob([buffer], { type: 'image/png' });
+  const blob = new Blob([buffer], { type: contentType });
   formData.append('file', blob, fileName);
-  formData.append('type', 'image/png');
+  formData.append('type', contentType);
   formData.append('messaging_product', 'whatsapp');
 
   const response = await fetch(`https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/media`, {
@@ -61,19 +58,19 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string): Promise<stri
 }
 
 /**
- * sendWhatsAppShiftBriefingWithImage
- * Dispatches a Shift Briefing Template with an image header.
- * Targeting approved template: roc_two_day_roster_notification
+ * sendWhatsAppShiftBriefingWithDocument
+ * Dispatches a Shift Briefing Template with a PDF document header.
+ * REQUIREMENT: Meta Template 'roc_two_day_roster_notification' must have DOCUMENT header type.
  */
-export async function sendWhatsAppShiftBriefingWithImage(
+export async function sendWhatsAppShiftBriefingWithDocument(
   to: string,
   employeeName: string,
-  imageBuffer: Buffer,
+  docBuffer: Buffer,
   fileName: string
 ): Promise<WhatsAppSendResult> {
   try {
     // 1. Meta Media Handshake
-    const mediaId = await uploadToMetaMedia(imageBuffer, fileName);
+    const mediaId = await uploadToMetaMedia(docBuffer, fileName, 'application/pdf');
 
     // 2. Template Dispatch
     let formattedTo = to.replace(/\D/g, '');
@@ -89,7 +86,13 @@ export async function sendWhatsAppShiftBriefingWithImage(
         components: [
           {
             type: 'header',
-            parameters: [{ type: 'image', image: { id: mediaId } }]
+            parameters: [{ 
+                type: 'document', 
+                document: { 
+                    id: mediaId,
+                    filename: fileName 
+                } 
+            }]
           },
           {
             type: 'body',
@@ -127,4 +130,15 @@ export async function sendWhatsAppShiftBriefingWithImage(
     console.error('WHATSAPP_ORCHESTRATION_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
+}
+
+// Keep legacy for compatibility if needed, but the primary is now Document
+export async function sendWhatsAppShiftBriefingWithImage(
+  to: string,
+  employeeName: string,
+  imageBuffer: Buffer,
+  fileName: string
+): Promise<WhatsAppSendResult> {
+    // Redirecting to document flow as instructed
+    return sendWhatsAppShiftBriefingWithDocument(to, employeeName, imageBuffer, fileName);
 }
