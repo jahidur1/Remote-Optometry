@@ -6,11 +6,11 @@ import { getISTNow, formatWeekId } from '@/lib/date-utils';
 import { format, addDays } from 'date-fns';
 
 /**
- * ROC WORKFORCE — DAILY SHIFT REMINDER SERVICE v8.0
+ * ROC WORKFORCE — DAILY SHIFT REMINDER SERVICE v10.0
  * 
- * Protocol: 10:00 AM IST Automated Text Reminders for next 2 days.
- * Workflow B Requirement: No PDFs, No Storage, Text Only.
- * Variables: {{1}} Name, {{2-4}} Day 1, {{5-7}} Day 2.
+ * Workflow B: Text-only reminders at 10:00 AM IST for the next 2 days.
+ * Template: roc_daily_two_day_shift_reminder
+ * Variables: {{1}} Name, {{2-4}} Day 1 (Date, Shift, Time), {{5-7}} Day 2 (Date, Shift, Time).
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -32,7 +32,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
   try {
     if (idToken) await getAuthorizedUser(idToken);
 
-    // 1. Unified Logic Gate Check
+    // 1. Governance Logic Gate Audit
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
 
@@ -53,7 +53,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     const dateStrings = dates.map(d => format(d, 'yyyy-MM-dd'));
     const weekIds = dates.map(d => formatWeekId(d));
 
-    // 3. Registry & Masters Load
+    // 3. System Load (Registry & Masters)
     const [empSnap, shiftSnap, officeSnap] = await Promise.all([
       adminDb.collection('employees').where('status', '==', 'Active').get(),
       adminDb.collection('shift_master').get(),
@@ -64,18 +64,18 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
     const activeOffices = new Set(officeSnap.docs.map(d => d.id));
 
-    // 4. Batch Dispatch Loop
+    // 4. Batch Dispatch Matrix
     for (const empDoc of empSnap.docs) {
       const emp = empDoc.data();
       const employeeId = empDoc.id;
 
-      // Master Stop Check
+      // Emergency Mid-Execution Kill Switch
       if (!bypassMasterCheck) {
          const liveCheck = await adminDb.collection('system_settings').doc('whatsapp_config').get();
          if (!liveCheck.data()?.masterEnabled) break;
       }
 
-      // Opt-in & Registry compliance
+      // Institutional Eligibility Filter
       if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
         skippedCount++;
         continue;
@@ -84,7 +84,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       try {
         const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
         
-        // Idempotency Hub: Prevent duplicate successful sends
+        // Idempotency Hub: Ensure Zero Duplicate Successful Messages
         const existingLog = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
           .where('status', '==', 'success')
@@ -98,6 +98,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
         const templateVars: string[] = [];
         let missingRoster = false;
 
+        // Resolve 2-Day Data Trace
         for (let i = 0; i < 2; i++) {
           const rosterId = `active_${weekIds[i]}_${emp.office}`;
           const rosterSnap = await adminDb.collection('published_rosters').doc(rosterId).get();
@@ -105,6 +106,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStrings[i]);
           
+          // Integrity Guard: Do not send invented schedules
           if (!rosterSnap.exists || !assign) {
              missingRoster = true;
              break;
@@ -114,7 +116,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const shift = shiftsMap.get(shiftId);
           const isOff = shiftId === 'none';
 
-          // Variable Protocol: Weekday/Date -> Shift Name -> Timing
+          // Mapping: {{2,5}} Date -> {{3,6}} Shift -> {{4,7}} Time
           templateVars.push(`${format(dates[i], 'EEEE')}, ${format(dates[i], 'dd MMM')}`);
           templateVars.push(isOff ? 'WEEK OFF' : (shift?.name || 'DUTY'));
           templateVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`);
@@ -125,14 +127,14 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           continue;
         }
 
-        // 5. Meta Cloud API Dispatch (TEXT ONLY)
+        // 5. Meta Cloud API Dispatch (Strict Workflow B: Text Only)
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
           bodyVariables: [emp.fullName, ...templateVars]
         });
 
-        // 6. Trace Registry Pulse
+        // 6. Trace Pulse Registry
         await adminDb.collection('whatsapp_logs').add({
           jobKey,
           employeeId,
