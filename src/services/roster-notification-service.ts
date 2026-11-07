@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -21,23 +20,6 @@ async function getAuthorizedUser(idToken: string) {
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Profile not found.");
   return { uid: decoded.uid, ...userSnap.data() } as any;
-}
-
-export async function dispatchOfficeBriefingsAction(idToken: string, officeId: string) {
-  try {
-    const profile = await getAuthorizedUser(idToken);
-    
-    if (profile.role !== 'super_admin') {
-      const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
-      if (!authorizedOffices.includes(officeId)) {
-        throw new Error("Unauthorized: Office access restricted.");
-      }
-    }
-
-    return await runAutomatedRosterBriefing(officeId, true);
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
 }
 
 async function getNextTwoDaysData(employeeId: string, office: string, mockCase?: number) {
@@ -100,17 +82,21 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
     const profile = await getAuthorizedUser(idToken);
     if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized.");
     
-    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
-    const emp = empSnap.exists ? empSnap.data()! : { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL' };
+    let emp: any = { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL', id: 'EMP-PREVIEW-001' };
+    
+    if (employeeId !== 'TEST-EMP') {
+      const empSnap = await adminDb.collection('employees').doc(employeeId).get();
+      if (empSnap.exists) emp = empSnap.data();
+    }
 
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
 
-    const nextTwoDays = await getNextTwoDaysData(employeeId, emp.office, mockCase);
+    const nextTwoDays = await getNextTwoDaysData(emp.id, emp.office, mockCase);
 
     const pngBuffer = await generateRosterImage({
       employeeName: emp.fullName,
-      employeeId: employeeId,
+      employeeId: emp.id,
       logoBase64,
       nextTwoDays
     });
@@ -121,6 +107,24 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
       size: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
       byteSize: pngBuffer.length
     };
+  } catch (e: any) {
+    console.error('PREVIEW_PULSE_FAILURE:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+export async function dispatchOfficeBriefingsAction(idToken: string, officeId: string) {
+  try {
+    const profile = await getAuthorizedUser(idToken);
+    
+    if (profile.role !== 'super_admin') {
+      const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
+      if (!authorizedOffices.includes(officeId)) {
+        throw new Error("Unauthorized: Office access restricted.");
+      }
+    }
+
+    return await runAutomatedRosterBriefing(officeId, true);
   } catch (e: any) {
     return { success: false, error: e.message };
   }
