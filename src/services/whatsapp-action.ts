@@ -43,8 +43,11 @@ export async function getTemplateStatus(templateName: string): Promise<'APPROVED
     const data = await response.json();
     if (!response.ok || !data.data || data.data.length === 0) return 'UNKNOWN';
 
-    return data.data[0].status;
+    // Find the English (en) version or return first available
+    const template = data.data.find((t: any) => t.language === 'en') || data.data[0];
+    return template.status;
   } catch (e) {
+    console.error('TEMPLATE_STATUS_FETCH_FAILURE:', e);
     return 'UNKNOWN';
   }
 }
@@ -90,12 +93,14 @@ export async function sendWhatsAppGenericTemplate(input: {
     verifyCredentials();
     const { to, templateName, languageCode = 'en', headerMedia, bodyVariables } = input;
 
-    // 1. Mandatory Approval Check for Production
+    // 1. Mandatory Approval Check
     const status = await getTemplateStatus(templateName);
     if (status !== 'APPROVED') {
-       // We allow 'UNKNOWN' to pass for development if access token doesn't have template read perms,
-       // but in a production environment, this should block.
-       console.warn(`META_STATUS_ALERT: Template ${templateName} is ${status}.`);
+       console.warn(`META_STATUS_ALERT: Template ${templateName} is ${status}. Dispatch restricted.`);
+       // In development, we might let this pass, but for Prompt 5 logic we block.
+       if (process.env.NODE_ENV === 'production') {
+         return { success: false, error: `TEMPLATE_NOT_APPROVED: ${status}`, apiStatus: 403 };
+       }
     }
 
     let mediaId: string | undefined;
@@ -108,7 +113,7 @@ export async function sendWhatsAppGenericTemplate(input: {
 
     const components: any[] = [];
 
-    // Header Logic
+    // Header Logic (Weekly PDF)
     if (headerMedia && mediaId) {
       components.push({
         type: 'header',
@@ -119,7 +124,7 @@ export async function sendWhatsAppGenericTemplate(input: {
       });
     }
 
-    // Body Logic
+    // Body Logic (Mapping body variables {{1}}, {{2}}, etc)
     if (bodyVariables.length > 0) {
       components.push({
         type: 'body',
@@ -166,12 +171,12 @@ export async function sendWhatsAppGenericTemplate(input: {
 }
 
 /**
- * LEGACY WRAPPER (Mapped to Daily Briefing PDF)
+ * Legacy wrapper maintained for backward compatibility (Daily Briefing PDF variant)
  */
 export async function sendWhatsAppShiftBriefingWithDocument(to: string, name: string, buffer: Buffer, filename: string) {
   return sendWhatsAppGenericTemplate({
     to,
-    templateName: 'roc_two_day_roster_pdf',
+    templateName: 'roc_two_day_roster_pdf', // Daily PDF template (if approved)
     headerMedia: { type: 'document', buffer, filename },
     bodyVariables: [name]
   });

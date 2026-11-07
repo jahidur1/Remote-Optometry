@@ -15,7 +15,7 @@ async function assertSuperAdmin(idToken: string) {
   const decoded = await adminAuth.verifyIdToken(idToken, true);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
-    throw new Error("Unauthorized.");
+    throw new Error("Unauthorized: Super Admin access required.");
   }
   return decoded.uid;
 }
@@ -28,9 +28,11 @@ export async function getWhatsAppSettingsAction() {
     const weeklyTemplate = data.weeklyTemplate || 'roc_weekly_roster_pdf';
     const dailyTemplate = data.dailyTemplate || 'roc_daily_two_day_shift_reminder';
 
-    // Verify Actual Meta Status
-    const weeklyStatus = await getTemplateStatus(weeklyTemplate);
-    const dailyStatus = await getTemplateStatus(dailyTemplate);
+    // Verify Actual Meta Status Pulse
+    const [weeklyStatus, dailyStatus] = await Promise.all([
+      getTemplateStatus(weeklyTemplate),
+      getTemplateStatus(dailyTemplate)
+    ]);
 
     return {
       whatsappEnabled: data.whatsappEnabled ?? false,
@@ -39,6 +41,7 @@ export async function getWhatsAppSettingsAction() {
       dailyReminderEnabled: data.dailyReminderEnabled ?? false,
       weeklyTemplate,
       dailyTemplate,
+      logoBase64: data.logoBase64 || null,
       templateHealth: {
         weekly: weeklyStatus,
         daily: dailyStatus
@@ -50,6 +53,7 @@ export async function getWhatsAppSettingsAction() {
       }
     };
   } catch (e) {
+    console.error('FETCH_SETTINGS_FAILURE:', e);
     return { 
       whatsappEnabled: false, 
       masterEnabled: false, 
@@ -64,8 +68,8 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: any
   try {
     const uid = await assertSuperAdmin(idToken);
     
-    // Defensive Logic: If Master is disabled, certain child switches can't be true (policy only)
-    // But we preserve raw settings for flexibility.
+    // Institutional defaults: If master is toggled OFF, ensure we stop new pulses in this action session.
+    // However, we save the exact state requested by the Super Admin.
 
     await adminDb.collection('system_settings').doc('whatsapp_config').set({
       ...updates,

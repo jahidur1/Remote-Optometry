@@ -68,7 +68,13 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       const emp = empDoc.data();
       const employeeId = empDoc.id;
 
-      // Opt-in & Registry Check
+      // Master Check Re-evaluation (Emergency Stop mid-loop)
+      if (!bypassMasterCheck) {
+         const liveCheck = await adminDb.collection('system_settings').doc('whatsapp_config').get();
+         if (!liveCheck.data()?.masterEnabled) break;
+      }
+
+      // Opt-in & Registry Compliance Check
       if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
         skippedCount++;
         continue;
@@ -98,19 +104,19 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStrings[i]);
           
-          if (!rosterSnap.exists || (!assign && !isWeekOff(employeeId, dayNames[i], rosterSnap.data()))) {
-             // If no published roster exists, we skip to avoid invented data
+          if (!rosterSnap.exists || !assign) {
+             // If roster is missing, we skip to maintain data integrity
              missingRoster = true;
              break;
           }
 
-          const shiftId = assign?.shiftId || 'none';
+          const shiftId = assign.shiftId || 'none';
           const shift = shiftsMap.get(shiftId);
           const isOff = shiftId === 'none';
 
-          templateVars.push(format(dates[i], 'EEEE, dd MMM')); // {{2/5}}
-          templateVars.push(isOff ? 'WEEK OFF' : (shift?.name || 'DUTY')); // {{3/6}}
-          templateVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`); // {{4/7}}
+          templateVars.push(`${format(dates[i], 'EEEE')}, ${format(dates[i], 'dd MMM')}`); // {{2}} or {{5}}
+          templateVars.push(isOff ? 'WEEK OFF' : (shift?.name || 'DUTY')); // {{3}} or {{6}}
+          templateVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`); // {{4}} or {{7}}
         }
 
         if (missingRoster) {
@@ -118,13 +124,14 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           continue;
         }
 
-        // 5. API Dispatch
+        // 5. Meta API Pulse Dispatch
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
           bodyVariables: [emp.fullName, ...templateVars]
         });
 
+        // 6. Trace Registry Pulse
         await adminDb.collection('whatsapp_logs').add({
           jobKey,
           employeeId,
@@ -136,6 +143,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           apiStatus: dispatch.apiStatus,
           messageId: dispatch.messageId,
           failureReason: dispatch.error,
+          submissionTimestamp: new Date().toISOString(),
           timestamp: new Date().toISOString()
         });
 
@@ -146,16 +154,14 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       }
     }
 
-    return { success: true, stats: { success: successCount, fail: failCount, skipped: skippedCount } };
+    return { 
+      success: true, 
+      stats: { success: successCount, fail: failCount, skipped: skippedCount },
+      latencyMs: Date.now() - start
+    };
 
   } catch (e: any) {
+    console.error('DAILY_PULSE_CRITICAL_FAILURE:', e.message);
     return { success: false, error: e.message };
   }
 }
-
-function isWeekOff(empId: string, day: string, roster: any) {
-    // Basic check for weekoff bookings or roster 'none' assignments
-    return false; // Heuristic placeholder
-}
-
-const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
