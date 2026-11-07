@@ -7,17 +7,20 @@ admin.initializeApp();
 /**
  * ROC WORKFORCE — DAILY SHIFT REMINDER PULSE
  * 
- * Executes every day at 10:00 PM Asia/Kolkata.
+ * Executes every day at 10:00 AM Asia/Kolkata.
  * Orchestrates text-only WhatsApp briefings for the next two calendar days.
+ * 
+ * CRON: 0 10 * * * (10:00 AM daily)
  */
 export const dailyShiftReminderPulse = onSchedule({
-  schedule: '0 22 * * *',
+  schedule: '0 10 * * *',
   timeZone: 'Asia/Kolkata',
   memory: '512MiB',
   timeoutSeconds: 540,
 }, async (event) => {
-  console.log('ROC_SCHEDULER_PULSE: Initiating 10:00 PM Daily Reminders.');
+  console.log('ROC_SCHEDULER_PULSE: Initiating 10:00 AM Daily Reminders.');
   try {
+    // Workflow B: Text-only reminders for all eligible professionals
     const result = await runDailyShiftReminders();
     console.log('ROC_SCHEDULER_SUCCESS:', result);
   } catch (error) {

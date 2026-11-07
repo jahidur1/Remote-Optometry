@@ -9,9 +9,10 @@ import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v6.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v7.0
  * 
  * Orchestrates bulk distribution with Meta Document API and multi-switch logic gates.
+ * Workflow A Implementation: Bulk PDF dispatch per ROC Center.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -26,7 +27,7 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
   try {
     const caller = await getAuthorizedUser(idToken);
     
-    // Logic Gate Check
+    // 1. Logic Gate Audit
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
 
@@ -74,8 +75,9 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
     const storage = getStorage();
     const bucket = storage.bucket();
 
+    // 2. Individual Dispatch Loop
     for (const empDoc of eligibleEmployees) {
-      // Real-time emergency check
+      // Mid-execution emergency check
       const liveConfig = await adminDb.collection('system_settings').doc('whatsapp_config').get();
       if (!liveConfig.data()?.masterEnabled) break;
 
@@ -84,6 +86,8 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
 
       try {
         const jobKey = `weekly_${employeeId}_${weekId}`;
+        
+        // Idempotency: Do not resend if already success
         const existing = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
           .where('notificationType', '==', 'weekly_roster_pdf')
@@ -95,6 +99,7 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
            continue;
         }
 
+        // 3. Document Synthesis (Prompt 2 Service)
         const rosterDays = weekDates.map(date => {
           const dateStr = format(date, 'yyyy-MM-dd');
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStr);
@@ -117,10 +122,12 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           rosterDays
         });
 
+        // 4. Secure Storage Registry
         const filename = `Roster_${employeeId}_${weekId}.pdf`;
         const storagePath = `weekly-roster-pdfs/${officeId}/${weekId}/${employeeId}/${filename}`;
         await bucket.file(storagePath).save(pdfBuffer, { contentType: 'application/pdf' });
 
+        // 5. Meta Cloud Document API Dispatch
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
@@ -128,6 +135,7 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           bodyVariables: [emp.fullName, format(weekDates[0], 'yyyy-MM-dd'), format(weekDates[6], 'yyyy-MM-dd')]
         });
 
+        // 6. Trace Pulse
         await adminDb.collection('whatsapp_logs').add({
           jobKey,
           employeeId,
