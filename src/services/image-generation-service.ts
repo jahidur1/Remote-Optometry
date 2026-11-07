@@ -89,7 +89,7 @@ export async function generateRosterImage(input: {
               height: `${40 * scale}px`, 
               width: 'auto',
               maxWidth: `${180 * scale}px`, 
-              objectFit: 'contain' // Ensures no distortion
+              objectFit: 'contain' // Ensures no distortion and consistent proportions
             }
           }) : React.createElement('div', {
             style: { fontSize: `${16 * scale}px`, fontWeight: 900, color: '#3B82F6', letterSpacing: '2px' }
@@ -168,14 +168,14 @@ export async function generateRosterImage(input: {
 
   /**
    * RECURSIVE QUALITY LOOP: BYTE-SIZE ENFORCEMENT
-   * Progressively scales the vector output until the raster buffer hits the target.
+   * Progressively scales the output until the buffer hits the target.
    * STRICT CEILING: 60 KB (61440 bytes).
    */
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
-  const MAX_BYTES = 60000; // Targeting 60KB with safe margin
+  const MAX_BYTES = 60000; // Safe threshold for 60KB limit
   
-  while (qualityScale > 0.4) {
+  while (qualityScale > 0.3) {
     const svg = await renderSvg(qualityScale);
     const resvg = new Resvg(svg, {
       background: '#FFFFFF',
@@ -185,12 +185,15 @@ export async function generateRosterImage(input: {
     const pngData = resvg.render();
     const currentBuffer = pngData.asPng();
     
-    // Check if within clinical document limits
+    // VERIFY ACTUAL ENCODED BYTE SIZE
     if (currentBuffer.length <= MAX_BYTES) {
         finalBuffer = currentBuffer;
         break;
     }
+    
+    // Size conflict detected: reduce scale for next attempt
     qualityScale -= 0.1; 
+    console.log(`ROC_SIZE_GUARD: Budget exceeded (${currentBuffer.length} bytes). Reducing scale to ${qualityScale.toFixed(1)}`);
   }
 
   if (!finalBuffer) {

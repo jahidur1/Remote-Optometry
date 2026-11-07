@@ -106,7 +106,7 @@ export default function AutomationGovernance() {
   /**
    * handleLogoUpload
    * Implements the "Optimized for Clinical Documents" protocol.
-   * Resizes image client-side to ensure small Base64 payload.
+   * Resizes image client-side to ensure small Base64 payload while preserving the original separately.
    */
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,41 +114,43 @@ export default function AutomationGovernance() {
 
     const reader = new FileReader();
     reader.onload = async (event) => {
+      const originalBase64 = event.target?.result as string;
       const img = new Image();
+      
       img.onload = async () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; // Clinical Standard Width
+        const MAX_WIDTH = 400; // Optimized Clinical Width
         const scale = MAX_WIDTH / img.width;
         canvas.width = MAX_WIDTH;
         canvas.height = img.height * scale;
 
         const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        const optimizedBase64 = canvas.toDataURL('image/png', 0.8);
-        const originalBase64 = event.target?.result as string;
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const optimizedBase64 = canvas.toDataURL('image/png', 0.8);
 
-        setUpdating(true);
-        try {
-          const idToken = await auth.currentUser?.getIdToken();
-          if (!idToken) throw new Error("Auth link failed.");
+          setUpdating(true);
+          try {
+            const idToken = await auth.currentUser?.getIdToken();
+            if (!idToken) throw new Error("Auth link failed.");
 
-          const result = await updateWhatsAppSettingsAction(idToken, { 
-            logoBase64: optimizedBase64,
-            rawLogoBase64: originalBase64
-          });
-          
-          if (result.success) {
-            toast({ title: "Branding Secured", description: "Logo synchronized for clinical synthesis." });
-            fetchSettings();
+            const result = await updateWhatsAppSettingsAction(idToken, { 
+              logoBase64: optimizedBase64,
+              rawLogoBase64: originalBase64
+            });
+            
+            if (result.success) {
+              toast({ title: "Branding Secured", description: "Dual-layer logo synchronization complete." });
+              fetchSettings();
+            }
+          } catch (e: any) {
+            toast({ variant: "destructive", title: "Upload Failure", description: e.message });
+          } finally {
+            setUpdating(false);
           }
-        } catch (e: any) {
-          toast({ variant: "destructive", title: "Upload Failure", description: e.message });
-        } finally {
-          setUpdating(false);
         }
       };
-      img.src = event.target?.result as string;
+      img.src = originalBase64;
     };
     reader.readAsDataURL(file);
   };
@@ -322,7 +324,7 @@ export default function AutomationGovernance() {
                       <Upload className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-slate-300 pointer-events-none" />
                    </div>
                    <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter leading-relaxed">
-                     Branding is optimized for clinical documents. Original file is archived in the registry.
+                     Optimized Base64 is stored for document synthesis. Original file is archived in the registry.
                    </p>
                 </div>
              </CardContent>
@@ -334,7 +336,7 @@ export default function AutomationGovernance() {
              <CardHeader className="p-10 pb-4 border-b border-white/5 flex flex-col md:flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-2xl uppercase font-black tracking-tight">Intelligence Diagnostics</CardTitle>
-                  <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">Preview synthesis & test dispatches</CardDescription>
+                  <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">Preview synthesis & byte-limit validation</CardDescription>
                 </div>
                 <div className="flex items-center gap-4 px-6 py-2 bg-white/5 rounded-xl border border-white/10">
                    <Clock className="size-4 text-secondary" />
@@ -381,9 +383,9 @@ export default function AutomationGovernance() {
                        <img src={previewImage} alt="Preview" className="rounded-2xl shadow-2xl max-w-full h-auto animate-in zoom-in-95" />
                        <Badge className={cn(
                          "absolute top-6 right-6 font-black text-[9px] uppercase border-none px-3 py-1 shadow-lg",
-                         parseInt(previewSize) > 60 ? "bg-destructive text-white" : "bg-emerald-500 text-white"
+                         parseFloat(previewSize) > 60 ? "bg-destructive text-white" : "bg-emerald-500 text-white"
                        )}>
-                         WEIGHT: {previewSize} {parseInt(previewSize) > 60 ? '(EXCEEDS CEILING)' : '(COMPLIANT)'}
+                         WEIGHT: {previewSize} {parseFloat(previewSize) > 60 ? '(EXCEEDS CEILING)' : '(COMPLIANT)'}
                        </Badge>
                        <Button variant="ghost" className="absolute bottom-6 bg-black/60 text-white font-black uppercase text-[9px] h-8 rounded-lg" onClick={() => setPreviewImage(null)}>CLEAR</Button>
                      </>
