@@ -27,8 +27,7 @@ type RosterDay = {
 async function loadFont() {
   const sources = [
     'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf',
-    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf',
-    'https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/Inter%20(Web)/Inter-Black.ttf'
+    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf'
   ];
 
   for (const url of sources) {
@@ -291,7 +290,7 @@ export async function generateRosterImage(input: {
    */
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
-  const MAX_BYTES = 60000; // Targeting 60KB with safety margin
+  const MAX_BYTES = 61440; 
   
   while (qualityScale > 0.4) {
     const svg = await renderSvg(qualityScale);

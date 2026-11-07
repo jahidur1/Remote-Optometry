@@ -49,6 +49,8 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
   const tomorrow = addDays(new Date(), 1);
   const dayAfter = addDays(new Date(), 2);
   const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
+  
+  // Singleton ID Protocol: Fetching the active roster for the weeks containing these dates
   const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
 
   const tomRosterId = `active_${weekIds[0]}_${office}`;
