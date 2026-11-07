@@ -24,7 +24,8 @@ import {
   FileText,
   Calendar,
   ChevronRight,
-  Monitor
+  Monitor,
+  Bell
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
 import { previewEmployeeRosterAction } from '@/services/roster-notification-service';
 import { previewWeeklyRosterAction } from '@/services/weekly-roster-pdf-service';
+import { runDailyShiftReminders } from '@/services/daily-reminder-service';
 import { cn } from '@/lib/utils';
 import { getCurrentWeekId } from '@/lib/date-utils';
 
@@ -46,6 +48,7 @@ export default function AutomationGovernance() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [runningManual, setRunningManual] = useState(false);
   
   const [stagedLogo, setStagedLogo] = useState<string | null>(null);
   const [savingBranding, setSavingBranding] = useState(false);
@@ -79,7 +82,7 @@ export default function AutomationGovernance() {
     }
   };
 
-  const handleToggle = async (type: 'master' | 'api', checked: boolean) => {
+  const handleToggle = async (field: string, checked: boolean) => {
     const actionName = checked ? "Enabling" : "Disabling";
     if (!confirm(`${actionName} Pulse: Confirm institutional logic override?`)) return;
 
@@ -88,8 +91,7 @@ export default function AutomationGovernance() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth link failed.");
 
-      const updates = type === 'master' ? { masterEnabled: checked } : { enabled: checked };
-      const result = await updateWhatsAppSettingsAction(idToken, updates);
+      const result = await updateWhatsAppSettingsAction(idToken, { [field]: checked });
 
       if (result.success) {
         toast({ title: "Settings Synchronized" });
@@ -101,6 +103,29 @@ export default function AutomationGovernance() {
       toast({ variant: "destructive", title: "Update Conflict", description: e.message });
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleManualReminderPulse = async () => {
+    if (!confirm("Initiate Manual Daily Pulse? This will send text reminders to all eligible professionals immediately.")) return;
+    
+    setRunningManual(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const result = await runDailyShiftReminders(true, idToken);
+      if (result.success) {
+        toast({ 
+          title: "Pulse Complete", 
+          description: `Success: ${result.stats.success}, Failed: ${result.stats.fail}, Skipped: ${result.stats.skipped}` 
+        });
+        fetchSettings();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Pulse Failure", description: e.message });
+    } finally {
+      setRunningManual(false);
     }
   };
 
@@ -198,8 +223,8 @@ export default function AutomationGovernance() {
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Master Pulse</label>
               <div className="flex items-center gap-3">
-                 <div className={cn("size-2 rounded-full", settings?.automation?.masterEnabled ? 'bg-emerald-500 shadow-[0_0_10px_emerald]' : 'bg-slate-300')} />
-                 <span className="font-black uppercase tracking-widest text-[11px]">{settings?.automation?.masterEnabled ? 'ACTIVE' : 'SUSPENDED'}</span>
+                 <div className={cn("size-2 rounded-full", settings?.masterEnabled ? 'bg-emerald-500 shadow-[0_0_10px_emerald]' : 'bg-slate-300')} />
+                 <span className="font-black uppercase tracking-widest text-[11px]">{settings?.masterEnabled ? 'ACTIVE' : 'SUSPENDED'}</span>
               </div>
            </div>
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
@@ -218,23 +243,47 @@ export default function AutomationGovernance() {
             <CardHeader className="bg-slate-50/50 border-b p-10">
               <CardTitle className="text-xl uppercase font-black tracking-tight leading-none">Protocol Switches</CardTitle>
             </CardHeader>
-            <CardContent className="p-10 space-y-10">
-               <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100 group">
+            <CardContent className="p-10 space-y-6">
+               <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="space-y-1">
                      <p className="text-[12px] font-black uppercase tracking-tight">Master Automation</p>
-                     <p className="text-[9px] text-muted-foreground font-bold uppercase">Institutional Logic Gate</p>
+                     <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Global Logic Gate</p>
                   </div>
-                  <Switch checked={settings?.automation?.masterEnabled || false} onCheckedChange={(v) => handleToggle('master', v)} disabled={updating} />
+                  <Switch checked={settings?.masterEnabled || false} onCheckedChange={(v) => handleToggle('masterEnabled', v)} disabled={updating} />
                </div>
 
                <div className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="space-y-1">
-                     <p className="text-[12px] font-black uppercase tracking-tight">Meta Gateway</p>
-                     <p className="text-[9px] text-muted-foreground font-bold uppercase">Binary Transmission Link</p>
+                     <p className="text-[12px] font-black uppercase tracking-tight">WhatsApp API Gateway</p>
+                     <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Binary Transmission Link</p>
                   </div>
-                  <Switch checked={settings?.whatsappEnabled || false} onCheckedChange={(v) => handleToggle('api', v)} disabled={updating} />
+                  <Switch checked={settings?.whatsappEnabled || false} onCheckedChange={(v) => handleToggle('whatsappEnabled', v)} disabled={updating} />
+               </div>
+
+               <div className="flex items-center justify-between p-6 rounded-2xl bg-emerald-50 border border-emerald-100">
+                  <div className="space-y-1">
+                     <p className="text-[12px] font-black uppercase tracking-tight text-emerald-900">Daily 10AM Reminders</p>
+                     <p className="text-[9px] text-emerald-600/60 font-bold uppercase tracking-widest">Autonomous Text Pulse</p>
+                  </div>
+                  <Switch checked={settings?.dailyReminderEnabled || false} onCheckedChange={(v) => handleToggle('dailyReminderEnabled', v)} disabled={updating} />
                </div>
             </CardContent>
+            <CardFooter className="bg-slate-50/50 p-10 border-t border-slate-100">
+               <div className="w-full space-y-6">
+                  <div className="flex justify-between items-center">
+                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Latest Daily Pulse</p>
+                     <p className="text-[10px] font-bold uppercase text-black">{settings?.automation?.dailyLastRun ? new Date(settings.automation.dailyLastRun).toLocaleString() : 'NEVER'}</p>
+                  </div>
+                  <Button 
+                    className="w-full h-14 bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all"
+                    onClick={handleManualReminderPulse}
+                    disabled={runningManual}
+                  >
+                    {runningManual ? <Loader2 className="size-4 animate-spin mr-2" /> : <Bell className="size-4 mr-2" />}
+                    INITIATE MANUAL DAILY PULSE
+                  </Button>
+               </div>
+            </CardFooter>
           </Card>
 
           <Card className="shadow-2xl border-none rounded-[2.5rem] bg-white border-t-8 border-t-secondary">
@@ -242,7 +291,6 @@ export default function AutomationGovernance() {
                <CardTitle className="text-xl uppercase font-black tracking-tight leading-none flex items-center gap-3">
                  <Settings2 className="size-5 text-secondary" /> Institutional Branding
                </CardTitle>
-               <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Optimized for Clinical Documents</CardDescription>
              </CardHeader>
              <CardContent className="p-10 space-y-8">
                 <div className="relative aspect-video rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 p-8 flex items-center justify-center group overflow-hidden shadow-inner">
@@ -325,7 +373,7 @@ export default function AutomationGovernance() {
                                      </div>
                                   </div>
                                   <ChevronRight className="size-4 opacity-20" />
-                               </Button>
+                                </Button>
                              ))}
                            </>
                          ) : (

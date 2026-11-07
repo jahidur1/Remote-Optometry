@@ -24,16 +24,18 @@ export async function getWhatsAppSettingsAction() {
 
     return {
       whatsappEnabled: data.whatsappEnabled || false,
+      masterEnabled: data.masterEnabled || false,
+      dailyReminderEnabled: data.dailyReminderEnabled || false,
       weeklyTemplate: data.weeklyTemplate || 'roc_weekly_roster_pdf',
       dailyTemplate: data.dailyTemplate || 'roc_daily_two_day_shift_reminder',
       automation: {
-        masterEnabled: data.masterEnabled || false,
-        dailyReminderEnabled: data.dailyReminderEnabled || false,
-        lastRun: data.lastRun || null
+        lastRun: data.automation?.lastRun || null,
+        dailyLastRun: data.automation?.dailyLastRun || null,
+        dailyStats: data.automation?.dailyStats || { success: 0, fail: 0, skipped: 0 }
       }
     };
   } catch (e) {
-    return { whatsappEnabled: false, automation: { masterEnabled: false } };
+    return { whatsappEnabled: false, masterEnabled: false, dailyReminderEnabled: false };
   }
 }
 
