@@ -262,7 +262,7 @@ export default function AutomationGovernance() {
 
                <div className="flex items-center justify-between p-6 rounded-2xl bg-emerald-50 border border-emerald-100">
                   <div className="space-y-1">
-                     <p className="text-[12px] font-black uppercase tracking-tight text-emerald-900">Daily 10AM Reminders</p>
+                     <p className="text-[12px] font-black uppercase tracking-tight text-emerald-900">Daily 10PM Reminders</p>
                      <p className="text-[9px] text-emerald-600/60 font-bold uppercase tracking-widest">Autonomous Text Pulse</p>
                   </div>
                   <Switch checked={settings?.dailyReminderEnabled || false} onCheckedChange={(v) => handleToggle('dailyReminderEnabled', v)} disabled={updating} />

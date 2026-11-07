@@ -4,13 +4,12 @@ import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 import { getISTNow, formatWeekId } from '@/lib/date-utils';
 import { format, addDays } from 'date-fns';
-import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — DAILY SHIFT REMINDER SERVICE v5.0
+ * ROC WORKFORCE — DAILY SHIFT REMINDER SERVICE v6.0
  * 
- * Protocol B: Automated text reminders containing next 2 days' shifts.
- * Constraints: Text-only, zero storage usage, strict 10 AM IST execution.
+ * Protocol: Automated text reminders containing next 2 days' shifts.
+ * Constraints: Text-only, zero storage usage, strict 10 PM IST execution.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -48,6 +47,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     const templateName = config.dailyTemplate || 'roc_daily_two_day_shift_reminder';
     
     // 3. Temporal Identification (Asia/Kolkata)
+    // We send at 10 PM for the NEXT two days (Tomorrow and Day After)
     const istNow = getISTNow();
     const tomorrow = addDays(istNow, 1);
     const dayAfter = addDays(istNow, 2);
@@ -57,13 +57,16 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     const weekIds = dates.map(d => formatWeekId(d));
 
     // 4. Data Aggregation
-    const [empSnap, shiftSnap] = await Promise.all([
+    const [empSnap, shiftSnap, officeSnap] = await Promise.all([
       adminDb.collection('employees').where('status', '==', 'Active').get(),
-      adminDb.collection('shift_master').get()
+      adminDb.collection('shift_master').get(),
+      adminDb.collection('offices').where('status', '==', 'Active').get()
     ]);
 
     const shiftsMap = new Map();
     shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
+
+    const activeOffices = new Set(officeSnap.docs.map(d => d.id));
 
     // 5. Orchestration Loop
     for (const empDoc of empSnap.docs) {
@@ -71,13 +74,13 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       const employeeId = empDoc.id;
 
       // Eligibility Gate
-      if (!emp.whatsappNumber || emp.whatsappOptIn === false) {
+      if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
         skippedCount++;
         continue;
       }
 
       try {
-        // Idempotency: Prevent duplicate daily pulse
+        // Idempotency: Prevent duplicate daily pulse for these specific dates
         const jobKey = `${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
         const existingLog = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
@@ -91,12 +94,18 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
         }
 
         // Fetch roster data for both days
-        const scheduleVars = [];
+        const scheduleVars: string[] = [];
         let dataMissing = false;
 
         for (let i = 0; i < 2; i++) {
           const rosterId = `active_${weekIds[i]}_${emp.office}`;
           const rosterSnap = await adminDb.collection('published_rosters').doc(rosterId).get();
+          
+          if (!rosterSnap.exists) {
+            dataMissing = true;
+            break;
+          }
+
           const assignments = rosterSnap.data()?.assignments || [];
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStrings[i]);
           
@@ -106,18 +115,22 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           
           const isOff = shiftId === 'none';
           
-          scheduleVars.push(dateLabel); // {{2}} / {{5}}
-          scheduleVars.push(isOff ? 'WEEK OFF' : (shift?.name || 'UNASSIGNED')); // {{3}} / {{6}}
-          scheduleVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`); // {{4}} / {{7}}
+          scheduleVars.push(dateLabel); // Day X Date
+          scheduleVars.push(isOff ? 'WEEK OFF' : (shift?.name || 'UNASSIGNED')); // Day X Shift Name
+          scheduleVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`); // Day X Timing
           
-          if (!isOff && !shift) dataMissing = true;
+          if (!isOff && !shift) {
+            dataMissing = true;
+            break;
+          }
         }
 
         if (dataMissing) {
-          throw new Error("Registry Error: Shift details missing in master.");
+          throw new Error("Registry Error: Roster or Shift data missing for required dates.");
         }
 
         // 6. Meta Dispatch
+        // Variables: {{1}} Name, {{2,3,4}} Day 1 info, {{5,6,7}} Day 2 info
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
@@ -154,13 +167,17 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       }
     }
 
-    // 7. Pulse Telementry
+    // 7. Pulse Telemetry
     await adminDb.collection('system_settings').doc('whatsapp_config').update({
       'automation.dailyLastRun': new Date().toISOString(),
       'automation.dailyStats': { success: successCount, fail: failCount, skipped: skippedCount }
     });
 
-    return { success: true, stats: { success: successCount, fail: failCount, skipped: skippedCount }, latency: Date.now() - start };
+    return { 
+      success: true, 
+      stats: { success: successCount, fail: failCount, skipped: skippedCount }, 
+      latency: Date.now() - start 
+    };
 
   } catch (e: any) {
     console.error('DAILY_REMINDER_CRITICAL_FAILURE:', e.message);
