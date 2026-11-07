@@ -106,6 +106,14 @@
       ]
     },
     {
+      "collectionGroup": "whatsapp_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "notificationType", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "employee_preferences",
       "queryScope": "COLLECTION",
       "fields": [
