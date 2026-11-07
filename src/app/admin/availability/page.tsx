@@ -27,7 +27,8 @@ import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipTrigger
+  TooltipTrigger,
+  MapPin
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId, getISTNow } from '@/lib/date-utils';
@@ -49,7 +50,7 @@ export default function AvailabilitySummary() {
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useUser();
-  const { selectedOffice } = useOffice();
+  const { selectedOffice, setSelectedOffice, authorizedOffices } = useOffice();
   const { toast } = useToast();
   
   const [selectedWeek, setSelectedWeek] = useState<string>('');
@@ -74,9 +75,7 @@ export default function AvailabilitySummary() {
   const empQuery = useMemo(() => {
     if (!profile || !selectedOffice) return null;
     const q = collection(db, 'employees');
-    const targetOffice = profile.role === 'super_admin' ? selectedOffice : profile.office;
-    if (!targetOffice) return null;
-    return query(q, where('office', '==', targetOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
+    return query(q, where('office', '==', selectedOffice), where('status', '==', 'Active'), orderBy('fullName', 'asc'));
   }, [db, profile, selectedOffice]);
 
   const bookQuery = useMemo(() => {
@@ -266,7 +265,7 @@ export default function AvailabilitySummary() {
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto animate-in pb-40 px-4 text-black">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pt-6">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 pt-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
@@ -284,14 +283,29 @@ export default function AvailabilitySummary() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+        <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+           <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Target Cluster</label>
+              <Select value={selectedOffice || ''} onValueChange={setSelectedOffice}>
+                <SelectTrigger className="h-6 w-48 font-black text-black border-none bg-transparent focus:ring-0 p-0 text-[14px]">
+                  <SelectValue placeholder="Select Hub..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                  {authorizedOffices.map(o => (
+                    <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] py-2.5 rounded-lg uppercase">
+                      {o.officeName} Hub
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+           </div>
            <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Active Cycle</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" className="h-6 p-0 flex items-center gap-2 font-black text-black hover:bg-transparent">
                     <CalendarDays className="size-4 text-secondary" />
-                    <span className="text-[14px] uppercase">{selectedWeek ? displayWeekRange(selectedWeek) : 'Select Start'}</span>
+                    <span className="text-[14px] uppercase tracking-tight">{selectedWeek ? displayWeekRange(selectedWeek) : 'Select Start'}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="end">
@@ -299,7 +313,7 @@ export default function AvailabilitySummary() {
                 </PopoverContent>
               </Popover>
            </div>
-           <div className="flex gap-2">
+           <div className="flex gap-2 p-1">
               <Button 
                 variant="outline"
                 className="bg-white border-2 border-slate-100 text-black h-10 px-6 font-black uppercase text-[10px] tracking-[0.15em] transition-all rounded-xl hover:bg-slate-50"
@@ -339,7 +353,7 @@ export default function AvailabilitySummary() {
               <div className="space-y-1">
                  <CardTitle className="text-2xl uppercase font-black tracking-tight text-black leading-none">Institutional Pulse</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">
-                    Direct shift assignment with date-specific clinical synchronization.
+                    Direct shift assignment for {authorizedOffices.find(o => o.officeId === selectedOffice)?.officeName || 'Selected Cluster'}.
                  </CardDescription>
               </div>
            </div>
@@ -400,7 +414,7 @@ export default function AvailabilitySummary() {
                 ) : filteredEmployees.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="py-40 text-center">
-                      <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] italic">No active professionals match the filter registry.</p>
+                      <p className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] italic">No active professionals found for this hub.</p>
                     </TableCell>
                   </TableRow>
                 ) : (
