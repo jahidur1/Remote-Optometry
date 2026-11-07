@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, orderBy, limit, where } from 'firebase/firestore';
 import { useFirestore, useUser, useAuth, useCollection } from '@/firebase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -14,27 +14,17 @@ import {
   Activity, 
   MessageSquare, 
   Loader2, 
-  Eye, 
-  Clock, 
-  ImageIcon,
   Settings2,
-  Save,
   RotateCcw,
   FileText,
-  Calendar,
-  ChevronRight,
   Monitor,
   Bell,
   CheckCircle2,
   AlertTriangle,
-  XCircle,
   History,
-  Send,
   Building2,
-  User,
   Fingerprint,
   Smartphone,
-  Info,
   ShieldAlert,
   Target,
   Upload
@@ -50,7 +40,20 @@ import { runDailyShiftReminders } from '@/services/daily-reminder-service';
 import { cn } from '@/lib/utils';
 import { getCurrentWeekId } from '@/lib/date-utils';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+
+/**
+ * Resilient Time Formatter
+ * Handles both Firestore Timestamp objects and ISO strings.
+ */
+function safeFormatTime(ts: any): string {
+  if (!ts) return '---';
+  try {
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return isNaN(date.getTime()) ? '---' : date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '---';
+  }
+}
 
 export default function AutomationGovernance() {
   const db = useFirestore();
@@ -69,9 +72,6 @@ export default function AutomationGovernance() {
   const [previewing, setPreviewing] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState('');
-  const [testNumber, setTestNumber] = useState('');
-  const [testMode, setTestMode] = useState<'daily' | 'weekly' | null>(null);
-  const [isTestConfirmOpen, setIsTestConfirmOpen] = useState(false);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -208,20 +208,6 @@ export default function AutomationGovernance() {
     }
   };
 
-  const handleOpenTest = (type: 'daily' | 'weekly') => {
-    setTestMode(type);
-    setIsTestConfirmOpen(true);
-  };
-
-  const handleExecuteTest = async () => {
-    if (!testNumber) {
-      toast({ variant: "destructive", title: "Endpoint Missing" });
-      return;
-    }
-    toast({ title: "Test Pulse Initiated", description: "Checking Meta Cloud logs." });
-    setIsTestConfirmOpen(false);
-  };
-
   if (userLoading || fetchingSettings) {
     return (
       <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
@@ -245,8 +231,6 @@ export default function AutomationGovernance() {
       </div>
     );
   }
-
-  const activeCampaign = campaigns?.find(c => c.status === 'processing');
 
   return (
     <div className="space-y-10 pb-40 max-w-[1600px] mx-auto animate-in px-4 text-black">
@@ -278,7 +262,7 @@ export default function AutomationGovernance() {
            <div className="px-6 py-1.5 space-y-0.5 mr-2">
               <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Registry Health</label>
               <div className="flex items-center gap-2">
-                 <Database className="size-3 text-secondary" />
+                 <ShieldCheck className="size-3 text-secondary" />
                  <span className="font-black text-black uppercase tracking-widest text-[11px]">IMMUTABLE SYNC</span>
               </div>
            </div>
@@ -358,7 +342,7 @@ export default function AutomationGovernance() {
                          {settings?.logoBase64 ? (
                            <img src={settings.logoBase64} alt="Brand Logo" className="w-full h-full object-contain p-4" />
                          ) : (
-                           <ImageIcon className="size-12 text-slate-200" />
+                           <AlertTriangle className="size-12 text-slate-200" />
                          )}
                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <Button variant="ghost" className="text-white font-black uppercase text-[10px] tracking-widest" onClick={() => logoInputRef.current?.click()}>
@@ -381,8 +365,8 @@ export default function AutomationGovernance() {
                </CardHeader>
                <CardContent className="p-10 space-y-8">
                   {[
-                    { id: 'weekly', name: settings?.weeklyTemplate, label: 'Weekly PDF Stream', status: settings?.templateHealth?.weekly, header: 'DOCUMENT' },
-                    { id: 'daily', name: settings?.dailyTemplate, label: 'Daily Text Stream', status: settings?.templateHealth?.daily, header: 'NONE' }
+                    { id: 'weekly', name: settings?.weeklyTemplate, label: 'Weekly PDF Stream', status: settings?.templateHealth?.weekly },
+                    { id: 'daily', name: settings?.dailyTemplate, label: 'Daily Text Stream', status: settings?.templateHealth?.daily }
                   ].map((t) => (
                     <div key={t.id} className="p-8 rounded-3xl bg-slate-50 border-2 border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6 group hover:border-secondary/20 transition-all">
                        <div className="space-y-3 text-center sm:text-left flex-1">
@@ -444,10 +428,12 @@ export default function AutomationGovernance() {
                                </div>
                             </td>
                             <td className="text-center font-bold text-[13px] uppercase border-r">{c.weekId}</td>
-                            <td className="text-center border-r font-black text-emerald-500 tabular-nums">{c.stats?.success || 0} / {c.stats?.total || 0}</td>
+                            <td className="text-center border-r font-black text-emerald-500 tabular-nums">
+                              {c.stats?.success || 0} / {c.stats?.total || 0}
+                            </td>
                             <td className="pr-12 py-8 text-right">
                                <Badge className={cn("font-black text-[10px] uppercase px-4 py-1.5 rounded-full", c.status === 'completed' ? 'bg-emerald-500' : 'bg-secondary animate-pulse')}>
-                                 {c.status || 'PENDING'}
+                                 {c.status?.toUpperCase() || 'PENDING'}
                                </Badge>
                             </td>
                          </tr>
@@ -470,25 +456,20 @@ export default function AutomationGovernance() {
                 <div className="grid gap-4">
                    {dailyLogs?.length === 0 ? (
                       <div className="py-20 text-center opacity-10 italic font-black uppercase text-xs">No daily traces detected.</div>
-                   ) : dailyLogs?.map((log) => {
-                     const dateObj = log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
-                     const timeStr = isNaN(dateObj.getTime()) ? '---' : dateObj.toLocaleTimeString();
-
-                     return (
+                   ) : dailyLogs?.map((log) => (
                        <div key={log.id} className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-between group hover:bg-white/10 transition-all border-l-4 border-l-secondary">
                           <div className="flex flex-col">
                              <span className="text-[15px] font-black uppercase text-white/90">{log.employeeName || 'Anonymous'}</span>
                              <span className="text-[8px] text-white/20 uppercase font-black tracking-widest mt-1">{log.office || 'GLOBAL'} HUB</span>
                           </div>
                           <div className="flex items-center gap-12">
-                             <span className="text-[11px] font-bold text-white/60 tabular-nums uppercase">{timeStr}</span>
+                             <span className="text-[11px] font-bold text-white/60 tabular-nums uppercase">{safeFormatTime(log.timestamp)}</span>
                              <Badge variant="outline" className={cn("text-[9px] font-black uppercase border-none px-4 py-1.5 rounded-lg", log.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-destructive/20 text-destructive')}>
-                                {log.status || 'FAILED'}
+                                {log.status?.toUpperCase() || 'FAILED'}
                              </Badge>
                           </div>
                        </div>
-                     );
-                   })}
+                   ))}
                 </div>
              </CardContent>
            </Card>
@@ -522,7 +503,6 @@ export default function AutomationGovernance() {
                                         <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-0.5">{test.sub}</p>
                                      </div>
                                   </div>
-                                  <ChevronRight className="size-5 opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-all" />
                                 </Button>
                              ))}
                           </div>
@@ -530,12 +510,10 @@ export default function AutomationGovernance() {
 
                        <div className="pt-10 border-t-4 border-dashed border-slate-50 space-y-8">
                           <div className="space-y-4">
-                            <Label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] ml-1 flex items-center gap-3">
-                               <Fingerprint className="size-4 text-primary" /> Live Identity Trace
-                            </Label>
+                            <Label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] ml-1">Live Identity Trace</Label>
                             <Select value={selectedEmp} onValueChange={setSelectedEmp}>
                                <SelectTrigger className="h-16 font-black border-2 border-slate-100 bg-slate-50 rounded-2xl px-8 focus:border-secondary transition-all text-[13px] uppercase">
-                                  <SelectValue placeholder="Select Professional Registry..." />
+                                  <SelectValue placeholder="Select Professional..." />
                                </SelectTrigger>
                                <SelectContent className="rounded-[2rem] border-none shadow-2xl p-3 bg-white">
                                   {employees?.map(e => (
@@ -547,8 +525,8 @@ export default function AutomationGovernance() {
                             </Select>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
-                             <Button variant="outline" className="h-16 border-2 border-slate-100 text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl hover:bg-emerald-50" onClick={() => handlePreview('daily')} disabled={!selectedEmp || previewing}>PREVIEW DAILY</Button>
-                             <Button variant="outline" className="h-16 border-2 border-slate-100 text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl hover:bg-secondary/5" onClick={() => handlePreview('weekly')} disabled={!selectedEmp || previewing}>PREVIEW WEEKLY</Button>
+                             <Button variant="outline" className="h-16 border-2 border-slate-100 text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl" onClick={() => handlePreview('daily')} disabled={!selectedEmp || previewing}>PREVIEW DAILY</Button>
+                             <Button variant="outline" className="h-16 border-2 border-slate-100 text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl" onClick={() => handlePreview('weekly')} disabled={!selectedEmp || previewing}>PREVIEW WEEKLY</Button>
                           </div>
                        </div>
                     </CardContent>
