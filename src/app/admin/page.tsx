@@ -26,15 +26,10 @@ import { getRegionalStatsAction, getOfficeDashboardStatsAction } from "@/service
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from "@/services/whatsapp-settings-action"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
-import { useFirebaseApp } from "@/firebase"
-import { getStorage } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 
 export default function AdminDashboard() {
   const auth = useAuth();
-  const db = useFirestore();
-  const firebaseApp = useFirebaseApp();
   const { profile, loading: userLoading } = useUser();
   const { selectedOffice, authorizedOffices } = useOffice();
   const { toast } = useToast();
@@ -45,7 +40,6 @@ export default function AdminDashboard() {
   // Branding Hub States
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [pendingLogo, setPendingLogo] = useState<string | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [savingLogo, setSavingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,12 +52,13 @@ export default function AdminDashboard() {
         if (!idToken) return;
 
         // Fetch Branding Settings if Super Admin
-        if (profile?.role?.toLowerCase() === 'super_admin') {
+        const role = profile?.role?.toLowerCase();
+        if (role === 'super_admin') {
           const settings = await getWhatsAppSettingsAction();
           setLogoBase64(settings.logoBase64 || null);
         }
 
-        if (profile?.role?.toLowerCase() === 'super_admin') {
+        if (role === 'super_admin') {
           const res = await getRegionalStatsAction(idToken);
           if (res.success) setStats(res.data);
         } else if (selectedOffice) {
@@ -86,35 +81,26 @@ export default function AdminDashboard() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setPendingLogo(reader.result as string);
-      setPendingFile(file);
     };
     reader.readAsDataURL(file);
   };
 
   const handleSaveLogo = async () => {
-    if (!pendingLogo || !pendingFile) return;
+    if (!pendingLogo) return;
     setSavingLogo(true);
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Authentication pulse missing.");
 
-      // 1. Storage Registry Upload
-      const storage = getStorage(firebaseApp);
-      const storageRef = ref(storage, 'system_assets/logo.png');
-      await uploadBytes(storageRef, pendingFile);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      // 2. Firestore Sync (Base64 + URL metadata)
+      // Institutional Protocol: Store strictly as Base64 for consistent PDF embedding
       const result = await updateWhatsAppSettingsAction(idToken, { 
-        logoBase64: pendingLogo,
-        logoUrl: downloadURL 
+        logoBase64: pendingLogo
       });
 
       if (result.success) {
         setLogoBase64(pendingLogo);
         setPendingLogo(null);
-        setPendingFile(null);
-        toast({ title: "Branding Secured", description: "Institutional identity updated globally." });
+        toast({ title: "Branding Secured", description: "Institutional identity updated in registry via Base64 pulse." });
       } else {
         throw new Error(result.error);
       }
@@ -306,7 +292,7 @@ export default function AdminDashboard() {
                           <Button 
                             variant="ghost" 
                             className="font-black uppercase text-[9px] tracking-widest text-muted-foreground"
-                            onClick={() => { setPendingLogo(null); setPendingFile(null); }}
+                            onClick={() => setPendingLogo(null)}
                             disabled={savingLogo}
                           >
                             Discard Selection

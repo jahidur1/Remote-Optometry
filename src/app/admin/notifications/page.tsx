@@ -23,11 +23,9 @@ import {
   AlertTriangle,
   History,
   Building2,
-  Fingerprint,
   Smartphone,
   ShieldAlert,
-  Target,
-  Upload
+  Target
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -39,7 +37,6 @@ import { previewWeeklyRosterAction } from '@/services/weekly-roster-pdf-service'
 import { runDailyShiftReminders } from '@/services/daily-reminder-service';
 import { cn } from '@/lib/utils';
 import { getCurrentWeekId } from '@/lib/date-utils';
-import { Input } from '@/components/ui/input';
 
 /**
  * Resilient Time Formatter
