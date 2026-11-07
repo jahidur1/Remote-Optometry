@@ -10,7 +10,7 @@ import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v10.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v11.0
  * 
  * Orchestrates bulk distribution with Meta Document API.
  * Hardened: Strictly uses FieldValue class from central admin lib.
@@ -109,7 +109,14 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
              'stats.pending': FieldValue.increment(-1), 
              'stats.success': FieldValue.increment(1) 
            });
-           await adminDb.collection('whatsapp_logs').add({ jobKey, employeeId, office: officeId, status: 'success', timestamp: new Date().toISOString() });
+           await adminDb.collection('whatsapp_logs').add({ 
+             jobKey, 
+             employeeId, 
+             office: officeId, 
+             status: 'success', 
+             notificationType: 'weekly_pdf',
+             timestamp: new Date().toISOString() 
+           });
         } else throw new Error(dispatch.error);
 
       } catch (e) {

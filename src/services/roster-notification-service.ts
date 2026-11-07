@@ -9,7 +9,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId, getISTNow, getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v11.0 (Secure PDF Protocol)
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v12.0 (Secure PDF Protocol)
  * 
  * Orchestrates premium document synthesis, private storage, and Meta API dispatch.
  */
@@ -20,7 +20,7 @@ async function getAuthorizedUser(idToken: string) {
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Registry Error: Identity node not found.");
   const profile = userSnap.data()!;
-  if (profile.role !== 'super_admin' && profile.role !== 'admin') {
+  if (profile.role?.toLowerCase() !== 'super_admin' && profile.role?.toLowerCase() !== 'admin') {
     throw new Error("Privilege Block: Administrative pulse required.");
   }
   return { uid: decoded.uid, ...profile } as any;
@@ -29,16 +29,13 @@ async function getAuthorizedUser(idToken: string) {
 /**
  * previewEmployeeRosterAction
  */
-export async function previewEmployeeRosterAction(idToken: string, employeeId: string, weekId?: string, mockCase?: number) {
+export async function previewEmployeeRosterAction(idToken: string, employeeId: string, weekId?: string) {
   try {
     await getAuthorizedUser(idToken);
     
-    let emp: any = { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL', id: 'EMP-PREVIEW-001' };
-    
-    if (employeeId !== 'TEST-EMP') {
-      const empSnap = await adminDb.collection('employees').doc(employeeId).get();
-      if (empSnap.exists) emp = empSnap.data();
-    }
+    const empSnap = await adminDb.collection('employees').doc(employeeId).get();
+    if (!empSnap.exists) throw new Error("Target Professional not found.");
+    const emp = empSnap.data()!;
 
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const logoBase64 = configSnap.exists ? configSnap.data()?.logoBase64 : null;
@@ -95,7 +92,7 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
  */
 export async function sendTestWhatsAppAction(idToken: string, employeeId: string, type: 'daily' | 'weekly') {
   try {
-    const caller = await getAuthorizedUser(idToken);
+    await getAuthorizedUser(idToken);
     
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
     if (!empSnap.exists) throw new Error("Target Professional not found.");
