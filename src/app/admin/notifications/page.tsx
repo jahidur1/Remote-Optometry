@@ -39,16 +39,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
-import { previewEmployeeRosterAction, sendTestBriefingAction } from '@/services/roster-notification-service';
+import { previewEmployeeRosterAction } from '@/services/roster-notification-service';
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
 
 export default function AutomationGovernance() {
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useUser();
   const { toast } = useToast();
-  const router = useRouter();
 
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -61,13 +59,12 @@ export default function AutomationGovernance() {
   const [previewing, setPreviewing] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState('');
-  const [previewByteSize, setPreviewByteSize] = useState(0);
 
   const empQuery = useMemo(() => query(collection(db, 'employees'), orderBy('fullName', 'asc')), [db]);
   const logsQuery = useMemo(() => query(collection(db, 'whatsapp_logs'), orderBy('timestamp', 'desc'), limit(50)), [db]);
 
   const { data: employees } = useCollection(empQuery);
-  const { data: logs, loading: logsLoading } = useCollection(logsQuery);
+  const { data: logs } = useCollection(logsQuery);
 
   useEffect(() => {
     fetchSettings();
@@ -119,25 +116,9 @@ export default function AutomationGovernance() {
 
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const originalBase64 = event.target?.result as string;
-      const img = new Image();
-      
-      img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; 
-        const scale = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH;
-        canvas.height = img.height * scale;
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const optimizedBase64 = canvas.toDataURL('image/png', 0.9);
-          setStagedLogo(optimizedBase64);
-          toast({ title: "Base64 Staged", description: "Image converted and ready for commit." });
-        }
-      };
-      img.src = originalBase64;
+      const base64 = event.target?.result as string;
+      setStagedLogo(base64);
+      toast({ title: "Base64 Staged", description: "Ready for institutional commit." });
     };
     reader.readAsDataURL(file);
   };
@@ -155,35 +136,11 @@ export default function AutomationGovernance() {
       });
       
       if (result.success) {
-        toast({ title: "Registry Synchronized", description: "Branding secured for clinical documents." });
+        toast({ title: "Registry Synchronized" });
         fetchSettings();
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failure", description: e.message });
-    } finally {
-      setSavingBranding(false);
-    }
-  };
-
-  const handleClearBranding = async () => {
-    if (!confirm("Decommission Branding: Remove logo from all generated documents?")) return;
-    setSavingBranding(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Auth link failed.");
-
-      const result = await updateWhatsAppSettingsAction(idToken, { 
-        logoBase64: '', 
-        rawLogoBase64: '' 
-      });
-      
-      if (result.success) {
-        setStagedLogo(null);
-        fetchSettings();
-        toast({ title: "Branding Purged" });
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Clear Failure", description: e.message });
     } finally {
       setSavingBranding(false);
     }
@@ -204,7 +161,6 @@ export default function AutomationGovernance() {
       if (result.success) {
         setPreviewDoc(result.base64);
         setPreviewSize(result.size);
-        setPreviewByteSize(result.byteSize || 0);
       } else {
         throw new Error(result.error);
       }
@@ -215,16 +171,8 @@ export default function AutomationGovernance() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-[80vh] flex-col items-center justify-center gap-6">
-        <Loader2 className="size-12 animate-spin text-secondary opacity-30" />
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground animate-pulse">Syncing Governance Hub</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
-  const isSuperAdmin = profile?.role === 'super_admin';
   const hasUnsavedChanges = stagedLogo !== settings?.automation?.base64Logo;
 
   return (
@@ -233,7 +181,7 @@ export default function AutomationGovernance() {
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
-              <Zap className="size-8 text-secondary fill-secondary/20" />
+              <Zap className="size-8 text-secondary" />
             </div>
             <div>
               <h1 className="text-4xl font-black tracking-tight uppercase leading-none">Automation Hub</h1>
@@ -294,25 +242,16 @@ export default function AutomationGovernance() {
                <CardTitle className="text-xl uppercase font-black tracking-tight leading-none flex items-center gap-3">
                  <Settings2 className="size-5 text-secondary" /> Institutional Branding
                </CardTitle>
-               <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Optimized for PDF Synthesis</CardDescription>
+               <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Optimized for Clinical Documents</CardDescription>
              </CardHeader>
              <CardContent className="p-10 space-y-8">
                 <div className="relative aspect-video rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 p-8 flex items-center justify-center group overflow-hidden shadow-inner">
                    {stagedLogo ? (
                      <img src={stagedLogo} alt="Institutional Logo" className="max-h-32 object-contain animate-in zoom-in-95" />
                    ) : (
-                     <div className="flex flex-col items-center justify-center gap-4 group hover:border-secondary transition-all opacity-30">
-                        <ImageIcon className="size-12 text-slate-300 group-hover:scale-110 transition-transform" />
+                     <div className="flex flex-col items-center justify-center gap-4 opacity-30">
+                        <ImageIcon className="size-12 text-slate-300" />
                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em]">No Logo Registry Found</p>
-                     </div>
-                   )}
-                   
-                   {stagedLogo && (
-                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4">
-                        <Badge className="bg-secondary text-white font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-full">INSTITUTIONAL PREVIEW</Badge>
-                        <Button variant="ghost" size="icon" className="text-white hover:bg-destructive/20 hover:text-destructive rounded-full" onClick={handleClearBranding}>
-                           <Trash2 className="size-6" />
-                        </Button>
                      </div>
                    )}
                 </div>
@@ -323,13 +262,12 @@ export default function AutomationGovernance() {
                         <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
                           <FileJson className="size-3" /> Base64 Payload
                         </Label>
-                        <Label className="cursor-pointer text-[10px] font-black text-secondary hover:underline transition-all flex items-center gap-2">
-                           <Upload className="size-3" /> Load from Image
+                        <Label className="cursor-pointer text-[10px] font-black text-secondary hover:underline flex items-center gap-2">
+                           <Upload className="size-3" /> Load File
                            <input type="file" className="hidden" accept="image/*" onChange={handleFileToBase64} />
                         </Label>
                       </div>
                       <Textarea 
-                        placeholder="data:image/png;base64,..." 
                         className="h-32 font-mono text-[10px] border-2 border-slate-100 rounded-2xl bg-slate-50 focus:border-secondary transition-all resize-none shadow-inner"
                         value={stagedLogo || ''}
                         onChange={(e) => setStagedLogo(e.target.value)}
@@ -341,7 +279,7 @@ export default function AutomationGovernance() {
                       <Button variant="outline" className="h-14 font-black uppercase text-[10px] tracking-widest rounded-xl border-2" onClick={() => setStagedLogo(settings?.automation?.base64Logo || null)} disabled={!hasUnsavedChanges || savingBranding}>
                          <RotateCcw className="size-4 mr-2" /> Reset
                       </Button>
-                      <Button className="h-14 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl transition-all group" onClick={handleSaveBranding} disabled={!hasUnsavedChanges || savingBranding}>
+                      <Button className="h-14 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-xl transition-all" onClick={handleSaveBranding} disabled={!hasUnsavedChanges || savingBranding}>
                          {savingBranding ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />} Commit Branding
                       </Button>
                    </div>
@@ -352,25 +290,19 @@ export default function AutomationGovernance() {
 
         <div className="lg:col-span-7 space-y-8">
           <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white border-t-8 border-t-secondary">
-             <CardHeader className="p-10 pb-4 border-b border-white/5 flex flex-col md:flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-2xl uppercase font-black tracking-tight leading-none">PDF Diagnostics</CardTitle>
-                  <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">High-fidelity vector synthesis</CardDescription>
-                </div>
-                <div className="flex items-center gap-4 px-6 py-2 bg-white/5 rounded-xl border border-white/10">
-                   <Clock className="size-4 text-secondary" />
-                   <span className="text-[11px] font-black uppercase tracking-widest tabular-nums">10:00 PM IST DAILY PULSE</span>
-                </div>
+             <CardHeader className="p-10 pb-4 border-b border-white/5">
+                <CardTitle className="text-2xl uppercase font-black tracking-tight leading-none">PDF Intelligence Preview</CardTitle>
+                <CardDescription className="text-[10px] font-bold uppercase text-white/30 tracking-widest mt-3">High-fidelity vector document synthesis</CardDescription>
              </CardHeader>
              <CardContent className="p-10 grid gap-10 md:grid-cols-2">
                 <div className="space-y-8">
                    <div className="space-y-4">
-                      <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1">QA Preview Cases</Label>
+                      <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1">QA Validation Cases</Label>
                       <div className="grid grid-cols-1 gap-3">
                          {[
-                           { id: 1, label: 'Consecutive Working', sub: 'PDF Briefing' },
-                           { id: 2, label: 'Work + Week-Off', sub: 'PDF Briefing' },
-                           { id: 3, label: 'Double Week-Off', sub: 'PDF Briefing' }
+                           { id: 1, label: 'Two Working Days', sub: 'Consecutive Shifts' },
+                           { id: 2, label: 'Work + Week Off', sub: 'Mixed Eligibility' },
+                           { id: 3, label: 'Double Week Off', sub: 'Clinical Closure' }
                          ].map(test => (
                            <Button key={test.id} variant="outline" className="h-14 border-2 border-white/10 bg-white/5 hover:bg-white/10 text-white flex items-center justify-between px-6 rounded-xl group" onClick={() => handlePreview(test.id)} disabled={previewing}>
                               <div className="flex items-center gap-4">
@@ -388,7 +320,7 @@ export default function AutomationGovernance() {
 
                    <div className="pt-6 border-t border-white/10 space-y-6">
                       <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1">Live Employee Test</Label>
+                        <Label className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em] ml-1">Live Professional Trace</Label>
                         <Select value={selectedEmp} onValueChange={setSelectedEmp}>
                            <SelectTrigger className="h-14 font-black border-2 border-white/10 bg-white/5 rounded-2xl px-6 focus:border-secondary">
                               <SelectValue placeholder="Select Professional..." />

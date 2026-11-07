@@ -3,11 +3,11 @@
 /**
  * @fileOverview Meta WhatsApp Cloud API Service.
  * 
- * Implements the official Media API workflow:
- * 1. Upload binary buffer to Meta Media endpoint.
+ * Implements the official Media API workflow for Document Headers:
+ * 1. Upload PDF binary to Meta Media endpoint.
  * 2. Dispatch Template Message using the returned Media ID.
  * 
- * PROTOCOL: Institutional Roster Briefing (PDF Document)
+ * PROTOCOL: Institutional Document Pulse (PDF)
  */
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -60,7 +60,7 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: 
 /**
  * sendWhatsAppShiftBriefingWithDocument
  * Dispatches a Shift Briefing Template with a PDF document header.
- * REQUIREMENT: Meta Template 'roc_two_day_roster_notification' must have DOCUMENT header type.
+ * REQUIREMENT: Template 'roc_two_day_roster_notification' must be configured with a DOCUMENT header.
  */
 export async function sendWhatsAppShiftBriefingWithDocument(
   to: string,
@@ -130,15 +130,4 @@ export async function sendWhatsAppShiftBriefingWithDocument(
     console.error('WHATSAPP_ORCHESTRATION_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
-}
-
-// Keep legacy for compatibility if needed, but the primary is now Document
-export async function sendWhatsAppShiftBriefingWithImage(
-  to: string,
-  employeeName: string,
-  imageBuffer: Buffer,
-  fileName: string
-): Promise<WhatsAppSendResult> {
-    // Redirecting to document flow as instructed
-    return sendWhatsAppShiftBriefingWithDocument(to, employeeName, imageBuffer, fileName);
 }

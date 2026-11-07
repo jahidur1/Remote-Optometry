@@ -8,7 +8,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v7.0 (PDF)
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v8.0 (PDF)
  * 
  * Orchestrates premium document synthesis and Meta API dispatch.
  * PROTOCOL: Secure Document Registry & Metadata Archiving.
@@ -50,30 +50,27 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
   const dates = [format(tomorrow, 'yyyy-MM-dd'), format(dayAfter, 'yyyy-MM-dd')];
   
   const weekIds = [formatWeekId(tomorrow), formatWeekId(dayAfter)];
-  const tomRosterId = `active_${weekIds[0]}_${office}`;
-  const datRosterId = `active_${weekIds[1]}_${office}`;
-
-  const [r1, r2] = await Promise.all([
-    adminDb.collection('published_rosters').doc(tomRosterId).get(),
-    adminDb.collection('published_rosters').doc(datRosterId).get()
-  ]);
-
-  const findAssignment = (snap: any, date: string) => 
-    snap.exists ? snap.data().assignments?.find((a: any) => a.employeeId === employeeId && a.date === date) : null;
-
-  return dates.map((date, idx) => {
-    const assign = findAssignment(idx === 0 ? r1 : r2, date);
+  
+  const results = [];
+  for (let i = 0; i < 2; i++) {
+    const rosterId = `active_${weekIds[i]}_${office}`;
+    const rosterSnap = await adminDb.collection('published_rosters').doc(rosterId).get();
+    const dateStr = dates[i];
+    
+    const assign = rosterSnap.exists ? rosterSnap.data()?.assignments?.find((a: any) => a.employeeId === employeeId && a.date === dateStr) : null;
     const shift = assign ? shiftsMap.get(assign.shiftId) : null;
     const isOff = !assign || assign.shiftId === 'none';
 
-    return {
-      date: format(new Date(date), 'dd MMMM yyyy').toUpperCase(),
-      day: format(new Date(date), 'EEEE').toUpperCase(),
+    results.push({
+      date: format(new Date(dateStr), 'dd MMMM yyyy').toUpperCase(),
+      day: format(new Date(dateStr), 'EEEE').toUpperCase(),
       shift: isOff ? 'WEEK OFF' : (shift?.name || 'UNASSIGNED'),
       time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`,
       shiftId: assign?.shiftId || 'none'
-    };
-  });
+    });
+  }
+
+  return results;
 }
 
 export async function previewEmployeeRosterAction(idToken: string, employeeId: string, mockCase?: number) {
@@ -96,6 +93,7 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
     const pdfBuffer = await generateRosterPdf({
       employeeName: emp.fullName,
       employeeId: emp.id,
+      officeName: emp.office,
       logoBase64,
       nextTwoDays
     });
@@ -177,11 +175,12 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         const pdfBuffer = await generateRosterPdf({
           employeeName: emp.fullName,
           employeeId: empDoc.id,
+          officeName: emp.office,
           logoBase64: automation?.base64Logo,
           nextTwoDays
         });
 
-        // 1. SAVE TO INSTITUTIONAL REGISTRY (Storage)
+        // 1. SAVE TO INSTITUTIONAL REGISTRY
         const storagePath = `whatsapp-roster-documents/${format(new Date(), 'yyyy/MM')}/${empDoc.id}/${executionId}.pdf`;
         const file = bucket.file(storagePath);
         
@@ -205,7 +204,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           emp.whatsappNumber,
           emp.fullName,
           pdfBuffer,
-          `Roster_${format(new Date(), 'dd_MMM')}.pdf`
+          `Team_Remote_Optometry_${empDoc.id}_${dates[0]}_${dates[1]}.pdf`
         );
 
         if (dispatch.success) {
@@ -217,6 +216,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             employeeName: emp.fullName,
             office: emp.office,
             status: 'success',
+            docType: 'application/pdf',
             docSize: `${(pdfBuffer.length / 1024).toFixed(1)} KB`,
             byteSize: pdfBuffer.length,
             messageId: dispatch.messageId,
