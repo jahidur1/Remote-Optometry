@@ -246,7 +246,7 @@ exports.cleanupExpiredRosterPdfs = (0, scheduler_1.onSchedule)('every hour', asy
     const now = new Date();
     for (const file of files) {
         const [metadata] = await file.getMetadata();
-        if (!metadata.timeCreated)
+        if (!metadata || !metadata.timeCreated)
             continue;
         const created = new Date(metadata.timeCreated);
         const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
