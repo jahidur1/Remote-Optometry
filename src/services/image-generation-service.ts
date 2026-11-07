@@ -21,27 +21,33 @@ type RosterDay = {
 
 /**
  * loadFont
- * Fetches institutional Inter font from a high-availability CDN to support satori layout engine.
+ * Fetches institutional Inter font using a multi-source resilient pulse.
+ * Uses forced caching to minimize external network dependencies during synthesis.
  */
 async function loadFont() {
-  // Using jsDelivr for high-reliability font delivery
-  const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/inter/static/Inter-Black.ttf';
-  
-  try {
-    const response = await fetch(fontUrl, {
-      next: { revalidate: 3600 } // Cache for 1 hour
-    });
-    
-    if (!response.ok) {
-      console.error(`FONT_PULSE_ERROR: Received ${response.status} from CDN`);
-      throw new Error(`HTTP_${response.status}`);
+  const sources = [
+    'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf',
+    'https://github.com/googlefonts/inter/raw/master/fonts/ttf/Inter-Black.ttf',
+    'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf'
+  ];
+
+  for (const url of sources) {
+    try {
+      const response = await fetch(url, { 
+        cache: 'force-cache',
+        signal: AbortSignal.timeout(5000) // 5s timeout per source
+      });
+      
+      if (response.ok) {
+        return await response.arrayBuffer();
+      }
+      console.warn(`FONT_PULSE_WARN: ${url} returned ${response.status}`);
+    } catch (e: any) {
+      console.warn(`FONT_PULSE_SKIP: Failed to fetch from ${url} - ${e.message}`);
     }
-    
-    return await response.arrayBuffer();
-  } catch (e: any) {
-    console.error('FONT_FETCH_CRITICAL_FAILURE:', e.message);
-    throw new Error("FONT_FETCH_FAILURE");
   }
+
+  throw new Error("FONT_FETCH_FAILURE");
 }
 
 /**
