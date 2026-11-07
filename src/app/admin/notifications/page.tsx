@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -28,12 +27,11 @@ import {
   ChevronLeft
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from '@/components/ui/input';
 import { getWhatsAppSettingsAction, updateWhatsAppSettingsAction } from '@/services/whatsapp-settings-action';
 import { previewEmployeeRosterAction, sendTestBriefingAction } from '@/services/roster-notification-service';
-import { RoleGuard } from '@/components/auth/role-guard';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
@@ -123,7 +121,7 @@ export default function AutomationGovernance() {
 
         const result = await updateWhatsAppSettingsAction(idToken, { logoBase64: base64 });
         if (result.success) {
-          toast({ title: "Branding Updated" });
+          toast({ title: "Branding Updated", description: "Logo secured in registry." });
           fetchSettings();
         }
       } catch (e: any) {
@@ -138,6 +136,7 @@ export default function AutomationGovernance() {
   const handlePreview = async () => {
     if (!selectedEmp) return;
     setPreviewing(true);
+    setPreviewImage(null);
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth link failed.");
@@ -157,7 +156,10 @@ export default function AutomationGovernance() {
   };
 
   const handleTestDispatch = async () => {
-    if (!selectedEmp || !testPhone) return;
+    if (!selectedEmp || !testPhone) {
+      toast({ title: "Validation Error", description: "Select professional and enter test number.", variant: "destructive" });
+      return;
+    }
     if (!confirm(`Trigger real dispatch to ${testPhone}?`)) return;
 
     setDispatching(true);
@@ -187,7 +189,6 @@ export default function AutomationGovernance() {
     );
   }
 
-  // Double check Super Admin status early in render to prevent leaking UI fragments
   const isSuperAdmin = profile?.role === 'super_admin';
   if (!isSuperAdmin) {
     return (
@@ -294,7 +295,7 @@ export default function AutomationGovernance() {
                 <div className="space-y-4">
                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Update Brand Asset</Label>
                    <div className="relative">
-                      <Input type="file" accept="image/*" className="h-14 pt-4 font-bold border-2 border-slate-100 rounded-xl cursor-pointer" onChange={handleLogoUpload} disabled={updating} />
+                      <Input type="file" accept="image/*" className="h-14 pt-3.5 font-bold border-2 border-slate-100 rounded-xl cursor-pointer" onChange={handleLogoUpload} disabled={updating} />
                       <Upload className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-slate-300 pointer-events-none" />
                    </div>
                 </div>

@@ -76,6 +76,7 @@ export async function updateWhatsAppSettingsAction(idToken: string, updates: { e
     };
     if (updates.masterEnabled !== undefined) autoUpdates.masterEnabled = updates.masterEnabled;
     if (updates.logoBase64 !== undefined) {
+        // Institutional Registry: Logo is stored as Base64 for consistent server-side rendering
         autoUpdates.base64Logo = updates.logoBase64;
         autoUpdates.logoUpdatedAt = now;
     }

@@ -1,4 +1,3 @@
-
 'use server';
 
 import satori from 'satori';
@@ -10,7 +9,7 @@ import React from 'react';
  * 
  * Generates personalized 700x400 roster images.
  * STRICT REQUIREMENT: Final image size MUST be <= 50KB.
- * PROGRESSIVE COMPRESSION: Recursively reduces quality/scale until constraint is met.
+ * FONT PROTOCOL: Fetches Inter font buffer for layout calculation.
  */
 
 type RosterDay = {
@@ -20,6 +19,17 @@ type RosterDay = {
   time: string;
 };
 
+/**
+ * loadFont
+ * Fetches standard Inter font from public CDN to support satori layout engine.
+ */
+async function loadFont() {
+  const fontUrl = 'https://github.com/google/fonts/raw/main/ofl/inter/Inter-Black.ttf';
+  const response = await fetch(fontUrl);
+  if (!response.ok) throw new Error("FONT_FETCH_FAILURE");
+  return await response.arrayBuffer();
+}
+
 export async function generateRosterImage(input: {
   employeeName: string;
   employeeId: string;
@@ -27,6 +37,7 @@ export async function generateRosterImage(input: {
   nextTwoDays: RosterDay[];
 }): Promise<Buffer> {
   const { employeeName, employeeId, logoBase64, nextTwoDays } = input;
+  const fontData = await loadFont();
 
   // Satori SVG Rendering (Deterministic React-to-SVG)
   const renderSvg = async (scale = 1) => {
@@ -41,7 +52,6 @@ export async function generateRosterImage(input: {
             flexDirection: 'column',
             backgroundColor: '#FFFFFF',
             padding: `${32 * scale}px`,
-            fontFamily: 'sans-serif',
             border: `${10 * scale}px solid #0F172A`,
             borderRadius: `${32 * scale}px`,
           },
@@ -73,7 +83,7 @@ export async function generateRosterImage(input: {
           ),
           logoBase64 ? React.createElement('img', {
             src: logoBase64,
-            style: { height: `${40 * scale}px`, objectFit: 'contain' }
+            style: { height: `${40 * scale}px`, maxWidth: `${180 * scale}px`, objectFit: 'contain' }
           }) : React.createElement('div', {
             style: { fontSize: `${18 * scale}px`, fontWeight: 900, color: '#3B82F6' }
           }, 'ROC')
@@ -136,12 +146,19 @@ export async function generateRosterImage(input: {
       {
         width: 700 * scale,
         height: 400 * scale,
+        fonts: [
+          {
+            name: 'Inter',
+            data: fontData,
+            weight: 900,
+            style: 'normal',
+          },
+        ],
       }
     );
   };
 
   // RECURSIVE QUALITY LOOP: Progressively reduce fidelity to hit strict 50KB limit
-  // Start at full scale, reduce by 0.1 until byte weight <= 51200 bytes (50KB)
   let qualityScale = 1.0;
   let finalBuffer: Buffer | null = null;
   
@@ -155,7 +172,7 @@ export async function generateRosterImage(input: {
     const pngData = resvg.render();
     const currentBuffer = pngData.asPng();
     
-    // Strict 50KB constraint
+    // Strict 50KB constraint for Meta Media API reliability
     if (currentBuffer.length <= 51200) {
         finalBuffer = currentBuffer;
         break;
@@ -164,7 +181,7 @@ export async function generateRosterImage(input: {
   }
 
   if (!finalBuffer) {
-    throw new Error("IMAGE_OPTIMIZATION_FAILURE: Could not compress roster image below 50KB threshold while maintaining legibility.");
+    throw new Error("IMAGE_OPTIMIZATION_FAILURE: Buffer weight exceeds 50KB ceiling.");
   }
 
   return finalBuffer;
