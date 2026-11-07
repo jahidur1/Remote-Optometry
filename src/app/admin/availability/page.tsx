@@ -240,7 +240,8 @@ export default function MasterMatrix() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Auth link missing.");
-      const result = await previewEmployeeRosterAction(idToken, employeeId);
+      // Pass the selected week to generate a 7-day roster
+      const result = await previewEmployeeRosterAction(idToken, employeeId, selectedWeek);
       if (result.success && result.base64) {
         const win = window.open();
         win?.document.write(`<iframe src="${result.base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
@@ -496,7 +497,7 @@ export default function MasterMatrix() {
                          <div className="flex items-center justify-between pr-4">
                             <div className="flex flex-col gap-1.5">
                                <span className="font-black text-[16px] text-black tracking-tight group-hover:translate-x-1 transition-transform leading-none uppercase">{emp.fullName}</span>
-                               <div className="flex items-center gap-2">
+                               <div className="flex items-center gap-2 mt-1.5">
                                   <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-secondary/20 text-secondary bg-secondary/5 px-2 py-0.5 rounded-md w-fit tabular-nums">ID: {emp.id}</Badge>
                                   {emp.whatsappOptIn === false && <Badge className="bg-destructive text-white border-none text-[7px] font-black uppercase px-2 py-0 rounded-sm">OPT-OUT</Badge>}
                                </div>

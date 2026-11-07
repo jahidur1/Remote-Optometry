@@ -1,12 +1,11 @@
-
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { generateRosterPdf } from './roster-document-service';
+import { generateRosterPdf, generateWeeklyRosterPdf } from './roster-document-service';
 import { sendWhatsAppShiftBriefingWithDocument } from './whatsapp-action';
 import { format, addDays } from 'date-fns';
 import { getStorage } from 'firebase-admin/storage';
-import { formatWeekId, getISTNow } from '@/lib/date-utils';
+import { formatWeekId, getISTNow, getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 
 /**
  * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v10.0 (Secure PDF Protocol)
@@ -87,9 +86,9 @@ async function getNextTwoDaysData(employeeId: string, office: string, mockCase?:
 
 /**
  * previewEmployeeRosterAction
- * Generates a real-time PDF preview for administrative validation.
+ * Generates a real-time weekly PDF preview for administrative validation.
  */
-export async function previewEmployeeRosterAction(idToken: string, employeeId: string, mockCase?: number) {
+export async function previewEmployeeRosterAction(idToken: string, employeeId: string, weekId?: string, mockCase?: number) {
   try {
     const profile = await getAuthorizedUser(idToken);
     if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized Access.");
@@ -101,17 +100,44 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
       if (empSnap.exists) emp = empSnap.data();
     }
 
-    const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
-    const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
+    const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
+    const logoBase64 = configSnap.exists ? configSnap.data()?.logoBase64 : null;
 
-    const nextTwoDays = await getNextTwoDaysData(emp.id, emp.office, mockCase);
+    // Correctly fetch assignments for the entire week (7 days)
+    const targetWeekId = weekId || formatWeekId(getISTNow());
+    const weekDates = getDatesForWeek(targetWeekId);
+    const weekRange = displayWeekRange(targetWeekId);
 
-    const pdfBuffer = await generateRosterPdf({
+    const shiftSnap = await adminDb.collection('shift_master').get();
+    const shiftsMap = new Map();
+    shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
+
+    const rosterId = `active_${targetWeekId}_${emp.office}`;
+    const rosterSnap = await adminDb.collection('published_rosters').doc(rosterId).get();
+    const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
+
+    const rosterDays = weekDates.map(date => {
+      const dStr = format(date, 'yyyy-MM-dd');
+      const assign = assignments.find((a: any) => a.employeeId === emp.id && a.date === dStr);
+      const shift = assign ? shiftsMap.get(assign.shiftId) : null;
+      const isOff = !assign || assign.shiftId === 'none';
+
+      return {
+        date: format(date, 'dd MMM yyyy').toUpperCase(),
+        day: format(date, 'EEEE'),
+        shift: isOff ? 'WEEK OFF' : (shift?.name || 'DUTY'),
+        time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`,
+        shiftId: assign?.shiftId || 'none'
+      };
+    });
+
+    const pdfBuffer = await generateWeeklyRosterPdf({
       employeeName: emp.fullName,
       employeeId: emp.id,
       officeName: emp.office,
+      weekRange,
       logoBase64,
-      nextTwoDays
+      rosterDays
     });
 
     return { 
@@ -152,13 +178,6 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
  * runAutomatedRosterBriefing
  * 
  * High-intensity orchestration pulse.
- * Workflow:
- * 1. Eligibility Check (Published Roster, Opt-in, Valid Number)
- * 2. Idempotency Lock
- * 3. PDF Synthesis
- * 4. Private Storage (with metadata)
- * 5. Meta Document Dispatch
- * 6. Audit Logging
  */
 export async function runAutomatedRosterBriefing(officeId?: string, bypassMasterCheck = false) {
   const executionId = `exec_${Date.now()}`;
@@ -230,7 +249,6 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
         if (pdfBuffer.length === 0) throw new Error("Synthesis Failure: Empty buffer generated.");
 
         // 4. Secure Storage Registry
-        // Path: whatsapp-roster-pdfs/{year}/{month}/{employeeId}/
         const yearMonth = format(new Date(), 'yyyy/MM');
         const filename = `Team_Remote_Optometry_${empDoc.id}_${dates[0]}_${dates[1]}.pdf`;
         const storagePath = `whatsapp-roster-pdfs/${yearMonth}/${empDoc.id}/${filename}`;
@@ -284,7 +302,6 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             cleanupStatus: 'pending'
           });
 
-          // Update storage metadata with Meta ID and confirmation
           await file.setMetadata({
              metadata: { waStatus: 'sent', messageId: dispatch.messageId }
           });
@@ -307,7 +324,6 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
       }
     }
 
-    // 7. Pulse Telemetry
     if (autoSnap.exists) {
       await adminDb.collection('system_settings').doc('whatsapp_automation').update({
         lastRun: new Date().toISOString(),

@@ -230,7 +230,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
  */
 export const whatsappStatusWebhook = onRequest({
   secrets: [WHATSAPP_WEBHOOK_VERIFY_TOKEN],
-}, async (req, res) => {
+}, async (req, res): Promise<void> => {
   if (req.method === 'GET') {
     const verifyToken = WHATSAPP_WEBHOOK_VERIFY_TOKEN.value();
     if (req.query['hub.verify_token'] === verifyToken) {
@@ -288,7 +288,7 @@ export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) =
     const [metadata] = await file.getMetadata();
     if (!metadata || !metadata.timeCreated) continue;
     
-    const created = new Date(metadata.timeCreated);
+    const created = new Date(metadata.timeCreated as string);
     const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
 
     if (diffHours > 48) {
@@ -337,6 +337,7 @@ async function sendWhatsApp(to: string, template: string, vars: string[], jobKey
 async function uploadToMeta(buffer: Buffer, name: string): Promise<string> {
   const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/media`;
   const fd = new FormData();
+  // Binary Blob conversion fix for TS/Node 22
   fd.append('file', new Blob([new Uint8Array(buffer)]), name);
   fd.append('type', 'application/pdf');
   fd.append('messaging_product', 'whatsapp');
