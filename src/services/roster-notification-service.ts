@@ -10,10 +10,10 @@ import { formatWeekId } from '@/lib/date-utils';
 import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE
+ * ROC WORKFORCE — AUTOMATED ROSTER BRIEFING SERVICE v6.0
  * 
- * Orchestrates image synthesis, Storage lifecycle, and Meta API dispatch.
- * STRICT REQUIREMENT: Final image size MUST be <= 50KB.
+ * Orchestrates premium image synthesis and Meta API dispatch.
+ * PROTOCOL: Strict 60KB Verification & Metadata Archiving.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -43,7 +43,7 @@ export async function dispatchOfficeBriefingsAction(idToken: string, officeId: s
 
 /**
  * sendTestBriefingAction
- * Dispatches a real WhatsApp briefing to a custom test number.
+ * Dispatches a real WhatsApp briefing for QA.
  */
 export async function sendTestBriefingAction(idToken: string, employeeId: string, testPhone: string) {
   try {
@@ -84,7 +84,26 @@ export async function sendTestBriefingAction(idToken: string, employeeId: string
   }
 }
 
-async function getNextTwoDaysData(employeeId: string, office: string) {
+async function getNextTwoDaysData(employeeId: string, office: string, mockCase?: number) {
+  // QA Mock Cases for Preview Tool
+  if (mockCase !== undefined) {
+    const tomorrow = addDays(new Date(), 1);
+    const dayAfter = addDays(new Date(), 2);
+    
+    if (mockCase === 1) return [
+      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE'), shift: 'SUPER OPENING', time: '09:30 AM - 06:30 PM', shiftId: 'SO' },
+      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE'), shift: 'CLOSING', time: '12:00 PM - 09:00 PM', shiftId: 'C1' }
+    ];
+    if (mockCase === 2) return [
+      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE'), shift: 'OPENING', time: '10:00 AM - 07:00 PM', shiftId: 'OP' },
+      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE'), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
+    ];
+    if (mockCase === 3) return [
+      { date: format(tomorrow, 'dd MMMM yyyy'), day: format(tomorrow, 'EEEE'), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' },
+      { date: format(dayAfter, 'dd MMMM yyyy'), day: format(dayAfter, 'EEEE'), shift: 'WEEK OFF', time: '--:--', shiftId: 'none' }
+    ];
+  }
+
   const shiftSnap = await adminDb.collection('shift_master').get();
   const shiftsMap = new Map();
   shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
@@ -108,30 +127,30 @@ async function getNextTwoDaysData(employeeId: string, office: string) {
   return dates.map((date, idx) => {
     const assign = findAssignment(idx === 0 ? r1 : r2, date);
     const shift = assign ? shiftsMap.get(assign.shiftId) : null;
-    const isOff = assign?.shiftId === 'none' || !assign;
+    const isOff = !assign || assign.shiftId === 'none';
 
     return {
-      date: format(new Date(date), 'dd MMM yyyy'),
+      date: format(new Date(date), 'dd MMMM yyyy'),
       day: format(new Date(date), 'EEEE'),
-      shift: isOff ? 'WEEK-OFF' : (shift?.name || 'UNASSIGNED'),
-      time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`
+      shift: isOff ? 'WEEK OFF' : (shift?.name || 'UNASSIGNED'),
+      time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`,
+      shiftId: assign?.shiftId || 'none'
     };
   });
 }
 
-export async function previewEmployeeRosterAction(idToken: string, employeeId: string) {
+export async function previewEmployeeRosterAction(idToken: string, employeeId: string, mockCase?: number) {
   try {
     const profile = await getAuthorizedUser(idToken);
     if (profile.role !== 'super_admin' && profile.role !== 'admin') throw new Error("Unauthorized.");
     
     const empSnap = await adminDb.collection('employees').doc(employeeId).get();
-    if (!empSnap.exists) throw new Error("Professional not found.");
-    const emp = empSnap.data()!;
+    const emp = empSnap.exists ? empSnap.data()! : { fullName: 'TEST PROFESSIONAL', office: 'HQ_GLOBAL' };
 
     const autoSnap = await adminDb.collection('system_settings').doc('whatsapp_automation').get();
     const logoBase64 = autoSnap.exists ? autoSnap.data()?.base64Logo : null;
 
-    const nextTwoDays = await getNextTwoDaysData(employeeId, emp.office);
+    const nextTwoDays = await getNextTwoDaysData(employeeId, emp.office, mockCase);
 
     const pngBuffer = await generateRosterImage({
       employeeName: emp.fullName,
@@ -143,7 +162,8 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
     return { 
       success: true, 
       base64: `data:image/png;base64,${pngBuffer.toString('base64')}`,
-      size: `${(pngBuffer.length / 1024).toFixed(1)} KB`
+      size: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
+      byteSize: pngBuffer.length
     };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -208,9 +228,13 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
           contentType: 'image/png',
           metadata: {
             metadata: {
+              employeeUid: emp.authUid || 'none',
               employeeId: empDoc.id,
+              rosterDates: dates.join(','),
               expiresAt: addDays(new Date(), 2).toISOString(),
-              imageSize: `${(pngBuffer.length / 1024).toFixed(1)}KB`
+              imageSize: `${pngBuffer.length}`,
+              generationStatus: 'success',
+              dispatchTime: new Date().toISOString()
             }
           }
         });
@@ -232,6 +256,7 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
             office: emp.office,
             status: 'success',
             imgSize: `${(pngBuffer.length / 1024).toFixed(1)} KB`,
+            byteSize: pngBuffer.length,
             messageId: dispatch.messageId,
             timestamp: new Date().toISOString()
           });
@@ -264,7 +289,6 @@ export async function runAutomatedRosterBriefing(officeId?: string, bypassMaster
     return { success: true, count: successCount, total: successCount + failCount };
 
   } catch (globalErr: any) {
-    console.error('Automation Conflict:', globalErr.message);
     return { success: false, error: globalErr.message };
   }
 }
