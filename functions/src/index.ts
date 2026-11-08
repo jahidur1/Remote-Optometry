@@ -77,6 +77,7 @@ export const dailyTwoDayShiftReminder = onSchedule({
       const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dStr);
       
       if (!rosterSnap.exists || !assign) { 
+        console.log(`PULSE_DATA_GAP [${employeeId}]: No assignment found for ${dStr} in Hub ${emp.office}`);
         missingRoster = true; 
         break; 
       }
@@ -92,7 +93,6 @@ export const dailyTwoDayShiftReminder = onSchedule({
     }
 
     if (missingRoster) {
-      console.log(`PULSE_SKIP [${employeeId}]: Assignments missing in roster ${emp.office} for cycle dates.`);
       continue;
     }
     
