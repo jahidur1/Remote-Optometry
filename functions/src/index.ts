@@ -280,6 +280,41 @@ export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) =
   }
 });
 
+/**
+ * cleanupOldAuditLogs
+ * TRIGGER: Every 24 hours.
+ * ACTION: Purges audit logs older than 7 days to maintain database health.
+ */
+export const cleanupOldAuditLogs = onSchedule({
+  schedule: 'every 24 hours',
+  timeZone: IST_TZ,
+  memory: '512MiB',
+}, async (event) => {
+  const db = admin.firestore();
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  console.log(`AUDIT_PURGE_PULSE: Identifying logs older than ${sevenDaysAgo.toISOString()}`);
+
+  const snapshot = await db.collection('audit_logs')
+    .where('timestamp', '<', sevenDaysAgo)
+    .limit(500)
+    .get();
+
+  if (snapshot.empty) {
+    console.log('AUDIT_PURGE_SKIP: No expired records found in registry.');
+    return;
+  }
+
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  await batch.commit();
+  console.log(`AUDIT_PURGE_COMPLETE: Successfully decommissioned ${snapshot.size} entries from audit_logs.`);
+});
+
 async function sendWhatsApp(to: string, template: string, vars: string[], jobKey: string, office: string, employeeId: string, type: string) {
   const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`;
   let formattedTo = to.replace(/\D/g, '');
