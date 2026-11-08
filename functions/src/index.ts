@@ -16,7 +16,7 @@ const IST_TZ = 'Asia/Kolkata';
 
 /**
  * dailyTwoDayShiftReminder
- * UPDATED TRIGGER: 5:00 PM IST (17:00) daily.
+ * TRIGGER: 5:00 PM IST (17:00) daily.
  * Dispatches shift briefings for the next two clinical days.
  */
 export const dailyTwoDayShiftReminder = onSchedule({
@@ -85,8 +85,7 @@ export const dailyTwoDayShiftReminder = onSchedule({
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
       
-      // Template Variables Mapping (Meta Template Schema):
-      // {{1}} Name, {{2,5}} Date, {{3,6}} Shift, {{4,7}} Time
+      // Template Variables Mapping: {{1}} Name, {{2,5}} Date, {{3,6}} Shift, {{4,7}} Time
       templateVars.push(`${format(new Date(dStr), 'EEEE, dd MMMM')}`);
       templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
       templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
@@ -255,15 +254,29 @@ export const whatsappStatusWebhook = onRequest({
   res.sendStatus(200);
 });
 
+/**
+ * cleanupExpiredRosterPdfs
+ * PURGE PROTOCOL: Deletes PDFs older than 24 hours from the weekly-roster-pdfs/ registry.
+ */
 export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) => {
   const bucket = admin.storage().bucket();
   const [files] = await bucket.getFiles({ prefix: 'weekly-roster-pdfs/' });
   const now = new Date();
+  
+  console.log(`CLEANUP_INITIATED: Auditing ${files.length} documents in weekly-roster-pdfs/`);
+
   for (const file of files) {
     const [metadata] = await file.getMetadata();
     if (!metadata || !metadata.timeCreated) continue;
+    
     const created = new Date(metadata.timeCreated as string);
-    if ((now.getTime() - created.getTime()) / (1000 * 60 * 60) > 48) await file.delete();
+    const ageHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+
+    // Institutional Retention: 24 Hours
+    if (ageHours > 24) {
+      console.log(`CLEANUP_PURGE: Deleting document ${file.name} (Age: ${ageHours.toFixed(1)}h)`);
+      await file.delete();
+    }
   }
 });
 
