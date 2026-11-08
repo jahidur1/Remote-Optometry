@@ -8,7 +8,6 @@ import { assertOfficeActive } from '@/lib/office-utils';
 /**
  * Hardened Server-Side Authorization Utility
  * Re-verifies token and matches requested office against authorized officeIds.
- * SECURITY: checkRevoked is disabled to prevent credential-fetch errors in Studio preview.
  */
 async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) {
   if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
@@ -22,7 +21,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
     
     if (profile.status !== 'Active') throw new Error("Unauthorized: Account suspended.");
     
-    const role = profile.role?.toLowerCase();
+    const role = (profile.role || '').toLowerCase();
     if (role !== 'admin' && role !== 'super_admin') {
         throw new Error("Unauthorized: Elevated pulse required.");
     }
@@ -38,7 +37,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
     return { 
       uid: decoded.uid, 
       ...profile,
-      role, // Return normalized role
+      role,
       authorizedOffices
     };
   } catch (e: any) {
@@ -62,6 +61,9 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     const filtered: any = {};
     allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
 
+    // Enforce role normalization
+    if (filtered.role) filtered.role = filtered.role.toLowerCase();
+
     if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.office;
@@ -81,6 +83,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
         ...filtered 
       };
       if (filtered.fullName) userUpdates.displayName = filtered.fullName;
+      
       batch.update(adminDb.collection('users').doc(current.authUid), userUpdates);
 
       if (filtered.email && filtered.email !== current.email) {
@@ -164,6 +167,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
   const employeeId = formData.employeeId.toUpperCase().trim();
   const email = formData.email.toLowerCase().trim();
   const phoneFormatted = `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`;
+  const roleNormalized = (formData.role || 'user').toLowerCase();
 
   try {
     const [idSnap, emailSnap, phoneSnap] = await Promise.all([
@@ -188,9 +192,9 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
       fullName: formData.fullName,
       email,
       whatsappNumber: phoneFormatted,
-      role: formData.role,
+      role: roleNormalized,
       office: formData.office,
-      officeIds: formData.role === 'admin' ? [formData.office] : [],
+      officeIds: formData.officeIds || (roleNormalized === 'admin' ? [formData.office] : []),
       status: 'Active',
       updatedAt: new Date().toISOString()
     };
@@ -218,7 +222,7 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     });
 
     await batch.commit();
-    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { office: formData.office, role: formData.role });
+    await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { office: formData.office, role: roleNormalized });
 
     return { success: true, uid: authUser.uid };
   } catch (e: any) {

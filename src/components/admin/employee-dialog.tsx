@@ -49,7 +49,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     orderBy('officeName', 'asc')
   ), [db]);
 
-  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
+  const { data: registryOffices } = useCollection(registryQuery);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -69,16 +69,16 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
   useEffect(() => {
     if (employee) {
       setFormData({
-        fullName: employee.fullName || '',
+        fullName: employee.fullName || employee.displayName || '',
         email: employee.email || '',
         employeeId: employee.employeeId || employee.id || '',
-        role: employee.role || 'user',
+        role: (employee.role || 'user').toLowerCase(),
         status: employee.status || 'Active',
         gender: employee.gender || 'Male',
         age: employee.age?.toString() || '',
         office: employee.office || '',
         officeIds: employee.officeIds || (employee.office ? [employee.office] : []),
-        whatsappNumber: employee.whatsappNumber?.replace('+91', '') || '',
+        whatsappNumber: (employee.whatsappNumber || employee.phoneNumber || '').replace('+91', ''),
         department: employee.department || 'Remote Optometry',
         designation: employee.designation || 'Staff Professional',
       });
@@ -101,6 +101,17 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       setPassword('');
     }
   }, [employee, open]);
+
+  const handleRoleChange = (role: string) => {
+    setFormData(prev => ({
+      ...prev,
+      role,
+      // If promoting to admin and officeIds is empty, pre-select the primary office
+      officeIds: role === 'admin' && prev.officeIds.length === 0 && prev.office 
+        ? [prev.office] 
+        : (role === 'user' ? [] : prev.officeIds)
+    }));
+  };
 
   const handleToggleOffice = (officeId: string) => {
     setFormData(prev => {
@@ -127,7 +138,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       };
 
       if (employee) {
-        const result = await updateEmployeeRecordAction(idToken, employee.id, payload);
+        const result = await updateEmployeeRecordAction(idToken, formData.employeeId, payload);
         if (result.success) {
           toast({ title: 'Registry Synchronized', description: `Record for ${formData.fullName} updated.` });
           onOpenChange(false);
@@ -259,7 +270,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Authorization Role</Label>
-                <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val as any, officeIds: val === 'admin' ? [formData.office] : [] })}>
+                <Select value={formData.role} onValueChange={handleRoleChange}>
                   <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                     <SelectValue />
                   </SelectTrigger>
@@ -330,7 +341,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         </ScrollArea>
 
         <DialogFooter className="p-12 bg-slate-50 border-t border-slate-100">
-          <Button type="submit" disabled={loading} className="w-full h-18 font-black uppercase tracking-[0.25em] text-[15px] rounded-3xl shadow-2xl bg-primary hover:bg-black text-white transition-all" onClick={handleSubmit}>
+          <Button type="submit" disabled={loading} className="w-full h-18 font-black uppercase tracking-[0.25em] text-[15px] rounded-3xl shadow-2xl bg-primary hover:bg-black text-white transition-all">
             {loading ? <Loader2 className="animate-spin mr-3 size-6" /> : <Zap className="size-6 mr-3 fill-secondary text-secondary" />}
             {loading ? 'SYNCING REGISTRY...' : employee ? 'Update Institutional Record' : 'Authorize & Enroll Profile'}
           </Button>
