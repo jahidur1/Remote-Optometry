@@ -37,8 +37,9 @@ export const dailyTwoDayShiftReminder = onSchedule({
   }
 
   // 2. Temporal Logic (IST Context)
-  const tomorrow = addDays(new Date(), 1);
-  const dayAfter = addDays(new Date(), 2);
+  const today = new Date(new Date().toLocaleString("en-US", { timeZone: IST_TZ }));
+  const tomorrow = addDays(today, 1);
+  const dayAfter = addDays(today, 2);
   const dates = [tomorrow, dayAfter];
   const dateStrings = dates.map(d => format(d, 'yyyy-MM-dd'));
 

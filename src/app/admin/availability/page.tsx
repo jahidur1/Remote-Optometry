@@ -27,7 +27,8 @@ import {
   ChevronRight,
   TrendingUp,
   XCircle,
-  FileCheck
+  FileCheck,
+  Bell
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId, getISTNow } from '@/lib/date-utils';
@@ -43,6 +44,7 @@ import { logAudit } from '@/lib/audit';
 import { useToast } from '@/hooks/use-toast';
 import { dispatchOfficeBriefingsAction, previewEmployeeRosterAction } from '@/services/roster-notification-service';
 import { initiateWeeklyRosterCampaignAction } from '@/services/weekly-roster-pdf-service';
+import { runDailyShiftReminders } from '@/services/daily-reminder-service';
 import {
   Dialog,
   DialogContent,
@@ -69,10 +71,13 @@ export default function MasterMatrix() {
   const [publishing, setPublishing] = useState(false);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
 
-  // Weekly Campaign States
+  // Campaign States
   const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
   const [campaignStarting, setCampaignStarting] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<any>(null);
+
+  // 2-Day Manual Dispatch State
+  const [dispatchingDaily, setDispatchingDaily] = useState(false);
 
   const todayStr = useMemo(() => format(getISTNow(), 'yyyy-MM-dd'), []);
 
@@ -208,7 +213,7 @@ export default function MasterMatrix() {
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
-      saving ? null : setSaving(false);
+      setSaving(false);
     }
   };
 
@@ -273,6 +278,26 @@ export default function MasterMatrix() {
       toast({ variant: "destructive", title: "Campaign Conflict", description: e.message });
     } finally {
       setCampaignStarting(false);
+    }
+  };
+
+  const handleManual2DayDispatch = async () => {
+    if (!confirm("MANUAL OVERRIDE: Dispatch 2-day shift briefings to all active professionals?")) return;
+    
+    setDispatchingDaily(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const result = await runDailyShiftReminders(true, idToken);
+      
+      if (result.success) {
+        toast({ title: "Briefings Dispatched", description: `Successfully processed ${result.stats?.success} professionals.` });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Dispatch Failed", description: e.message });
+    } finally {
+      setDispatchingDaily(false);
     }
   };
 
@@ -355,18 +380,29 @@ export default function MasterMatrix() {
       <Card className="shadow-xl border-none rounded-[2.5rem] bg-primary text-white overflow-hidden relative group">
          <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={200} /></div>
          <CardHeader className="p-10 pb-6 border-b border-white/5 relative z-10">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex flex-col xl:flex-row items-center justify-between gap-8">
                <div className="space-y-1">
-                  <CardTitle className="text-2xl font-black uppercase tracking-tight leading-none">Weekly Roster Distribution</CardTitle>
-                  <CardDescription className="text-[10px] font-bold uppercase text-white/40 tracking-[0.3em] mt-3">Office-wise bulk dispatch protocol via Meta Document API.</CardDescription>
+                  <CardTitle className="text-2xl font-black uppercase tracking-tight leading-none">Roster Distribution</CardTitle>
+                  <CardDescription className="text-[10px] font-bold uppercase text-white/40 tracking-[0.3em] mt-3">Institutional bulk dispatch protocols via Meta Cloud API.</CardDescription>
                </div>
-               <Button 
-                 className="bg-secondary text-white h-14 px-10 font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all group/btn"
-                 onClick={() => setIsCampaignDialogOpen(true)}
-                 disabled={!selectedOffice || !selectedWeek || assignments.length === 0}
-               >
-                 <Zap className="mr-3 size-5 fill-white group-hover/btn:animate-pulse" /> SEND WEEKLY ROSTER TO ALL
-               </Button>
+               <div className="flex flex-wrap gap-4">
+                  <Button 
+                    variant="outline"
+                    className="h-14 px-8 border-2 border-white/20 bg-white/5 text-white font-black uppercase tracking-[0.1em] text-[10px] rounded-2xl hover:bg-white/10 hover:border-white/40 transition-all group/btn"
+                    onClick={handleManual2DayDispatch}
+                    disabled={dispatchingDaily}
+                  >
+                    {dispatchingDaily ? <Loader2 className="size-4 animate-spin mr-3" /> : <Bell className="mr-3 size-4 fill-white" />}
+                    DISPATCH 2-DAY BRIEFINGS
+                  </Button>
+                  <Button 
+                    className="bg-secondary text-white h-14 px-10 font-black uppercase tracking-[0.2em] text-[11px] rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all group/btn"
+                    onClick={() => setIsCampaignDialogOpen(true)}
+                    disabled={!selectedOffice || !selectedWeek || assignments.length === 0}
+                  >
+                    <Zap className="mr-3 size-5 fill-white group-hover/btn:animate-pulse" /> SEND WEEKLY ROSTER PDF
+                  </Button>
+               </div>
             </div>
          </CardHeader>
          <CardContent className="p-10 grid gap-10 md:grid-cols-4 relative z-10">
