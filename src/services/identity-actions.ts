@@ -91,9 +91,13 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
         ...filtered 
       };
       
-      // Map Employee fields to User schema fields
+      // Map Employee fields to User schema fields for consistent Auth profiles
       if (filtered.fullName) userUpdates.displayName = filtered.fullName;
       if (filtered.whatsappNumber) userUpdates.phoneNumber = filtered.whatsappNumber;
+      if (filtered.role) userUpdates.role = filtered.role;
+      if (filtered.office) userUpdates.office = filtered.office;
+      if (filtered.officeIds) userUpdates.officeIds = filtered.officeIds;
+      if (filtered.status) userUpdates.status = filtered.status;
       
       batch.update(userRef, userUpdates);
 

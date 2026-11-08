@@ -258,7 +258,7 @@ async function uploadToMeta(buffer, name) {
     fd.append('file', new Blob([new Uint8Array(buffer)]), name);
     fd.append('type', 'application/pdf');
     fd.append('messaging_product', 'whatsapp');
-    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
+    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${ACCESS_TOKEN.value()}` }, body: fd });
     const data = await res.json();
     if (!res.ok)
         throw new Error(data.error?.message || 'Meta Upload Failed');

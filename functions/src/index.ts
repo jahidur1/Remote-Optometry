@@ -14,17 +14,25 @@ const WHATSAPP_WEBHOOK_VERIFY_TOKEN = defineSecret('WHATSAPP_WEBHOOK_VERIFY_TOKE
 
 const IST_TZ = 'Asia/Kolkata';
 
+/**
+ * dailyTwoDayShiftReminder
+ * Triggers at 5:00 PM IST (17:00) daily.
+ * Dispatches shift briefings for the next two clinical days.
+ */
 export const dailyTwoDayShiftReminder = onSchedule({
-  schedule: '0 10 * * *',
+  schedule: '0 17 * * *',
   timeZone: IST_TZ,
   memory: '512MiB',
   secrets: [WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID],
 }, async (event) => {
   const db = admin.firestore();
+  
+  // 1. Governance Logic Gate
   const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
   const config = configSnap.data() || {};
+  
   if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
-    console.log('DAILY_PULSE_SKIP: Automation switches are OFF.');
+    console.log('DAILY_PULSE_SKIP: Automation switches are OFF in system settings.');
     return;
   }
 
@@ -33,13 +41,22 @@ export const dailyTwoDayShiftReminder = onSchedule({
   const dates = [tomorrow, dayAfter];
   const dateStrings = dates.map(d => format(d, 'yyyy-MM-dd'));
 
-  const empSnap = await db.collection('employees').where('status', '==', 'Active').get();
-  const shiftsSnap = await db.collection('shift_master').get();
+  // 2. Data Load: Active Professionals and Shift Master
+  const [empSnap, shiftsSnap] = await Promise.all([
+    db.collection('employees').where('status', '==', 'Active').get(),
+    db.collection('shift_master').get()
+  ]);
+
   const shiftsMap = new Map();
   shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
 
+  console.log(`DAILY_PULSE_INITIATED: Processing ${empSnap.size} active professionals.`);
+
   for (const empDoc of empSnap.docs) {
     const emp = empDoc.data();
+    const employeeId = empDoc.id;
+
+    // Eligibility Check
     if (!emp.whatsappNumber || emp.whatsappOptIn === false) continue;
 
     const templateVars: string[] = [];
@@ -47,25 +64,51 @@ export const dailyTwoDayShiftReminder = onSchedule({
 
     for (const dStr of dateStrings) {
       const weekId = formatWeekId(new Date(dStr));
+      // SINGLETON ID PROTOCOL: Fetch the active roster for this specific week and office
       const rosterId = `active_${weekId}_${emp.office}`;
       const rosterSnap = await db.collection('published_rosters').doc(rosterId).get();
-      const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
-      const assign = assignments.find((a: any) => a.employeeId === empDoc.id && a.date === dStr);
       
-      if (!rosterSnap.exists || !assign) { missingRoster = true; break; }
+      const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
+      const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dStr);
+      
+      if (!rosterSnap.exists || !assign) { 
+        missingRoster = true; 
+        break; 
+      }
+
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
       
+      // Template Variables Mapping: {{2,5}} Date -> {{3,6}} Shift Name -> {{4,7}} Time Range
       templateVars.push(`${format(new Date(dStr), 'EEEE, dd MMMM')}`);
       templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
       templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
     }
 
-    if (missingRoster) continue;
+    if (missingRoster) {
+      console.log(`PULSE_SKIP [${employeeId}]: Roster assignments missing for target dates.`);
+      continue;
+    }
     
-    const jobKey = `daily_${empDoc.id}_${dateStrings[0]}_${dateStrings[1]}`;
-    await sendWhatsApp(emp.whatsappNumber, 'roc_daily_two_day_shift_reminder', [emp.fullName, ...templateVars], jobKey, emp.office, empDoc.id, 'daily_shift_reminder');
+    // Idempotency Hub: Ensure we don't send the same reminder twice
+    const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
+    
+    try {
+      await sendWhatsApp(
+        emp.whatsappNumber, 
+        'roc_daily_two_day_shift_reminder', 
+        [emp.fullName, ...templateVars], 
+        jobKey, 
+        emp.office, 
+        employeeId, 
+        'daily_shift_reminder'
+      );
+    } catch (e: any) {
+      console.error(`PULSE_FAILURE [${employeeId}]:`, e.message);
+    }
   }
+  
+  console.log('DAILY_PULSE_COMPLETE');
 });
 
 export const startWeeklyRosterCampaign = onCall({
@@ -246,7 +289,7 @@ async function uploadToMeta(buffer: Buffer, name: string) {
   fd.append('file', new Blob([new Uint8Array(buffer)]), name);
   fd.append('type', 'application/pdf');
   fd.append('messaging_product', 'whatsapp');
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${ACCESS_TOKEN.value()}` }, body: fd });
+  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
   const data: any = await res.json();
   if (!res.ok) throw new Error(data.error?.message || 'Meta Upload Failed');
   return data.id;
