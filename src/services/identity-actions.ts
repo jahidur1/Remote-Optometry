@@ -49,6 +49,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 /**
  * updateEmployeeRecordAction
  * Hardened: Super Admin can modify ANY user details.
+ * Ensures atomic synchronization between 'employees' and 'users' collections.
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   try {
@@ -58,14 +59,17 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
 
     const caller = await getAuthorizedCaller(idToken, current.office);
 
+    // Whitelist allowed fields for institutional integrity
     const allowed = ['fullName', 'email', 'whatsappNumber', 'department', 'designation', 'age', 'gender', 'office', 'officeIds', 'role', 'status'];
     const filtered: any = {};
-    allowed.forEach(key => { if (updates[key] !== undefined) filtered[key] = updates[key]; });
+    allowed.forEach(key => { 
+      if (updates[key] !== undefined) filtered[key] = updates[key]; 
+    });
 
     // Enforce role normalization
     if (filtered.role) filtered.role = filtered.role.toLowerCase();
 
-    // Privilege Guard: Restrict non-super-admins from changing roles or office assignments
+    // Privilege Guard: Restrict non-super-admins from changing sensitive security fields
     if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.office;
@@ -74,25 +78,35 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     }
 
     const batch = adminDb.batch();
-    batch.update(adminDb.collection('employees').doc(employeeId), {
+    const empRef = adminDb.collection('employees').doc(employeeId);
+    
+    batch.update(empRef, {
       ...filtered,
       updatedAt: new Date().toISOString()
     });
 
     if (current.authUid) {
+      const userRef = adminDb.collection('users').doc(current.authUid);
       const userUpdates: any = { 
         updatedAt: new Date().toISOString(), 
         ...filtered 
       };
-      if (filtered.fullName) userUpdates.displayName = filtered.fullName;
       
-      batch.update(adminDb.collection('users').doc(current.authUid), userUpdates);
+      // Map Employee fields to User schema fields
+      if (filtered.fullName) userUpdates.displayName = filtered.fullName;
+      if (filtered.whatsappNumber) userUpdates.phoneNumber = filtered.whatsappNumber;
+      
+      batch.update(userRef, userUpdates);
 
+      // Synchronize with Firebase Authentication service
       if (filtered.email && filtered.email !== current.email) {
         await adminAuth.updateUser(current.authUid, { email: filtered.email });
       }
       if (filtered.status) {
         await adminAuth.updateUser(current.authUid, { disabled: filtered.status === 'Suspended' });
+      }
+      if (filtered.fullName) {
+        await adminAuth.updateUser(current.authUid, { displayName: filtered.fullName });
       }
     }
 
@@ -100,6 +114,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId, { updatedFields: Object.keys(filtered) });
     return { success: true };
   } catch (e: any) {
+    console.error('Update Institutional Record Failure:', e.message);
     return { success: false, error: e.message };
   }
 }

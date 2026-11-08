@@ -79,7 +79,7 @@ export const startWeeklyRosterCampaign = onCall({
   
   const userSnap = await db.collection('users').doc(request.auth.uid).get();
   const profile = userSnap.data();
-  if (!profile || profile.status !== 'Active') throw new Error('Account suspended.');
+  if (!profile || profile.status !== 'Active') throw new HttpsError('permission-denied', 'Account suspended.');
 
   const campaignId = `camp_${officeId}_${weekId}_${Date.now()}`;
   const empSnap = await db.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get();

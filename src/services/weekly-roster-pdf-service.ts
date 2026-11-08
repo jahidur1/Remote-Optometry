@@ -8,10 +8,10 @@ import { format } from 'date-fns';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v17.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v18.0
  * 
  * Orchestrates bulk distribution with Meta Document API.
- * FIXED: Resolved "Campaign Conflict" by correctly utilizing FieldValue from administrative registry.
+ * UPDATED: Fixed 'FieldValue.increment' import to resolve campaign tracking conflict.
  */
 
 async function getAuthorizedUser(idToken: string) {

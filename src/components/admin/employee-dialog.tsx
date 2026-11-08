@@ -67,7 +67,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
   });
 
   useEffect(() => {
-    if (employee) {
+    if (employee && open) {
       setFormData({
         fullName: employee.fullName || employee.displayName || '',
         email: employee.email || '',
@@ -83,7 +83,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         designation: employee.designation || 'Staff Professional',
       });
       setPassword('');
-    } else {
+    } else if (!employee && open) {
       setFormData({
         fullName: '',
         email: '',
@@ -107,7 +107,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       ...prev,
       role,
       // If promoting to admin and officeIds is empty, pre-select the primary office
-      officeIds: role === 'admin' && prev.officeIds.length === 0 && prev.office 
+      officeIds: (role === 'admin' || role === 'super_admin') && prev.officeIds.length === 0 && prev.office 
         ? [prev.office] 
         : (role === 'user' ? [] : prev.officeIds)
     }));
@@ -140,7 +140,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       if (employee) {
         const result = await updateEmployeeRecordAction(idToken, formData.employeeId, payload);
         if (result.success) {
-          toast({ title: 'Registry Synchronized', description: `Record for ${formData.fullName} updated.` });
+          toast({ title: 'Registry Synchronized', description: `Institutional record for ${formData.fullName} has been updated.` });
           onOpenChange(false);
         } else throw new Error(result.error);
       } else {
@@ -149,7 +149,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
         const result = await provisionIdentityAction(idToken, payload, password);
         if (result.success) {
-          toast({ title: 'Enrollment Successful', description: `Identity [${formData.employeeId}] provisioned.` });
+          toast({ title: 'Enrollment Successful', description: `Identity [${formData.employeeId}] provisioned in master registry.` });
           onOpenChange(false);
         } else throw new Error(result.error);
       }
@@ -210,13 +210,16 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email</Label>
-                <Input
-                  type="email"
-                  className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
-                  required
-                />
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
+                  <Input
+                    type="email"
+                    className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
+                    required
+                  />
+                </div>
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Mobile Endpoint</Label>
@@ -276,14 +279,14 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl bg-white p-2">
                     <SelectItem value="user" className="font-bold text-[11px] uppercase py-3">Staff Professional</SelectItem>
-                    <SelectItem value="admin" className="font-bold text-[11px] uppercase py-3">Cluster Admin</SelectItem>
-                    <SelectItem value="super_admin" className="font-bold text-[11px] uppercase py-3">System Super Admin</SelectItem>
+                    <SelectItem value="admin" className="font-bold text-[11px] uppercase py-3 text-secondary">Cluster Admin</SelectItem>
+                    <SelectItem value="super_admin" className="font-bold text-[11px] uppercase py-3 text-primary">System Super Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {isAdminRole && (
+            {(isAdminRole || formData.role === 'super_admin') && (
               <div className="p-8 rounded-[2rem] bg-secondary/5 border-2 border-secondary/10 space-y-6 animate-in slide-in-from-top-2">
                  <div className="flex items-center gap-3">
                     <Building2 className="size-5 text-secondary" />
@@ -304,7 +307,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     ))}
                  </div>
                  <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed px-1">
-                   Note: Admins are strictly restricted to accessing data for these hubs only.
+                   {formData.role === 'super_admin' ? "Super Admins retain global access, but explicit assignments assist in targeted hub selection." : "Cluster Admins are strictly restricted to accessing data for these authorized hubs only."}
                  </p>
               </div>
             )}
