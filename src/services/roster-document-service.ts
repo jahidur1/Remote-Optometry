@@ -1,12 +1,13 @@
+
 'use server';
 
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v14.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v15.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
- * UPDATED: Uses Full Name and embedded Base64 logo for maximum consistency.
+ * UPDATED: Strictly uses Professional Full Name and embedded Base64 institutional logo.
  */
 
 type RosterDay = {
@@ -19,7 +20,6 @@ type RosterDay = {
 
 /**
  * generateWeeklyRosterPdf
- * Strictly uses Full Professional Name and Institutional Base64 Logo.
  */
 export async function generateWeeklyRosterPdf(input: {
   employeeName: string;
@@ -63,14 +63,13 @@ export async function generateWeeklyRosterPdf(input: {
     try {
       const b64Data = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
       const format = logoBase64.includes('image/jpeg') ? 'JPEG' : 'PNG';
-      // Logo positioning: top right
       doc.addImage(b64Data, format, pageWidth - 60, 12, 40, 18, undefined, 'FAST');
     } catch (e) {
       console.warn("PDF_LOGO_WARN: Synthesis bypassed logo due to stream conflict.");
     }
   }
 
-  // 3. Identity Hub (Full Name)
+  // 3. Identity Hub (Full Legal Name)
   doc.setTextColor(textMain);
   doc.setFontSize(18);
   doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 45);
@@ -80,7 +79,7 @@ export async function generateWeeklyRosterPdf(input: {
   const officeStr = officeName ? `| HUB: ${officeName.toUpperCase()}` : '';
   doc.text(`ID: ${employeeId} ${officeStr} | CYCLE: ${weekRange.toUpperCase()}`, 20, 52);
 
-  // 4. Roster Matrix Grid
+  // 4. Roster Matrix Grid (Full 7-Day Cycle)
   let yOffset = 70;
   rosterDays.forEach((d) => {
     const isOff = d.shiftId === 'none' || d.shift.toUpperCase().includes('OFF');

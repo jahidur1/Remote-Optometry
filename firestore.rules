@@ -29,10 +29,10 @@ service cloud.firestore {
       return isUserActive() && profile != null && (profile.role == 'super_admin' || profile.role == 'SUPER_ADMIN');
     }
 
-    // Office-based Authorization Pulse
+    // Office-based Authorization Pulse: Enforces isolation for multi-office admins
     function matchesOffice(officeId) {
       let profile = getProfile();
-      return isSuperAdmin() || (profile != null && (profile.office == officeId || officeId in profile.officeIds));
+      return isSuperAdmin() || (profile != null && (profile.office == officeId || (profile.officeIds != null && officeId in profile.officeIds)));
     }
 
     // --- SYSTEM GOVERNANCE ---
@@ -56,13 +56,13 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow write: if false; 
+      allow write: if isSuperAdmin(); 
     }
 
     match /employees/{employeeId} {
       allow read: if isSignedIn() && (isSuperAdmin() || matchesOffice(resource.data.office));
       allow create, delete: if isSuperAdmin();
-      allow update: if isUserActive() && (isSuperAdmin() || (getProfile() != null && getProfile().employeeId == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age'])));
+      allow update: if isUserActive() && (isSuperAdmin() || matchesOffice(resource.data.office));
     }
 
     match /published_rosters/{rosterId} { 

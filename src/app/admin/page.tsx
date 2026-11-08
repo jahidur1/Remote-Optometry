@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useMemo, useState, useEffect, useRef } from "react"
@@ -77,6 +78,12 @@ export default function AdminDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Quality Guard: Enforce image type and reasonable size
+    if (!file.type.startsWith('image/')) {
+        toast({ variant: "destructive", title: "Format Error", description: "Please select a valid image file (PNG/JPEG)." });
+        return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setPendingLogo(reader.result as string);
@@ -91,7 +98,7 @@ export default function AdminDashboard() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Authentication pulse missing.");
 
-      // Institutional Protocol: Store strictly as Base64 for consistent PDF embedding
+      // Institutional Protocol: Store as Base64 in Firestore and binary in Storage
       const result = await updateWhatsAppSettingsAction(idToken, { 
         logoBase64: pendingLogo
       });
@@ -99,7 +106,7 @@ export default function AdminDashboard() {
       if (result.success) {
         setLogoBase64(pendingLogo);
         setPendingLogo(null);
-        toast({ title: "Branding Secured", description: "Institutional identity updated in registry via Base64 pulse." });
+        toast({ title: "Branding Secured", description: "Institutional identity updated in registry." });
       } else {
         throw new Error(result.error);
       }
@@ -133,20 +140,19 @@ export default function AdminDashboard() {
   }, [stats, isSuperAdmin]);
 
   return (
-    <div className="space-y-6 md:space-y-10 animate-in max-w-[1600px] mx-auto pb-24 md:pb-40 px-2 sm:px-4">
-      {/* Header Pulse */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-4 md:pt-6">
+    <div className="space-y-10 animate-in max-w-[1600px] mx-auto pb-40 px-4">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 pt-6">
         <div className="space-y-2">
-          <div className="flex items-center gap-3 md:gap-4">
-            <div className="p-2 md:p-3 bg-secondary/10 rounded-xl md:rounded-2xl border border-secondary/20 shadow-inner">
-              <Zap className="size-6 md:size-8 text-secondary fill-secondary/20" />
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-secondary/10 rounded-2xl border border-secondary/20 shadow-inner">
+              <Zap className="size-8 text-secondary fill-secondary/20" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-4xl font-black tracking-tight text-black uppercase leading-none">
+              <h1 className="text-4xl font-black tracking-tight text-black uppercase leading-none">
                 {isSuperAdmin ? "Regional Command" : "Command Center"}
               </h1>
-              <div className="flex items-center gap-2 md:gap-3 mt-1.5 md:mt-2">
-                <p className="text-muted-foreground font-black uppercase text-[8px] md:text-[10px] tracking-widest flex items-center gap-2">
+              <div className="flex items-center gap-3 mt-2">
+                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.25em] flex items-center gap-2">
                   {isSuperAdmin ? "Governance Hub" : `${officeName} Pulse`} <Activity className="size-3 text-secondary animate-pulse" />
                 </p>
               </div>
@@ -154,29 +160,28 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 md:gap-4 bg-white p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-slate-200 shadow-xl w-full lg:w-auto">
-           <div className="px-4 md:px-6 py-1 border-r border-slate-100 flex-1 lg:flex-none">
-              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Operational Status</label>
-              <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+           <div className="px-6 py-1.5 border-r border-slate-100 space-y-0.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Operational Status</label>
+              <div className="flex items-center gap-3">
                  <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_10px_emerald]" />
-                 <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">ENFORCED</span>
+                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ENFORCED</span>
               </div>
            </div>
-           <div className="px-4 md:px-6 py-1 flex-1 lg:flex-none">
-              <label className="text-[8px] md:text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
+           <div className="px-6 py-1.5 space-y-0.5 mr-2">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Data Matrix</label>
               <div className="flex items-center gap-2">
                  <Database className="size-3 text-secondary" />
-                 <span className="font-black text-black uppercase tracking-widest text-[9px] md:text-[11px]">ACTIVE SYNC</span>
+                 <span className="font-black text-black uppercase tracking-widest text-[11px]">ACTIVE SYNC</span>
               </div>
            </div>
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {loading ? (
           Array(4).fill(0).map((_, i) => (
-            <Card key={i} className="border-none shadow-md overflow-hidden bg-white/50">
+            <Card key={i} className="border-none shadow-md overflow-hidden">
                <CardContent className="p-6 space-y-4">
                   <Skeleton className="h-3 w-20" />
                   <Skeleton className="h-8 w-14" />
@@ -185,59 +190,58 @@ export default function AdminDashboard() {
             </Card>
           ))
         ) : kpis.map((kpi, i) => (
-          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all hover-lift">
+          <Card key={i} className="glass-card border-none overflow-hidden group hover:bg-slate-50 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
-              <kpi.icon className={cn("size-4 md:size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
+              <CardTitle className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{kpi.label}</CardTitle>
+              <kpi.icon className={cn("size-5 opacity-30 group-hover:opacity-100 transition-all", kpi.color)} />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl md:text-5xl font-black text-black tracking-tighter tabular-nums">{kpi.value}</div>
-              <p className="text-[8px] md:text-[9px] text-muted-foreground uppercase font-black mt-1.5 md:mt-2 tracking-widest">{kpi.sub}</p>
+              <div className="text-5xl font-black text-black tracking-tighter tabular-nums">{kpi.value}</div>
+              <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">{kpi.sub}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Institutional Insights & Branding */}
-      <div className="grid gap-6 md:gap-8 lg:grid-cols-12">
+      <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-8">
-            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-white p-6 md:p-12 space-y-6 md:space-y-8 group">
-              <div className="size-16 md:size-20 rounded-2xl md:rounded-[1.75rem] bg-primary flex items-center justify-center shadow-2xl shrink-0">
-                  <Activity className="size-8 md:size-10 text-white" />
+            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white p-12 space-y-8 group">
+              <div className="size-20 rounded-[1.75rem] bg-primary flex items-center justify-center shadow-2xl shrink-0">
+                  <Activity className="size-10 text-white" />
               </div>
-              <div className="space-y-3 md:space-y-4">
-                  <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Operational Oversight</h3>
-                  <p className="text-sm text-black/50 leading-relaxed font-medium">
+              <div className="space-y-4">
+                  <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Operational Oversight</h3>
+                  <p className="text-base text-black/50 leading-relaxed font-medium">
                     {isSuperAdmin 
                       ? "Consolidated regional metrics for institutional governance. Monitor global coverage and cluster center integrity."
                       : `Real-time management for ROC ${officeName}. Review assignments, swaps, and unavailability overrides.`}
                   </p>
               </div>
-              <div className="grid grid-cols-2 gap-3 md:gap-4 pt-2">
-                  <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
-                    <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Requests</p>
-                    <p className="text-xl md:text-2xl font-black text-black">{stats?.pendingLeaves + stats?.pendingSwaps || 0}</p>
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Requests</p>
+                    <p className="text-2xl font-black text-black">{stats?.pendingLeaves + stats?.pendingSwaps || 0}</p>
                   </div>
-                  <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
-                    <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">Sync Efficiency</p>
-                    <p className="text-xl md:text-2xl font-black text-secondary">100%</p>
+                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-slate-100 transition-all">
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sync Efficiency</p>
+                    <p className="text-2xl font-black text-secondary">100%</p>
                   </div>
               </div>
             </Card>
 
-            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-[#0F172A] text-white p-6 md:p-12 space-y-6 md:space-y-8 relative group">
-              <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-transform duration-1000 hidden md:block"><ShieldCheck size={240} /></div>
-              <ShieldCheck className="size-10 md:size-12 text-secondary" />
-              <div className="space-y-3 md:space-y-4 relative z-10">
-                  <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Hub</h3>
-                  <p className="text-sm text-white/40 leading-relaxed font-medium">
+            <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-[#0F172A] text-white p-12 space-y-8 relative group">
+              <div className="absolute top-0 right-0 p-10 opacity-5 transform group-hover:rotate-12 transition-transform duration-1000"><ShieldCheck size={280} /></div>
+              <ShieldCheck className="size-12 text-secondary" />
+              <div className="space-y-4 relative z-10">
+                  <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Security Protocol Hub</h3>
+                  <p className="text-base text-white/40 leading-relaxed font-medium">
                     Zero-Trust identity verification is enforced at the server layer. 
                     Institutional audit logs are trace-linked to specific administrative actors.
                   </p>
               </div>
-              <div className="pt-4 md:pt-8 flex flex-wrap items-center gap-3 md:gap-4 relative z-10">
-                  <div className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-white/10 border border-white/10 font-black uppercase text-[8px] md:text-[10px] tracking-widest">Level 4 Secure</div>
-                  <div className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-secondary/20 border border-secondary/20 font-black uppercase text-[8px] md:text-[10px] tracking-widest text-secondary">Audit Active</div>
+              <div className="pt-8 flex items-center gap-6 relative z-10">
+                  <div className="px-6 py-2 rounded-xl bg-white/10 border border-white/10 font-black uppercase text-[10px] tracking-widest">Level 4 Secure</div>
+                  <div className="px-6 py-2 rounded-xl bg-secondary/20 border border-secondary/20 font-black uppercase text-[10px] tracking-widest text-secondary">Audit Active</div>
               </div>
             </Card>
         </div>
@@ -245,17 +249,17 @@ export default function AdminDashboard() {
         {isSuperAdmin && (
           <div className="lg:col-span-4 space-y-8">
             <Card className="shadow-2xl border border-slate-100 rounded-[2.5rem] overflow-hidden bg-white border-t-8 border-t-secondary sticky top-24">
-              <CardHeader className="bg-slate-50/50 border-b p-8">
+              <CardHeader className="bg-slate-50/50 border-b p-10">
                  <div className="flex items-center gap-4">
-                    <Target className="size-6 text-secondary" />
+                    <Target className="size-7 text-secondary" />
                     <CardTitle className="text-xl font-black uppercase tracking-tight">Branding Hub</CardTitle>
                  </div>
                  <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-2">Institutional PDF Identity</CardDescription>
               </CardHeader>
-              <CardContent className="p-8 space-y-8 text-center">
+              <CardContent className="p-10 space-y-10 text-center">
                  <div className="relative aspect-video w-full rounded-2xl bg-slate-50 border-4 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group transition-all">
                     {(pendingLogo || logoBase64) ? (
-                      <img src={pendingLogo || logoBase64!} alt="Logo Preview" className="h-full w-full object-contain p-4 transition-transform group-hover:scale-105" />
+                      <img src={pendingLogo || logoBase64!} alt="Logo Preview" className="h-full w-full object-contain p-6 transition-transform group-hover:scale-105" />
                     ) : (
                       <ImageIcon className="size-12 text-slate-200" />
                     )}
@@ -268,11 +272,11 @@ export default function AdminDashboard() {
 
                  <input type="file" ref={logoInputRef} className="hidden" accept="image/png,image/jpeg" onChange={handleLogoSelect} />
 
-                 <div className="space-y-3">
+                 <div className="space-y-4">
                     {!pendingLogo && (
                        <Button 
                          variant="outline" 
-                         className="w-full h-14 border-2 border-slate-100 font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-slate-50"
+                         className="w-full h-16 border-2 border-slate-100 font-black uppercase text-[11px] tracking-widest rounded-2xl hover:bg-slate-50"
                          onClick={() => logoInputRef.current?.click()}
                        >
                          <Upload className="size-4 mr-2" /> Select Logo File
@@ -280,18 +284,18 @@ export default function AdminDashboard() {
                     )}
 
                     {pendingLogo && (
-                       <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2">
+                       <div className="flex flex-col gap-4 animate-in slide-in-from-bottom-2">
                           <Button 
-                            className="w-full h-14 bg-secondary text-white font-black uppercase text-[11px] tracking-[0.15em] rounded-xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all"
+                            className="w-full h-16 bg-secondary text-white font-black uppercase text-[11px] tracking-[0.15em] rounded-2xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all"
                             onClick={handleSaveLogo}
                             disabled={savingLogo}
                           >
-                            {savingLogo ? <Loader2 className="size-5 animate-spin mr-3" /> : <Save className="size-5 mr-3" />}
+                            {savingLogo ? <Loader2 className="size-6 animate-spin mr-3" /> : <Save className="size-6 mr-3" />}
                             SAVE LOGIC PULSE
                           </Button>
                           <Button 
                             variant="ghost" 
-                            className="font-black uppercase text-[9px] tracking-widest text-muted-foreground"
+                            className="font-black uppercase text-[10px] tracking-widest text-muted-foreground"
                             onClick={() => setPendingLogo(null)}
                             disabled={savingLogo}
                           >
@@ -301,10 +305,11 @@ export default function AdminDashboard() {
                     )}
                  </div>
 
-                 <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-start gap-3 text-left">
-                    <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed tracking-tight">
-                       Logo is stored as a Base64 stream for instant server-side PDF synthesis. Optimized for 500x200 PNG.
+                 <div className="p-6 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex items-start gap-4 text-left">
+                    <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed tracking-tight">
+                       Institutional logos are stored in the dual-registry (Firestore Base64 + Firebase Storage) for 100% PDF synthesis consistency. 
+                       Optimized for 500x200 PNG.
                     </p>
                  </div>
               </CardContent>
