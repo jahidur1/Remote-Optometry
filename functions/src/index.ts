@@ -56,7 +56,7 @@ export const dailyTwoDayShiftReminder = onSchedule({
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
       
-      // Mapping: {{2,5}} Date -> {{3,6}} Shift -> {{4,7}} Time
+      // Template Variables Mapping: {{1}} Name, {{2,5}} Date, {{3,6}} Shift, {{4,7}} Time
       templateVars.push(`${format(new Date(dStr), 'EEEE, dd MMMM')}`);
       templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
       templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
@@ -165,7 +165,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
     const mediaId = await uploadToMeta(pdfBuffer, 'Roster.pdf');
     const jobKey = `weekly_${job.employeeId}_${job.weekId}`;
     
-    // Variables: {{1}} Name, {{2}} Start Date, {{3}} End Date
+    // Verified Template Variables Mapping: {{1}} Name, {{2}} Start Date, {{3}} End Date
     const result = await sendWhatsAppDocument(emp.whatsappNumber, mediaId, 'roc_weekly_roster_pdf', [emp.fullName, format(weekDates[0], 'dd MMM yyyy'), format(weekDates[6], 'dd MMM yyyy')], jobKey, job.officeId, job.employeeId);
 
     await jobRef?.update({ status: 'success', messageId: result.id, completedAt: admin.firestore.FieldValue.serverTimestamp() });
