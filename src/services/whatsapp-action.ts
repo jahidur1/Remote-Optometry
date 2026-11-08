@@ -1,10 +1,10 @@
 'use server';
 
 /**
- * @fileOverview Meta WhatsApp Cloud API Service — Institutional Protocol v8.0.
+ * @fileOverview Meta WhatsApp Cloud API Service — Institutional Protocol v9.0.
  * 
  * Orchestrates template verification, binary media uploads, and multi-stream dispatch.
- * UPDATED: Template status check is now non-blocking to prevent "UNKNOWN" status conflicts.
+ * UPDATED: Made template status check non-blocking to resolve "UNKNOWN" blocker.
  */
 
 const PHONE_NUMBER_ID = process.env.WHAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -46,7 +46,7 @@ export async function getTemplateStatus(templateName: string): Promise<'APPROVED
 
     // Find the English (en) version or return first available
     const template = data.data.find((t: any) => t.language === 'en') || data.data[0];
-    return template.status;
+    return template.status || 'UNKNOWN';
   } catch (e) {
     console.error('TEMPLATE_STATUS_FETCH_FAILURE:', e);
     return 'UNKNOWN';
@@ -95,11 +95,11 @@ export async function sendWhatsAppGenericTemplate(input: {
     const { to, templateName, languageCode = 'en', headerMedia, bodyVariables } = input;
 
     // 1. NON-BLOCKING Approval Check
-    // We log the status but proceed with the dispatch attempt. 
+    // We proceed even if status is UNKNOWN because Graph API can be stale.
     // The Meta Send API will return an authoritative error if the template isn't usable.
     const status = await getTemplateStatus(templateName);
-    if (status !== 'APPROVED') {
-       console.warn(`META_STATUS_PULSE: Template ${templateName} is ${status}. Attempting dispatch anyway.`);
+    if (status !== 'APPROVED' && status !== 'UNKNOWN') {
+       console.warn(`META_STATUS_PULSE: Template ${templateName} is ${status}. Attempting dispatch.`);
     }
 
     let mediaId: string | undefined;

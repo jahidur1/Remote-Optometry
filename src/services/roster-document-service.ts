@@ -3,10 +3,10 @@
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v13.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v14.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
- * UPDATED: Uses professional's FULL NAME in document header and robust Base64 logo rendering.
+ * UPDATED: Uses Full Name and embedded Base64 logo for maximum consistency.
  */
 
 type RosterDay = {
@@ -87,29 +87,29 @@ export async function generateWeeklyRosterPdf(input: {
 
     doc.setDrawColor(226, 232, 240);
     doc.setFillColor('#FFFFFF');
-    doc.roundedRect(20, yOffset, pageWidth - 40, 26, 3, 3, 'FD');
+    doc.roundedRect(20, yOffset, pageWidth - 40, 24, 3, 3, 'FD');
 
     doc.setFillColor(isOff ? successGreen : secondaryBlue);
-    doc.rect(20, yOffset, 2, 26, 'F');
+    doc.rect(20, yOffset, 2, 24, 'F');
 
     doc.setTextColor(textSecondary);
     doc.setFontSize(8);
-    doc.text(d.day.toUpperCase(), 28, yOffset + 10);
+    doc.text(d.day.toUpperCase(), 28, yOffset + 9);
     doc.setTextColor(textMain);
     doc.setFontSize(9);
-    doc.text(d.date, 28, yOffset + 17);
+    doc.text(d.date, 28, yOffset + 15);
 
     doc.setTextColor(isOff ? successGreen : primaryNavy);
-    doc.setFontSize(14);
-    doc.text(d.shift, pageWidth - 30, yOffset + 13, { align: 'right' });
+    doc.setFontSize(13);
+    doc.text(d.shift, pageWidth - 30, yOffset + 11, { align: 'right' });
     
     if (!isOff) {
       doc.setTextColor(secondaryBlue);
-      doc.setFontSize(9);
-      doc.text(d.time, pageWidth - 30, yOffset + 20, { align: 'right' });
+      doc.setFontSize(8);
+      doc.text(d.time, pageWidth - 30, yOffset + 18, { align: 'right' });
     }
 
-    yOffset += 28;
+    yOffset += 26;
   });
 
   // 5. Institutional Footer
