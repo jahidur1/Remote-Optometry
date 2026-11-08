@@ -16,7 +16,7 @@ const IST_TZ = 'Asia/Kolkata';
 
 /**
  * dailyTwoDayShiftReminder
- * Triggers at 5:00 PM IST (17:00) daily.
+ * UPDATED TRIGGER: 5:00 PM IST (17:00) daily.
  * Dispatches shift briefings for the next two clinical days.
  */
 export const dailyTwoDayShiftReminder = onSchedule({
@@ -36,12 +36,13 @@ export const dailyTwoDayShiftReminder = onSchedule({
     return;
   }
 
+  // 2. Temporal Logic (IST Context)
   const tomorrow = addDays(new Date(), 1);
   const dayAfter = addDays(new Date(), 2);
   const dates = [tomorrow, dayAfter];
   const dateStrings = dates.map(d => format(d, 'yyyy-MM-dd'));
 
-  // 2. Data Load: Active Professionals and Shift Master
+  // 3. Data Load: Active Professionals and Shift Master
   const [empSnap, shiftsSnap] = await Promise.all([
     db.collection('employees').where('status', '==', 'Active').get(),
     db.collection('shift_master').get()
@@ -50,21 +51,24 @@ export const dailyTwoDayShiftReminder = onSchedule({
   const shiftsMap = new Map();
   shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
 
-  console.log(`DAILY_PULSE_INITIATED: Processing ${empSnap.size} active professionals.`);
+  console.log(`DAILY_PULSE_INITIATED: Processing ${empSnap.size} active professionals for dates: ${dateStrings.join(', ')}`);
 
   for (const empDoc of empSnap.docs) {
     const emp = empDoc.data();
     const employeeId = empDoc.id;
 
     // Eligibility Check
-    if (!emp.whatsappNumber || emp.whatsappOptIn === false) continue;
+    if (!emp.whatsappNumber || emp.whatsappOptIn === false) {
+      console.log(`PULSE_SKIP [${employeeId}]: No phone or opted out.`);
+      continue;
+    }
 
     const templateVars: string[] = [];
     let missingRoster = false;
 
+    // 4. Resolve Roster for the next two days
     for (const dStr of dateStrings) {
       const weekId = formatWeekId(new Date(dStr));
-      // SINGLETON ID PROTOCOL: Fetch the active roster for this specific week and office
       const rosterId = `active_${weekId}_${emp.office}`;
       const rosterSnap = await db.collection('published_rosters').doc(rosterId).get();
       
@@ -79,18 +83,19 @@ export const dailyTwoDayShiftReminder = onSchedule({
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
       
-      // Template Variables Mapping: {{2,5}} Date -> {{3,6}} Shift Name -> {{4,7}} Time Range
+      // Template Variables Mapping (Meta Template Schema):
+      // {{1}} Name, {{2,5}} Date, {{3,6}} Shift, {{4,7}} Time
       templateVars.push(`${format(new Date(dStr), 'EEEE, dd MMMM')}`);
       templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
       templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
     }
 
     if (missingRoster) {
-      console.log(`PULSE_SKIP [${employeeId}]: Roster assignments missing for target dates.`);
+      console.log(`PULSE_SKIP [${employeeId}]: Assignments missing in roster ${emp.office} for cycle dates.`);
       continue;
     }
     
-    // Idempotency Hub: Ensure we don't send the same reminder twice
+    // 5. Idempotency Hub
     const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
     
     try {
