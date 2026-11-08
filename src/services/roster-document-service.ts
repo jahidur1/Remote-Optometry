@@ -4,7 +4,7 @@
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v11.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v12.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
  * DESIGN: Corporate Modern, Navy & White.

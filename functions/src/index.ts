@@ -24,7 +24,10 @@ export const dailyTwoDayShiftReminder = onSchedule({
   const db = admin.firestore();
   const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
   const config = configSnap.data() || {};
-  if (!config.masterEnabled || !config.dailyReminderEnabled) return;
+  if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
+    console.log('DAILY_PULSE_SKIP: Automation switches are OFF.');
+    return;
+  }
 
   const tomorrow = addDays(new Date(), 1);
   const dayAfter = addDays(new Date(), 2);
@@ -53,13 +56,129 @@ export const dailyTwoDayShiftReminder = onSchedule({
       if (!assign) { missingRoster = true; break; }
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
+      
+      // Mapping: {{2,5}} Date -> {{3,6}} Shift -> {{4,7}} Time
       templateVars.push(`${format(new Date(dStr), 'EEEE')}, ${format(new Date(dStr), 'dd MMM')}`);
       templateVars.push(isOff ? 'WEEK OFF' : (s?.name || 'DUTY'));
       templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
     }
 
     if (missingRoster) continue;
-    await sendWhatsApp(emp.whatsappNumber, config.dailyTemplate || 'roc_daily_two_day_shift_reminder', templateVars, emp.office, empDoc.id);
+    
+    const jobKey = `daily_${empDoc.id}_${dateStrings[0]}_${dateStrings[1]}`;
+    await sendWhatsApp(emp.whatsappNumber, config.dailyTemplate || 'roc_daily_two_day_shift_reminder', templateVars, jobKey, emp.office, empDoc.id, 'daily_text');
+  }
+});
+
+export const startWeeklyRosterCampaign = onCall({
+  memory: '256MiB',
+}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Pulse missing.');
+  
+  const { officeId, weekId } = request.data;
+  const db = admin.firestore();
+  
+  const userSnap = await db.collection('users').doc(request.auth.uid).get();
+  const profile = userSnap.data();
+  if (!profile || profile.status !== 'Active') throw new HttpsError('permission-denied', 'Account suspended.');
+
+  const campaignId = `camp_${officeId}_${weekId}_${Date.now()}`;
+  const empSnap = await db.collection('employees').where('office', '==', officeId).where('status', '==', 'Active').get();
+
+  await db.collection('weekly_roster_campaigns').doc(campaignId).set({
+    id: campaignId,
+    officeId,
+    weekId,
+    status: 'processing',
+    stats: { total: empSnap.size, pending: empSnap.size, success: 0, failed: 0 },
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    actorId: request.auth.uid
+  });
+
+  const batch = db.batch();
+  empSnap.docs.forEach(doc => {
+    const jobRef = db.collection('whatsapp_jobs').doc();
+    batch.set(jobRef, {
+      campaignId,
+      employeeId: doc.id,
+      officeId,
+      weekId,
+      status: 'pending',
+      type: 'weekly_pdf',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  });
+
+  await batch.commit();
+  return { success: true, campaignId };
+});
+
+export const processWeeklyRosterJobs = onDocumentCreated({
+  document: 'whatsapp_jobs/{jobId}',
+  secrets: [WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID],
+  memory: '1GiB',
+}, async (event) => {
+  const job = event.data?.data();
+  if (!job || job.status !== 'pending') return;
+
+  const db = admin.firestore();
+  const jobRef = event.data?.ref;
+  await jobRef?.update({ status: 'processing', startedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+  try {
+    const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
+    const config = configSnap.data() || {};
+    
+    if (!config.masterEnabled || !config.weeklyEnabled) throw new Error("AUTOMATION_DISABLED");
+
+    const [empSnap, shiftsSnap, rosterSnap] = await Promise.all([
+      db.collection('employees').doc(job.employeeId).get(),
+      db.collection('shift_master').get(),
+      db.collection('published_rosters').doc(`active_${job.weekId}_${job.officeId}`).get()
+    ]);
+
+    const emp = empSnap.data();
+    if (!emp || !rosterSnap.exists) throw new Error("Roster or Professional missing.");
+
+    const shiftsMap = new Map();
+    shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
+
+    const startStr = job.weekId.split('-')[0];
+    const start = new Date(startStr.slice(0, 4) + '-' + startStr.slice(4, 6) + '-' + startStr.slice(6, 8));
+    const weekDates = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+
+    const rosterDays = weekDates.map(date => {
+      const dStr = format(date, 'yyyy-MM-dd');
+      const assignments = rosterSnap.data()?.assignments || [];
+      const assign = assignments.find((a: any) => a.employeeId === job.employeeId && a.date === dStr);
+      const s = assign ? shiftsMap.get(assign.shiftId) : null;
+      return {
+        date: format(date, 'dd MMM yyyy').toUpperCase(),
+        day: format(date, 'EEEE'),
+        shift: (!assign || assign.shiftId === 'none') ? 'WEEK OFF' : (s?.name || 'DUTY'),
+        time: (!assign || assign.shiftId === 'none') ? '--:--' : `${s?.startTime} - ${s?.endTime}`,
+        shiftId: assign?.shiftId || 'none'
+      };
+    });
+
+    const pdfBuffer = await generateWeeklyPdf(emp as any, job.weekId, rosterDays, config.logoBase64);
+    const mediaId = await uploadToMeta(pdfBuffer, 'Roster.pdf');
+    const jobKey = `weekly_${job.employeeId}_${job.weekId}`;
+    
+    // Variables: {{1}} Name, {{2}} Start Date, {{3}} End Date
+    const result = await sendWhatsAppDocument(emp.whatsappNumber, mediaId, config.weeklyTemplate || 'roc_weekly_roster_pdf', [emp.fullName, format(weekDates[0], 'yyyy-MM-dd'), format(weekDates[6], 'yyyy-MM-dd')], jobKey, job.officeId, job.employeeId);
+
+    await jobRef?.update({ status: 'success', messageId: result.id, completedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await db.collection('weekly_roster_campaigns').doc(job.campaignId).update({
+      'stats.pending': admin.firestore.FieldValue.increment(-1),
+      'stats.success': admin.firestore.FieldValue.increment(1)
+    });
+  } catch (e: any) {
+    await jobRef?.update({ status: 'failed', error: e.message });
+    await db.collection('weekly_roster_campaigns').doc(job.campaignId).update({
+      'stats.pending': admin.firestore.FieldValue.increment(-1),
+      'stats.failed': admin.firestore.FieldValue.increment(1)
+    });
   }
 });
 
@@ -101,7 +220,7 @@ export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) =
   }
 });
 
-async function sendWhatsApp(to: string, template: string, vars: string[], office: string, employeeId: string) {
+async function sendWhatsApp(to: string, template: string, vars: string[], jobKey: string, office: string, employeeId: string, type: string) {
   const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`;
   let formattedTo = to.replace(/\D/g, '');
   if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
@@ -118,9 +237,72 @@ async function sendWhatsApp(to: string, template: string, vars: string[], office
   });
   const data: any = await res.json();
   await admin.firestore().collection('whatsapp_logs').add({
-    to: formattedTo, template, office, employeeId, notificationType: 'daily_shift_reminder',
+    jobKey, to: formattedTo, template, office, employeeId, notificationType: type,
     messageId: data.messages?.[0]?.id || null, status: res.ok ? 'success' : 'failed', timestamp: new Date().toISOString()
   });
+}
+
+async function uploadToMeta(buffer: Buffer, name: string) {
+  const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/media`;
+  const fd = new FormData();
+  fd.append('file', new Blob([new Uint8Array(buffer)]), name);
+  fd.append('type', 'application/pdf');
+  fd.append('messaging_product', 'whatsapp');
+  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
+  const data: any = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Meta Upload Failed');
+  return data.id;
+}
+
+async function sendWhatsAppDocument(to: string, mediaId: string, template: string, vars: string[], jobKey: string, office: string, employeeId: string) {
+  const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`;
+  let formattedTo = to.replace(/\D/g, '');
+  if (formattedTo.length === 10) formattedTo = `91${formattedTo}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: formattedTo,
+      type: "template",
+      template: {
+        name: template,
+        language: { code: "en" },
+        components: [
+          { type: "header", parameters: [{ type: "document", document: { id: mediaId, filename: "Roster.pdf" } }] },
+          { type: "body", parameters: vars.map(v => ({ type: "text", text: v })) }
+        ]
+      }
+    })
+  });
+  const data: any = await res.json();
+  await admin.firestore().collection('whatsapp_logs').add({
+    jobKey, to: formattedTo, template, office, employeeId, notificationType: 'weekly_pdf',
+    messageId: data.messages?.[0]?.id || null, status: res.ok ? 'success' : 'failed', timestamp: new Date().toISOString()
+  });
+  return { id: data.messages?.[0]?.id };
+}
+
+async function generateWeeklyPdf(emp: any, weekId: string, rosterDays: any[], logoBase64?: string) {
+  const doc = new jsPDF();
+  doc.setFontSize(20);
+  doc.setTextColor('#102A43');
+  doc.text('TEAM REMOTE OPTOMETRY', 20, 20);
+  doc.setFontSize(10);
+  doc.text('WEEKLY WORKFORCE SCHEDULE', 20, 26);
+  doc.setFontSize(14);
+  doc.text(`HELLO, ${emp.fullName.toUpperCase()}`, 20, 45);
+  doc.setFontSize(9);
+  doc.text(`ID: ${emp.id} | CYCLE: ${weekId}`, 20, 52);
+  let y = 70;
+  rosterDays.forEach(d => {
+    doc.setFontSize(10);
+    doc.text(`${d.day.toUpperCase()} (${d.date})`, 25, y);
+    doc.text(`${d.shift} [${d.time}]`, 120, y);
+    y += 10;
+  });
+  return Buffer.from(doc.output('arraybuffer'));
 }
 
 function formatWeekId(date: Date): string {
