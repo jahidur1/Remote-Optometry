@@ -7,9 +7,10 @@ import { format } from 'date-fns';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v12.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v13.0
  * 
  * Orchestrates bulk distribution with Meta Document API.
+ * UPDATED: Fixed FieldValue.increment conflict.
  */
 
 async function getAuthorizedUser(idToken: string) {

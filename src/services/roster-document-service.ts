@@ -3,11 +3,10 @@
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v12.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v13.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
- * DESIGN: Corporate Modern, Navy & White.
- * INTEGRITY: Strictly uses professional FULL LEGAL NAME and Base64 Logo.
+ * UPDATED: Uses professional's FULL NAME in document header and robust Base64 logo rendering.
  */
 
 type RosterDay = {
@@ -64,13 +63,14 @@ export async function generateWeeklyRosterPdf(input: {
     try {
       const b64Data = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
       const format = logoBase64.includes('image/jpeg') ? 'JPEG' : 'PNG';
-      doc.addImage(b64Data, format, pageWidth - 55, 12, 35, 17, undefined, 'FAST');
+      // Logo positioning: top right
+      doc.addImage(b64Data, format, pageWidth - 60, 12, 40, 18, undefined, 'FAST');
     } catch (e) {
       console.warn("PDF_LOGO_WARN: Synthesis bypassed logo due to stream conflict.");
     }
   }
 
-  // 3. Identity Hub
+  // 3. Identity Hub (Full Name)
   doc.setTextColor(textMain);
   doc.setFontSize(18);
   doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 45);

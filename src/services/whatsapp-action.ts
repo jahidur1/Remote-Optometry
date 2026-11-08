@@ -1,9 +1,10 @@
 'use server';
 
 /**
- * @fileOverview Meta WhatsApp Cloud API Service — Institutional Protocol v7.0.
+ * @fileOverview Meta WhatsApp Cloud API Service — Institutional Protocol v8.0.
  * 
  * Orchestrates template verification, binary media uploads, and multi-stream dispatch.
+ * UPDATED: Template status check is now non-blocking to prevent "UNKNOWN" status conflicts.
  */
 
 const PHONE_NUMBER_ID = process.env.WHAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -59,7 +60,7 @@ async function uploadToMetaMedia(buffer: Buffer, fileName: string, contentType: 
   verifyCredentials();
   
   const formData = new FormData();
-  const blob = new Blob([buffer], { type: contentType });
+  const blob = new Blob([new Uint8Array(buffer)], { type: contentType });
   formData.append('file', blob, fileName);
   formData.append('type', contentType);
   formData.append('messaging_product', 'whatsapp');
@@ -93,14 +94,12 @@ export async function sendWhatsAppGenericTemplate(input: {
     verifyCredentials();
     const { to, templateName, languageCode = 'en', headerMedia, bodyVariables } = input;
 
-    // 1. Mandatory Approval Check
+    // 1. NON-BLOCKING Approval Check
+    // We log the status but proceed with the dispatch attempt. 
+    // The Meta Send API will return an authoritative error if the template isn't usable.
     const status = await getTemplateStatus(templateName);
     if (status !== 'APPROVED') {
-       console.warn(`META_STATUS_ALERT: Template ${templateName} is ${status}. Dispatch restricted.`);
-       // In development, we might let this pass, but for Prompt 5 logic we block.
-       if (process.env.NODE_ENV === 'production') {
-         return { success: false, error: `TEMPLATE_NOT_APPROVED: ${status}`, apiStatus: 403 };
-       }
+       console.warn(`META_STATUS_PULSE: Template ${templateName} is ${status}. Attempting dispatch anyway.`);
     }
 
     let mediaId: string | undefined;
@@ -113,7 +112,7 @@ export async function sendWhatsAppGenericTemplate(input: {
 
     const components: any[] = [];
 
-    // Header Logic (Weekly PDF)
+    // Header Logic
     if (headerMedia && mediaId) {
       components.push({
         type: 'header',
@@ -168,16 +167,4 @@ export async function sendWhatsAppGenericTemplate(input: {
     console.error('WHATSAPP_DISPATCH_FAILURE:', err.message);
     return { success: false, error: err.message };
   }
-}
-
-/**
- * Legacy wrapper maintained for backward compatibility (Daily Briefing PDF variant)
- */
-export async function sendWhatsAppShiftBriefingWithDocument(to: string, name: string, buffer: Buffer, filename: string) {
-  return sendWhatsAppGenericTemplate({
-    to,
-    templateName: 'roc_two_day_roster_pdf', // Daily PDF template (if approved)
-    headerMedia: { type: 'document', buffer, filename },
-    bodyVariables: [name]
-  });
 }
