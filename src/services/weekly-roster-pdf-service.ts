@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth, FieldValue } from '@/lib/firebase-admin';
@@ -7,10 +8,10 @@ import { format } from 'date-fns';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v14.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v15.0
  * 
  * Orchestrates bulk distribution with Meta Document API.
- * UPDATED: Hardened FieldValue.increment and Professional Full Name logic.
+ * FIXED: Correct usage of FieldValue.increment from admin registry.
  */
 
 async function getAuthorizedUser(idToken: string) {

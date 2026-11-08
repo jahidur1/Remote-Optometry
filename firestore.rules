@@ -29,6 +29,12 @@ service cloud.firestore {
       return isUserActive() && profile != null && (profile.role == 'super_admin' || profile.role == 'SUPER_ADMIN');
     }
 
+    // Office-based Authorization Pulse
+    function matchesOffice(officeId) {
+      let profile = getProfile();
+      return isSuperAdmin() || (profile != null && (profile.office == officeId || officeId in profile.officeIds));
+    }
+
     // --- SYSTEM GOVERNANCE ---
 
     match /system_settings/whatsapp_config {
@@ -54,14 +60,14 @@ service cloud.firestore {
     }
 
     match /employees/{employeeId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (isSuperAdmin() || matchesOffice(resource.data.office));
       allow create, delete: if isSuperAdmin();
-      allow update: if isUserActive() && (isAdmin() || (getProfile() != null && getProfile().employeeId == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age'])));
+      allow update: if isUserActive() && (isSuperAdmin() || (getProfile() != null && getProfile().employeeId == employeeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['age'])));
     }
 
     match /published_rosters/{rosterId} { 
-      allow read: if isUserActive(); 
-      allow write: if isAdmin();
+      allow read: if isUserActive() && matchesOffice(resource.data.office); 
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office);
     }
 
     match /whatsapp_logs/{logId} {
@@ -70,13 +76,13 @@ service cloud.firestore {
     }
 
     match /roster_quotas/{quotaId} { 
-      allow read: if isUserActive();
-      allow write: if isAdmin();
+      allow read: if isUserActive() && matchesOffice(resource.data.office);
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office);
     }
 
     match /roster_drafts/{draftId} { 
-      allow read: if isAdmin(); 
-      allow write: if isAdmin(); 
+      allow read: if isAdmin() && matchesOffice(resource.data.office); 
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office); 
     }
 
     match /shift_master/{shiftId} {
@@ -85,14 +91,20 @@ service cloud.firestore {
     }
 
     match /weekoff_configs/{configId} {
-      allow read: if isUserActive();
-      allow write: if isAdmin();
+      allow read: if isUserActive() && matchesOffice(resource.data.office);
+      allow write: if isAdmin() && matchesOffice(request.resource.data.office);
     }
 
     match /weekoff_bookings/{bookingId} {
-      allow read: if isUserActive();
-      allow create: if isUserActive();
+      allow read: if isUserActive() && matchesOffice(resource.data.office);
+      allow create: if isUserActive() && matchesOffice(request.resource.data.office);
       allow delete, update: if isSuperAdmin();
+    }
+    
+    match /shift_swaps/{swapId} {
+      allow read: if isUserActive() && matchesOffice(resource.data.office);
+      allow create: if isUserActive();
+      allow update: if isAdmin();
     }
 
     match /sessions/{sessionId} {
@@ -104,16 +116,6 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isSuperAdmin();
       allow create: if isSignedIn();
-    }
-
-    match /weekly_roster_campaigns/{campaignId} {
-      allow read: if isAdmin();
-      allow write: if isSuperAdmin();
-    }
-    
-    match /whatsapp_jobs/{jobId} {
-      allow read: if isAdmin();
-      allow write: if isSuperAdmin();
     }
   }
 }

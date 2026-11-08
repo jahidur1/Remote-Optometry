@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Zap, User, Fingerprint, Loader2, Lock, Eye, EyeOff, Mail, Phone, ShieldCheck } from 'lucide-react';
+import { Zap, User, Fingerprint, Loader2, Lock, Eye, EyeOff, Mail, Phone, ShieldCheck, Building2 } from 'lucide-react';
 import { updateEmployeeRecordAction, provisionIdentityAction } from '@/services/identity-actions';
 
 interface EmployeeDialogProps {
@@ -59,6 +60,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     gender: 'Male',
     age: '',
     office: '',
+    officeIds: [] as string[],
     whatsappNumber: '',
     department: 'Remote Optometry',
     designation: 'Staff Professional',
@@ -75,6 +77,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         gender: employee.gender || 'Male',
         age: employee.age?.toString() || '',
         office: employee.office || '',
+        officeIds: employee.officeIds || (employee.office ? [employee.office] : []),
         whatsappNumber: employee.whatsappNumber?.replace('+91', '') || '',
         department: employee.department || 'Remote Optometry',
         designation: employee.designation || 'Staff Professional',
@@ -90,6 +93,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         gender: 'Male',
         age: '',
         office: '',
+        officeIds: [],
         whatsappNumber: '',
         department: 'Remote Optometry',
         designation: 'Staff Professional',
@@ -97,6 +101,16 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       setPassword('');
     }
   }, [employee, open]);
+
+  const handleToggleOffice = (officeId: string) => {
+    setFormData(prev => {
+      const current = prev.officeIds || [];
+      const updated = current.includes(officeId) 
+        ? current.filter(id => id !== officeId)
+        : [...current, officeId];
+      return { ...prev, officeIds: updated };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,24 +120,23 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) throw new Error("Session expired.");
 
+      const payload = {
+        ...formData,
+        whatsappNumber: `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`,
+        age: parseInt(formData.age) || 0
+      };
+
       if (employee) {
-        // UPDATE FLOW
-        const updates = {
-          ...formData,
-          whatsappNumber: `+91${formData.whatsappNumber.replace(/\D/g, '').slice(-10)}`,
-          age: parseInt(formData.age) || 0
-        };
-        const result = await updateEmployeeRecordAction(idToken, employee.id, updates);
+        const result = await updateEmployeeRecordAction(idToken, employee.id, payload);
         if (result.success) {
           toast({ title: 'Registry Synchronized', description: `Record for ${formData.fullName} updated.` });
           onOpenChange(false);
         } else throw new Error(result.error);
       } else {
-        // PROVISION FLOW
         if (password.length < 8) throw new Error("Password must be at least 8 characters.");
-        if (!formData.office) throw new Error("ROC Cluster center is required.");
+        if (!formData.office) throw new Error("Primary ROC center is required.");
 
-        const result = await provisionIdentityAction(idToken, formData, password);
+        const result = await provisionIdentityAction(idToken, payload, password);
         if (result.success) {
           toast({ title: 'Enrollment Successful', description: `Identity [${formData.employeeId}] provisioned.` });
           onOpenChange(false);
@@ -135,6 +148,8 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
       setLoading(false);
     }
   };
+
+  const isClusterAdmin = formData.role === 'admin';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,18 +168,6 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
         <ScrollArea className="max-h-[70vh]">
           <form onSubmit={handleSubmit} className="p-12 space-y-10">
-            {!employee && (
-              <div className="p-6 rounded-2xl bg-secondary/5 border-2 border-secondary/10 flex gap-6 items-start">
-                  <Zap className="size-6 text-secondary shrink-0 mt-1" />
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-black text-primary uppercase tracking-widest">Trusted Backend Provisioning</p>
-                    <p className="text-[12px] font-bold text-black/60 uppercase leading-relaxed tracking-tight">
-                        Enrollment creates a unique Firebase Auth credential and mirrors metadata to the clinical registry.
-                    </p>
-                  </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
@@ -175,7 +178,6 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                     required
-                    placeholder="PROFESSIONAL NAME"
                   />
                 </div>
               </div>
@@ -189,7 +191,6 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                     onChange={(e) => setFormData({ ...formData, employeeId: e.target.value.toUpperCase() })}
                     required
                     disabled={!!employee}
-                    placeholder="EMP-0000"
                   />
                 </div>
               </div>
@@ -198,32 +199,24 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Official Email</Label>
-                <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
-                  <Input
-                    type="email"
-                    className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
-                    required
-                    placeholder="NAME@ROC.INTERNAL"
-                  />
-                </div>
+                <Input
+                  type="email"
+                  className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white focus:border-secondary transition-all text-black"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
+                  required
+                />
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Mobile Endpoint</Label>
                 <div className="flex gap-3">
                   <div className="flex h-14 w-16 items-center justify-center rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-black text-lg">+91</div>
-                  <div className="relative flex-1 group">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/10 group-focus-within:text-primary transition-colors" />
-                    <Input
-                      className="font-black h-14 pl-12 rounded-2xl border-2 border-slate-100 bg-white text-black"
-                      value={formData.whatsappNumber}
-                      onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                      required
-                      placeholder="99999 00000"
-                    />
-                  </div>
+                  <Input
+                    className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white text-black"
+                    value={formData.whatsappNumber}
+                    onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    required
+                  />
                 </div>
               </div>
             </div>
@@ -236,17 +229,12 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                   <Input 
                     type={showPassword ? "text" : "password"} 
                     placeholder="MIN 8 CHARACTERS" 
-                    className="font-black h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black transition-all" 
+                    className="font-black h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-100 focus:border-primary text-black" 
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
                     required={!employee}
-                    minLength={8} 
                   />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-primary transition-colors"
-                  >
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-black/30 hover:text-primary">
                     {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                   </button>
                 </div>
@@ -255,15 +243,15 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
 
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">ROC Cluster Center</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Primary ROC Center</Label>
                 <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
                   <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                    <SelectValue placeholder={registryLoading ? "Syncing..." : "Select Hub..."} />
+                    <SelectValue placeholder="Select Hub..." />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
+                  <SelectContent className="rounded-2xl bg-white p-2">
                     {registryOffices?.map(o => (
                       <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] uppercase py-3 rounded-xl">
-                        {o.officeName} [{o.shortCode}]
+                        {o.officeName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -271,11 +259,11 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Authorization Role</Label>
-                <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val as any })}>
+                <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val as any, officeIds: val === 'admin' ? [formData.office] : [] })}>
                   <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
+                  <SelectContent className="rounded-2xl bg-white p-2">
                     <SelectItem value="user" className="font-bold text-[11px] uppercase py-3">Staff Professional</SelectItem>
                     <SelectItem value="admin" className="font-bold text-[11px] uppercase py-3">Cluster Admin</SelectItem>
                     <SelectItem value="super_admin" className="font-bold text-[11px] uppercase py-3">System Super Admin</SelectItem>
@@ -284,6 +272,29 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
               </div>
             </div>
 
+            {isClusterAdmin && (
+              <div className="p-8 rounded-[2rem] bg-secondary/5 border-2 border-secondary/10 space-y-6 animate-in slide-in-from-top-2">
+                 <div className="flex items-center gap-3">
+                    <Building2 className="size-5 text-secondary" />
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Authorized Hub Access</Label>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    {registryOffices?.map(o => (
+                      <div key={o.officeId} className="flex items-center space-x-3 p-3 rounded-xl hover:bg-white transition-all group">
+                        <Checkbox 
+                          id={`office-${o.officeId}`} 
+                          checked={formData.officeIds?.includes(o.officeId)}
+                          onCheckedChange={() => handleToggleOffice(o.officeId)}
+                        />
+                        <label htmlFor={`office-${o.officeId}`} className="text-[11px] font-black uppercase cursor-pointer group-hover:text-secondary transition-colors">
+                          {o.officeName}
+                        </label>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-8">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Gender</Label>
@@ -291,8 +302,8 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                   <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
-                    <SelectItem value="Male" className="font-bold text-[11px] uppercase py-3">Male</SelectItem>
+                  <SelectContent className="rounded-2xl bg-white p-2">
+                    <SelectItem value="Male" className="font-bold py-3 uppercase text-[11px]">Male</SelectItem>
                     <SelectItem value="Female" className="font-bold py-3 uppercase text-[11px]">Female</SelectItem>
                     <SelectItem value="Other" className="font-bold py-3 uppercase text-[11px]">Other</SelectItem>
                   </SelectContent>
@@ -300,23 +311,17 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Age</Label>
-                <Input
-                  type="number"
-                  className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white text-black"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  placeholder="25"
-                />
+                <Input type="number" className="font-black h-14 pl-6 rounded-2xl border-2 border-slate-100 bg-white" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} />
               </div>
               <div className="space-y-3">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Registry Status</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Status</Label>
                 <Select value={formData.status} onValueChange={(val) => setFormData({ ...formData, status: val })}>
-                  <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
+                  <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-white">
-                    <SelectItem value="Active" className="font-bold text-[11px] uppercase py-3 text-emerald-600">Active</SelectItem>
-                    <SelectItem value="Suspended" className="font-bold text-[11px] uppercase py-3 text-destructive">Suspended</SelectItem>
+                  <SelectContent className="rounded-2xl bg-white p-2">
+                    <SelectItem value="Active" className="font-bold py-3 uppercase text-[11px] text-emerald-600">Active</SelectItem>
+                    <SelectItem value="Suspended" className="font-bold py-3 uppercase text-[11px] text-destructive">Suspended</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
