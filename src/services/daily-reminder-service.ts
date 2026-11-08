@@ -8,7 +8,7 @@ import { format, addDays } from 'date-fns';
 /**
  * ROC WORKFORCE — DAILY SHIFT REMINDER SERVICE v10.0
  * 
- * Workflow B: Text-only reminders at 10:00 AM IST for the next 2 days.
+ * Workflow B: Text-only reminders for the next 2 days.
  * Template: roc_daily_two_day_shift_reminder
  * Variables: {{1}} Name, {{2-4}} Day 1 (Date, Shift, Time), {{5-7}} Day 2 (Date, Shift, Time).
  */
@@ -17,7 +17,7 @@ async function getAuthorizedUser(idToken: string) {
   if (!idToken) throw new Error("Unauthorized.");
   const decoded = await adminAuth.verifyIdToken(idToken, true);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
-  if (!userSnap.exists || userSnap.data()?.role !== 'super_admin') {
+  if (!userSnap.exists || userSnap.data()?.role?.toLowerCase() !== 'super_admin') {
     throw new Error("Unauthorized: Super Admin access required.");
   }
   return decoded.uid;
@@ -42,7 +42,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       if (!config.dailyReminderEnabled) return { success: false, error: "DAILY_STREAM_DISABLED" };
     }
 
-    const templateName = config.dailyTemplate || 'roc_daily_two_day_shift_reminder';
+    const templateName = 'roc_daily_two_day_shift_reminder';
     
     // 2. Temporal Logic (Asia/Kolkata)
     const istNow = getISTNow();
@@ -69,12 +69,6 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       const emp = empDoc.data();
       const employeeId = empDoc.id;
 
-      // Emergency Mid-Execution Kill Switch
-      if (!bypassMasterCheck) {
-         const liveCheck = await adminDb.collection('system_settings').doc('whatsapp_config').get();
-         if (!liveCheck.data()?.masterEnabled) break;
-      }
-
       // Institutional Eligibility Filter
       if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
         skippedCount++;
@@ -84,7 +78,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       try {
         const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
         
-        // Idempotency Hub: Ensure Zero Duplicate Successful Messages
+        // Idempotency Hub
         const existingLog = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
           .where('status', '==', 'success')
@@ -106,7 +100,6 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStrings[i]);
           
-          // Integrity Guard: Do not send invented schedules
           if (!rosterSnap.exists || !assign) {
              missingRoster = true;
              break;
@@ -117,8 +110,8 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const isOff = shiftId === 'none';
 
           // Mapping: {{2,5}} Date -> {{3,6}} Shift -> {{4,7}} Time
-          templateVars.push(`${format(dates[i], 'EEEE')}, ${format(dates[i], 'dd MMM')}`);
-          templateVars.push(isOff ? 'WEEK OFF' : (shift?.name || 'DUTY'));
+          templateVars.push(`${format(dates[i], 'EEEE, dd MMMM')}`);
+          templateVars.push(isOff ? 'Week Off' : (shift?.name || 'Duty'));
           templateVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`);
         }
 
@@ -127,7 +120,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           continue;
         }
 
-        // 5. Meta Cloud API Dispatch (Strict Workflow B: Text Only)
+        // 5. Meta Cloud API Dispatch
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
@@ -141,12 +134,9 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           employeeName: emp.fullName,
           office: emp.office,
           notificationType: 'daily_shift_reminder',
-          templateId: templateName,
           status: dispatch.success ? 'success' : 'failed',
-          apiStatus: dispatch.apiStatus,
           messageId: dispatch.messageId,
           failureReason: dispatch.error,
-          submissionTimestamp: new Date().toISOString(),
           timestamp: new Date().toISOString()
         });
 

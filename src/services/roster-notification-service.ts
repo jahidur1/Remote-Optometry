@@ -1,21 +1,19 @@
-
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { generateRosterPdf, generateWeeklyRosterPdf } from './roster-document-service';
+import { generateWeeklyRosterPdf } from './roster-document-service';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
 import { format, addDays } from 'date-fns';
-import { getStorage } from 'firebase-admin/storage';
 import { formatWeekId, getISTNow, getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v12.0 (Secure PDF Protocol)
+ * ROC WORKFORCE — PREMIUM CLINICAL BRIEFING SERVICE v12.0
  * 
- * Orchestrates premium document synthesis, private storage, and Meta API dispatch.
+ * Orchestrates premium document synthesis and Meta API dispatch.
  */
 
 async function getAuthorizedUser(idToken: string) {
-  if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
+  if (!idToken) throw new Error("Unauthorized.");
   const decoded = await adminAuth.verifyIdToken(idToken);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Registry Error: Identity node not found.");
@@ -26,9 +24,6 @@ async function getAuthorizedUser(idToken: string) {
   return { uid: decoded.uid, ...profile } as any;
 }
 
-/**
- * previewEmployeeRosterAction
- */
 export async function previewEmployeeRosterAction(idToken: string, employeeId: string, weekId?: string) {
   try {
     await getAuthorizedUser(idToken);
@@ -86,10 +81,6 @@ export async function previewEmployeeRosterAction(idToken: string, employeeId: s
   }
 }
 
-/**
- * sendTestWhatsAppAction
- * Sandbox tool for Meta API verification.
- */
 export async function sendTestWhatsAppAction(idToken: string, employeeId: string, type: 'daily' | 'weekly') {
   try {
     await getAuthorizedUser(idToken);
@@ -138,12 +129,11 @@ export async function sendTestWhatsAppAction(idToken: string, employeeId: string
         rosterDays
       });
 
-      const filename = `Test_Roster_${employeeId}.pdf`;
       const dispatch = await sendWhatsAppGenericTemplate({
         to: emp.whatsappNumber,
-        templateName: config.weeklyTemplate || 'roc_weekly_roster_pdf',
-        headerMedia: { type: 'document', buffer: pdfBuffer, filename },
-        bodyVariables: [emp.fullName, format(weekDates[0], 'yyyy-MM-dd'), format(weekDates[6], 'yyyy-MM-dd')]
+        templateName: 'roc_weekly_roster_pdf',
+        headerMedia: { type: 'document', buffer: pdfBuffer, filename: 'Weekly_Roster.pdf' },
+        bodyVariables: [emp.fullName, format(weekDates[0], 'dd MMM yyyy'), format(weekDates[6], 'dd MMM yyyy')]
       });
 
       return dispatch;
@@ -155,11 +145,11 @@ export async function sendTestWhatsAppAction(idToken: string, employeeId: string
       
       const dispatch = await sendWhatsAppGenericTemplate({
         to: emp.whatsappNumber,
-        templateName: config.dailyTemplate || 'roc_daily_two_day_shift_reminder',
+        templateName: 'roc_daily_two_day_shift_reminder',
         bodyVariables: [
           emp.fullName,
-          format(tomorrow, 'EEEE, dd MMM'), 'DUTY', '10:00 AM - 07:00 PM',
-          format(dayAfter, 'EEEE, dd MMM'), 'WEEK OFF', 'Enjoy your day off!'
+          format(tomorrow, 'EEEE, dd MMMM'), 'Opening', '10:00 AM - 07:00 PM',
+          format(dayAfter, 'EEEE, dd MMMM'), 'Week Off', 'Enjoy your day off!'
         ]
       });
 

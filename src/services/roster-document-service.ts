@@ -1,4 +1,3 @@
-
 'use server';
 
 import { jsPDF } from 'jspdf';
@@ -63,7 +62,6 @@ export async function generateWeeklyRosterPdf(input: {
 
   if (logoBase64) {
     try {
-      // Robust Base64 Handling: handles both prefixed and raw strings
       const b64Data = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
       const format = logoBase64.includes('image/jpeg') ? 'JPEG' : 'PNG';
       doc.addImage(b64Data, format, pageWidth - 55, 12, 35, 17, undefined, 'FAST');
@@ -72,10 +70,9 @@ export async function generateWeeklyRosterPdf(input: {
     }
   }
 
-  // 3. Identity Hub (Full Name Registry)
+  // 3. Identity Hub
   doc.setTextColor(textMain);
   doc.setFontSize(18);
-  // Strictly use professional's FULL NAME
   doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 45);
   
   doc.setTextColor(textSecondary);
@@ -123,9 +120,6 @@ export async function generateWeeklyRosterPdf(input: {
   return Buffer.from(doc.output('arraybuffer'));
 }
 
-/**
- * generateRosterPdf
- */
 export async function generateRosterPdf(input: {
   employeeName: string;
   employeeId: string;

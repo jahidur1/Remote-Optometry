@@ -1,4 +1,3 @@
-
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -16,7 +15,7 @@ const WHATSAPP_WEBHOOK_VERIFY_TOKEN = defineSecret('WHATSAPP_WEBHOOK_VERIFY_TOKE
 const IST_TZ = 'Asia/Kolkata';
 
 export const dailyTwoDayShiftReminder = onSchedule({
-  schedule: '0 22 * * *',
+  schedule: '0 10 * * *',
   timeZone: IST_TZ,
   memory: '512MiB',
   secrets: [WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID],
@@ -43,7 +42,7 @@ export const dailyTwoDayShiftReminder = onSchedule({
     const emp = empDoc.data();
     if (!emp.whatsappNumber || emp.whatsappOptIn === false) continue;
 
-    const templateVars: string[] = [emp.fullName];
+    const templateVars: string[] = [];
     let missingRoster = false;
 
     for (const dStr of dateStrings) {
@@ -53,20 +52,20 @@ export const dailyTwoDayShiftReminder = onSchedule({
       const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
       const assign = assignments.find((a: any) => a.employeeId === empDoc.id && a.date === dStr);
       
-      if (!assign) { missingRoster = true; break; }
+      if (!rosterSnap.exists || !assign) { missingRoster = true; break; }
       const s = shiftsMap.get(assign.shiftId);
       const isOff = assign.shiftId === 'none';
       
       // Mapping: {{2,5}} Date -> {{3,6}} Shift -> {{4,7}} Time
-      templateVars.push(`${format(new Date(dStr), 'EEEE')}, ${format(new Date(dStr), 'dd MMM')}`);
-      templateVars.push(isOff ? 'WEEK OFF' : (s?.name || 'DUTY'));
+      templateVars.push(`${format(new Date(dStr), 'EEEE, dd MMMM')}`);
+      templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
       templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
     }
 
     if (missingRoster) continue;
     
     const jobKey = `daily_${empDoc.id}_${dateStrings[0]}_${dateStrings[1]}`;
-    await sendWhatsApp(emp.whatsappNumber, config.dailyTemplate || 'roc_daily_two_day_shift_reminder', templateVars, jobKey, emp.office, empDoc.id, 'daily_text');
+    await sendWhatsApp(emp.whatsappNumber, 'roc_daily_two_day_shift_reminder', [emp.fullName, ...templateVars], jobKey, emp.office, empDoc.id, 'daily_shift_reminder');
   }
 });
 
@@ -129,7 +128,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
     const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
     
-    if (!config.masterEnabled || !config.weeklyEnabled) throw new Error("AUTOMATION_DISABLED");
+    if (!config.masterEnabled) throw new Error("AUTOMATION_DISABLED");
 
     const [empSnap, shiftsSnap, rosterSnap] = await Promise.all([
       db.collection('employees').doc(job.employeeId).get(),
@@ -152,11 +151,12 @@ export const processWeeklyRosterJobs = onDocumentCreated({
       const assignments = rosterSnap.data()?.assignments || [];
       const assign = assignments.find((a: any) => a.employeeId === job.employeeId && a.date === dStr);
       const s = assign ? shiftsMap.get(assign.shiftId) : null;
+      const isOff = !assign || assign.shiftId === 'none';
       return {
         date: format(date, 'dd MMM yyyy').toUpperCase(),
         day: format(date, 'EEEE'),
-        shift: (!assign || assign.shiftId === 'none') ? 'WEEK OFF' : (s?.name || 'DUTY'),
-        time: (!assign || assign.shiftId === 'none') ? '--:--' : `${s?.startTime} - ${s?.endTime}`,
+        shift: isOff ? 'WEEK OFF' : (s?.name || 'DUTY'),
+        time: isOff ? '--:--' : `${s?.startTime} - ${s?.endTime}`,
         shiftId: assign?.shiftId || 'none'
       };
     });
@@ -166,7 +166,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
     const jobKey = `weekly_${job.employeeId}_${job.weekId}`;
     
     // Variables: {{1}} Name, {{2}} Start Date, {{3}} End Date
-    const result = await sendWhatsAppDocument(emp.whatsappNumber, mediaId, config.weeklyTemplate || 'roc_weekly_roster_pdf', [emp.fullName, format(weekDates[0], 'yyyy-MM-dd'), format(weekDates[6], 'yyyy-MM-dd')], jobKey, job.officeId, job.employeeId);
+    const result = await sendWhatsAppDocument(emp.whatsappNumber, mediaId, 'roc_weekly_roster_pdf', [emp.fullName, format(weekDates[0], 'dd MMM yyyy'), format(weekDates[6], 'dd MMM yyyy')], jobKey, job.officeId, job.employeeId);
 
     await jobRef?.update({ status: 'success', messageId: result.id, completedAt: admin.firestore.FieldValue.serverTimestamp() });
     await db.collection('weekly_roster_campaigns').doc(job.campaignId).update({
@@ -232,7 +232,7 @@ async function sendWhatsApp(to: string, template: string, vars: string[], jobKey
       messaging_product: "whatsapp",
       to: formattedTo,
       type: "template",
-      template: { name: template, language: { code: "en" }, components: [{ type: "body", parameters: vars.map(v => ({ type: "text", text: v })) }] }
+      template: { name: template, language: { code: "en" }, components: [{ type: "body", parameters: vars.map(v => ({ type: "text", text: String(v) })) }] }
     })
   });
   const data: any = await res.json();
@@ -270,8 +270,8 @@ async function sendWhatsAppDocument(to: string, mediaId: string, template: strin
         name: template,
         language: { code: "en" },
         components: [
-          { type: "header", parameters: [{ type: "document", document: { id: mediaId, filename: "Roster.pdf" } }] },
-          { type: "body", parameters: vars.map(v => ({ type: "text", text: v })) }
+          { type: "header", parameters: [{ type: "document", document: { id: mediaId, filename: "Weekly_Roster.pdf" } }] },
+          { type: "body", parameters: vars.map(v => ({ type: "text", text: String(v) })) }
         ]
       }
     })

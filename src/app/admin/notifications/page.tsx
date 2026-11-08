@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -68,7 +67,6 @@ export default function AutomationGovernance() {
 
   const dailyLogQuery = useMemo(() => query(
     collection(db, 'whatsapp_logs'), 
-    where('notificationType', '==', 'daily_shift_reminder'), 
     orderBy('timestamp', 'desc'), 
     limit(20)
   ), [db]);

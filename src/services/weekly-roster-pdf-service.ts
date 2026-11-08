@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb, adminAuth, FieldValue } from '@/lib/firebase-admin';
@@ -11,7 +10,6 @@ import { sendWhatsAppGenericTemplate } from './whatsapp-action';
  * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v12.0
  * 
  * Orchestrates bulk distribution with Meta Document API.
- * Resolved: Increment error by correctly utilizing FieldValue from central lib.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -20,7 +18,7 @@ async function getAuthorizedUser(idToken: string) {
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Identity not found.");
   const profile = userSnap.data()!;
-  if (profile.status !== 'Active' || !['admin', 'super_admin'].includes(profile.role)) {
+  if (profile.status !== 'Active' || !['admin', 'super_admin'].includes(profile.role?.toLowerCase())) {
     throw new Error("Unauthorized: Elevated pulse required.");
   }
   return { uid: decoded.uid, ...profile } as any;
@@ -77,11 +75,13 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           const dStr = format(date, 'yyyy-MM-dd');
           const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dStr);
           const shift = assign ? shiftsMap.get(assign.shiftId) : null;
+          const isOff = !assign || assign.shiftId === 'none';
+          
           return {
             date: format(date, 'dd MMM yyyy').toUpperCase(),
             day: format(date, 'EEEE'),
-            shift: (!assign || assign.shiftId === 'none') ? 'WEEK OFF' : (shift?.name || 'DUTY'),
-            time: (!assign || assign.shiftId === 'none') ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`,
+            shift: isOff ? 'WEEK OFF' : (shift?.name || 'DUTY'),
+            time: isOff ? '--:--' : `${shift?.startTime} - ${shift?.endTime}`,
             shiftId: assign?.shiftId || 'none'
           };
         });
@@ -95,11 +95,10 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           rosterDays
         });
 
-        const filename = `Roster_${employeeId}_${weekId}.pdf`;
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
-          templateName: config.weeklyTemplate || 'roc_weekly_roster_pdf',
-          headerMedia: { type: 'document', buffer: pdfBuffer, filename },
+          templateName: 'roc_weekly_roster_pdf',
+          headerMedia: { type: 'document', buffer: pdfBuffer, filename: `Roster_${weekId}.pdf` },
           bodyVariables: [
             emp.fullName, 
             format(weekDates[0], 'dd MMM yyyy'), 
@@ -115,6 +114,7 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
            await adminDb.collection('whatsapp_logs').add({ 
              jobKey, 
              employeeId, 
+             employeeName: emp.fullName,
              office: officeId, 
              status: 'success', 
              notificationType: 'weekly_pdf',
