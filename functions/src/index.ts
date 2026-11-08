@@ -1,4 +1,3 @@
-
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -247,7 +246,7 @@ async function uploadToMeta(buffer: Buffer, name: string) {
   fd.append('file', new Blob([new Uint8Array(buffer)]), name);
   fd.append('type', 'application/pdf');
   fd.append('messaging_product', 'whatsapp');
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
+  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${ACCESS_TOKEN.value()}` }, body: fd });
   const data: any = await res.json();
   if (!res.ok) throw new Error(data.error?.message || 'Meta Upload Failed');
   return data.id;
