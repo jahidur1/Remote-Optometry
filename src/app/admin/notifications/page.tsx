@@ -14,19 +14,14 @@ import {
   Activity, 
   MessageSquare, 
   Loader2, 
-  Settings2,
-  RotateCcw,
-  FileText,
   Monitor,
   Bell,
-  CheckCircle2,
-  AlertTriangle,
   History,
-  Building2,
   Smartphone,
   ShieldAlert,
   Target,
-  Send
+  Send,
+  FileText
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';

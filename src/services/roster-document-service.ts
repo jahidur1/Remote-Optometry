@@ -4,7 +4,7 @@
 import { jsPDF } from 'jspdf';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v9.0
+ * ROC WORKFORCE — PREMIUM CLINICAL PDF ORCHESTRATOR v10.0
  * 
  * Generates high-fidelity PDF documents for professional roster briefings.
  * DESIGN: Corporate Modern, Navy & White.
@@ -63,8 +63,10 @@ export async function generateWeeklyRosterPdf(input: {
 
   if (logoBase64) {
     try {
-      const rawB64 = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
-      doc.addImage(rawB64, 'PNG', pageWidth - 55, 12, 35, 17, undefined, 'FAST');
+      // Robust Base64 Handling: handles both prefixed and raw strings
+      const b64Data = logoBase64.includes(',') ? logoBase64.split(',')[1] : logoBase64;
+      const format = logoBase64.includes('image/jpeg') ? 'JPEG' : 'PNG';
+      doc.addImage(b64Data, format, pageWidth - 55, 12, 35, 17, undefined, 'FAST');
     } catch (e) {
       console.warn("PDF_LOGO_WARN: Synthesis bypassed logo due to stream conflict.");
     }
@@ -73,6 +75,7 @@ export async function generateWeeklyRosterPdf(input: {
   // 3. Identity Hub (Full Name Registry)
   doc.setTextColor(textMain);
   doc.setFontSize(18);
+  // Strictly use professional's FULL NAME
   doc.text(`HELLO, ${employeeName.toUpperCase()}`, 20, 45);
   
   doc.setTextColor(textSecondary);
@@ -122,7 +125,6 @@ export async function generateWeeklyRosterPdf(input: {
 
 /**
  * generateRosterPdf
- * Legacy 2-day variant maintained for daily pulses.
  */
 export async function generateRosterPdf(input: {
   employeeName: string;
@@ -131,7 +133,6 @@ export async function generateRosterPdf(input: {
   logoBase64?: string;
   nextTwoDays: RosterDay[];
 }): Promise<Buffer> {
-  // Pass-through to weekly orchestrator for consistent design
   return generateWeeklyRosterPdf({
     employeeName: input.employeeName,
     employeeId: input.employeeId,

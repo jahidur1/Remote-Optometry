@@ -5,15 +5,13 @@ import { adminDb, adminAuth, FieldValue } from '@/lib/firebase-admin';
 import { generateWeeklyRosterPdf } from './roster-document-service';
 import { getDatesForWeek, displayWeekRange } from '@/lib/date-utils';
 import { format } from 'date-fns';
-import { getStorage } from 'firebase-admin/storage';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
-import { logAuditServer } from './audit-service';
 
 /**
- * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v11.0
+ * ROC WORKFORCE — WEEKLY ROSTER PDF SERVICE v12.0
  * 
  * Orchestrates bulk distribution with Meta Document API.
- * Hardened: Strictly uses FieldValue class from central admin lib.
+ * Resolved: Increment error by correctly utilizing FieldValue from central lib.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -21,7 +19,11 @@ async function getAuthorizedUser(idToken: string) {
   const decoded = await adminAuth.verifyIdToken(idToken, true);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
   if (!userSnap.exists) throw new Error("Identity not found.");
-  return { uid: decoded.uid, ...userSnap.data() } as any;
+  const profile = userSnap.data()!;
+  if (profile.status !== 'Active' || !['admin', 'super_admin'].includes(profile.role)) {
+    throw new Error("Unauthorized: Elevated pulse required.");
+  }
+  return { uid: decoded.uid, ...profile } as any;
 }
 
 export async function initiateWeeklyRosterCampaignAction(idToken: string, officeId: string, weekId: string) {
@@ -65,9 +67,6 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
       actorId: caller.uid
     });
 
-    const storage = getStorage();
-    const bucket = storage.bucket();
-
     for (const empDoc of eligibleEmployees) {
       const emp = empDoc.data();
       const employeeId = empDoc.id;
@@ -101,7 +100,11 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
           to: emp.whatsappNumber,
           templateName: config.weeklyTemplate || 'roc_weekly_roster_pdf',
           headerMedia: { type: 'document', buffer: pdfBuffer, filename },
-          bodyVariables: [emp.fullName, format(weekDates[0], 'yyyy-MM-dd'), format(weekDates[6], 'yyyy-MM-dd')]
+          bodyVariables: [
+            emp.fullName, 
+            format(weekDates[0], 'dd MMM yyyy'), 
+            format(weekDates[6], 'dd MMM yyyy')
+          ]
         });
 
         if (dispatch.success) {
@@ -119,7 +122,8 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
            });
         } else throw new Error(dispatch.error);
 
-      } catch (e) {
+      } catch (e: any) {
+        console.error(`CAMPAIGN_JOB_FAIL [${employeeId}]:`, e.message);
         await campaignRef.update({ 
           'stats.pending': FieldValue.increment(-1), 
           'stats.failed': FieldValue.increment(1) 
@@ -130,6 +134,7 @@ export async function initiateWeeklyRosterCampaignAction(idToken: string, office
     await campaignRef.update({ status: 'completed', completedAt: new Date().toISOString() });
     return { success: true, campaignId };
   } catch (e: any) {
+    console.error('CAMPAIGN_CRITICAL_CONFLICT:', e.message);
     return { success: false, error: e.message };
   }
 }
