@@ -48,6 +48,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 
 /**
  * updateEmployeeRecordAction
+ * Hardened: Super Admin can modify ANY user details.
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   try {
@@ -64,6 +65,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     // Enforce role normalization
     if (filtered.role) filtered.role = filtered.role.toLowerCase();
 
+    // Privilege Guard: Restrict non-super-admins from changing roles or office assignments
     if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.office;
@@ -97,61 +99,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     await batch.commit();
     await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId, { updatedFields: Object.keys(filtered) });
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-/**
- * syncProfileOnLoginAction
- */
-export async function syncProfileOnLoginAction(idToken: string) {
-  if (!idToken) throw new Error("Token missing.");
-  
-  try {
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const user = await adminAuth.getUser(decoded.uid);
-    
-    const field = user.phoneNumber ? 'whatsappNumber' : 'email';
-    const value = user.phoneNumber || user.email;
-    
-    if (!value) throw new Error("No identifying field found in auth token.");
-
-    const empSnap = await adminDb.collection('employees').where(field, '==', value).get();
-    
-    if (empSnap.empty) {
-      throw new Error("This identity is not authorized for portal access.");
-    }
-
-    const employee = empSnap.docs[0].data();
-    
-    if (employee.status !== 'Active') {
-      throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
-    }
-
-    const batch = adminDb.batch();
-    const empRef = adminDb.collection('employees').doc(employee.id);
-    const userRef = adminDb.collection('users').doc(user.uid);
-
-    batch.update(empRef, { authUid: user.uid, updatedAt: new Date().toISOString() });
-
-    batch.set(userRef, {
-      uid: user.uid,
-      email: employee.email || user.email || null,
-      role: employee.role,
-      displayName: employee.fullName,
-      employeeId: employee.id,
-      phoneNumber: user.phoneNumber || employee.whatsappNumber,
-      office: employee.office || null,
-      officeIds: employee.officeIds || (employee.office ? [employee.office] : []),
-      status: 'Active',
-      lastLogin: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-
-    await batch.commit();
-    
-    return { success: true, role: employee.role, fullName: employee.fullName, employeeId: employee.id };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
@@ -225,6 +172,61 @@ export async function provisionIdentityAction(idToken: string, formData: any, pa
     await logAuditServer(caller.uid, 'ADMIN_PROVISION_IDENTITY', employeeId, { office: formData.office, role: roleNormalized });
 
     return { success: true, uid: authUser.uid };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * syncProfileOnLoginAction
+ */
+export async function syncProfileOnLoginAction(idToken: string) {
+  if (!idToken) throw new Error("Token missing.");
+  
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const user = await adminAuth.getUser(decoded.uid);
+    
+    const field = user.phoneNumber ? 'whatsappNumber' : 'email';
+    const value = user.phoneNumber || user.email;
+    
+    if (!value) throw new Error("No identifying field found in auth token.");
+
+    const empSnap = await adminDb.collection('employees').where(field, '==', value).get();
+    
+    if (empSnap.empty) {
+      throw new Error("This identity is not authorized for portal access.");
+    }
+
+    const employee = empSnap.docs[0].data();
+    
+    if (employee.status !== 'Active') {
+      throw new Error(`Account Status: ${employee.status.toUpperCase()}. Access restricted.`);
+    }
+
+    const batch = adminDb.batch();
+    const empRef = adminDb.collection('employees').doc(employee.id);
+    const userRef = adminDb.collection('users').doc(user.uid);
+
+    batch.update(empRef, { authUid: user.uid, updatedAt: new Date().toISOString() });
+
+    batch.set(userRef, {
+      uid: user.uid,
+      email: employee.email || user.email || null,
+      role: employee.role,
+      displayName: employee.fullName,
+      employeeId: employee.id,
+      phoneNumber: user.phoneNumber || employee.whatsappNumber,
+      office: employee.office || null,
+      officeIds: employee.officeIds || (employee.office ? [employee.office] : []),
+      status: 'Active',
+      lastLogin: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    await batch.commit();
+    
+    return { success: true, role: employee.role, fullName: employee.fullName, employeeId: employee.id };
   } catch (e: any) {
     return { success: false, error: e.message };
   }

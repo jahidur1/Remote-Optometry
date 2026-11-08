@@ -160,7 +160,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     }
   };
 
-  const isClusterAdmin = formData.role === 'admin';
+  const isAdminRole = formData.role === 'admin';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,7 +178,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         </div>
 
         <ScrollArea className="max-h-[70vh]">
-          <form onSubmit={handleSubmit} className="p-12 space-y-10">
+          <form onSubmit={handleSubmit} id="employee-dialog-form" className="p-12 space-y-10">
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Full Legal Name</Label>
@@ -283,7 +283,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
               </div>
             </div>
 
-            {isClusterAdmin && (
+            {isAdminRole && (
               <div className="p-8 rounded-[2rem] bg-secondary/5 border-2 border-secondary/10 space-y-6 animate-in slide-in-from-top-2">
                  <div className="flex items-center gap-3">
                     <Building2 className="size-5 text-secondary" />
@@ -303,6 +303,9 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                       </div>
                     ))}
                  </div>
+                 <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed px-1">
+                   Note: Admins are strictly restricted to accessing data for these hubs only.
+                 </p>
               </div>
             )}
 
@@ -341,7 +344,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         </ScrollArea>
 
         <DialogFooter className="p-12 bg-slate-50 border-t border-slate-100">
-          <Button type="submit" disabled={loading} className="w-full h-18 font-black uppercase tracking-[0.25em] text-[15px] rounded-3xl shadow-2xl bg-primary hover:bg-black text-white transition-all">
+          <Button type="submit" form="employee-dialog-form" disabled={loading} className="w-full h-18 font-black uppercase tracking-[0.25em] text-[15px] rounded-3xl shadow-2xl bg-primary hover:bg-black text-white transition-all">
             {loading ? <Loader2 className="animate-spin mr-3 size-6" /> : <Zap className="size-6 mr-3 fill-secondary text-secondary" />}
             {loading ? 'SYNCING REGISTRY...' : employee ? 'Update Institutional Record' : 'Authorize & Enroll Profile'}
           </Button>
