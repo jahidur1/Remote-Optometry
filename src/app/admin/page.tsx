@@ -93,7 +93,6 @@ export default function AdminDashboard() {
       if (!idToken) throw new Error("Authentication pulse missing.");
 
       // Institutional Protocol: Store strictly as Base64 for consistent PDF embedding
-      // The service also handles storage upload server-side
       const result = await updateWhatsAppSettingsAction(idToken, { 
         logoBase64: pendingLogo
       });
