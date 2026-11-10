@@ -69,7 +69,7 @@ export const automatedDailyShiftBriefing = onSchedule({
 
     const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
 
-    // 4. Idempotency Guard
+    // 4. Idempotency Guard: Prevent double-dispatch for the same cycle
     const existingLog = await db.collection('whatsapp_logs')
       .where('jobKey', '==', jobKey)
       .where('status', '==', 'success')
