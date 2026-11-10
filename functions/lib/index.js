@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupExpiredRosterPdfs = exports.whatsappStatusWebhook = exports.processWeeklyRosterJobs = exports.startWeeklyRosterCampaign = exports.dailyTwoDayShiftReminder = void 0;
+exports.cleanupOldAuditLogs = exports.cleanupExpiredRosterPdfs = exports.whatsappStatusWebhook = exports.processWeeklyRosterJobs = exports.startWeeklyRosterCampaign = exports.dailyTwoDayShiftReminder = void 0;
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
@@ -47,7 +47,7 @@ const WHATSAPP_PHONE_NUMBER_ID = (0, params_1.defineSecret)('WHATSAPP_PHONE_NUMB
 const WHATSAPP_WEBHOOK_VERIFY_TOKEN = (0, params_1.defineSecret)('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
 const IST_TZ = 'Asia/Kolkata';
 exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
-    schedule: '0 10 * * *',
+    schedule: '0 17 * * *',
     timeZone: IST_TZ,
     memory: '512MiB',
     secrets: [WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID],
@@ -56,21 +56,28 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
     const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
     if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
-        console.log('DAILY_PULSE_SKIP: Automation switches are OFF.');
+        console.log('DAILY_PULSE_SKIP: Automation switches are OFF in system settings.');
         return;
     }
-    const tomorrow = (0, date_fns_1.addDays)(new Date(), 1);
-    const dayAfter = (0, date_fns_1.addDays)(new Date(), 2);
+    const today = new Date(new Date().toLocaleString("en-US", { timeZone: IST_TZ }));
+    const tomorrow = (0, date_fns_1.addDays)(today, 1);
+    const dayAfter = (0, date_fns_1.addDays)(today, 2);
     const dates = [tomorrow, dayAfter];
     const dateStrings = dates.map(d => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-    const empSnap = await db.collection('employees').where('status', '==', 'Active').get();
-    const shiftsSnap = await db.collection('shift_master').get();
+    const [empSnap, shiftsSnap] = await Promise.all([
+        db.collection('employees').where('status', '==', 'Active').get(),
+        db.collection('shift_master').get()
+    ]);
     const shiftsMap = new Map();
     shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
+    console.log(`DAILY_PULSE_INITIATED: Processing ${empSnap.size} active professionals for dates: ${dateStrings.join(', ')}`);
     for (const empDoc of empSnap.docs) {
         const emp = empDoc.data();
-        if (!emp.whatsappNumber || emp.whatsappOptIn === false)
+        const employeeId = empDoc.id;
+        if (!emp.whatsappNumber || emp.whatsappOptIn === false) {
+            console.log(`PULSE_SKIP [${employeeId}]: No phone or opted out.`);
             continue;
+        }
         const templateVars = [];
         let missingRoster = false;
         for (const dStr of dateStrings) {
@@ -78,8 +85,9 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
             const rosterId = `active_${weekId}_${emp.office}`;
             const rosterSnap = await db.collection('published_rosters').doc(rosterId).get();
             const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
-            const assign = assignments.find((a) => a.employeeId === empDoc.id && a.date === dStr);
+            const assign = assignments.find((a) => a.employeeId === employeeId && a.date === dStr);
             if (!rosterSnap.exists || !assign) {
+                console.log(`PULSE_DATA_GAP [${employeeId}]: No assignment found for ${dStr} in Hub ${emp.office}`);
                 missingRoster = true;
                 break;
             }
@@ -89,11 +97,18 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
             templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
             templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
         }
-        if (missingRoster)
+        if (missingRoster) {
             continue;
-        const jobKey = `daily_${empDoc.id}_${dateStrings[0]}_${dateStrings[1]}`;
-        await sendWhatsApp(emp.whatsappNumber, 'roc_daily_two_day_shift_reminder', [emp.fullName, ...templateVars], jobKey, emp.office, empDoc.id, 'daily_shift_reminder');
+        }
+        const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
+        try {
+            await sendWhatsApp(emp.whatsappNumber, 'roc_daily_two_day_shift_reminder', [emp.fullName, ...templateVars], jobKey, emp.office, employeeId, 'daily_shift_reminder');
+        }
+        catch (e) {
+            console.error(`PULSE_FAILURE [${employeeId}]:`, e.message);
+        }
     }
+    console.log('DAILY_PULSE_COMPLETE');
 });
 exports.startWeeklyRosterCampaign = (0, https_1.onCall)({
     memory: '256MiB',
@@ -222,14 +237,42 @@ exports.cleanupExpiredRosterPdfs = (0, scheduler_1.onSchedule)('every hour', asy
     const bucket = admin.storage().bucket();
     const [files] = await bucket.getFiles({ prefix: 'weekly-roster-pdfs/' });
     const now = new Date();
+    console.log(`CLEANUP_INITIATED: Auditing ${files.length} documents in weekly-roster-pdfs/`);
     for (const file of files) {
         const [metadata] = await file.getMetadata();
         if (!metadata || !metadata.timeCreated)
             continue;
         const created = new Date(metadata.timeCreated);
-        if ((now.getTime() - created.getTime()) / (1000 * 60 * 60) > 48)
+        const ageHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+        if (ageHours > 24) {
+            console.log(`CLEANUP_PURGE: Deleting document ${file.name} (Age: ${ageHours.toFixed(1)}h)`);
             await file.delete();
+        }
     }
+});
+exports.cleanupOldAuditLogs = (0, scheduler_1.onSchedule)({
+    schedule: 'every 24 hours',
+    timeZone: IST_TZ,
+    memory: '512MiB',
+}, async (event) => {
+    const db = admin.firestore();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    console.log(`AUDIT_PURGE_PULSE: Identifying logs older than ${sevenDaysAgo.toISOString()}`);
+    const snapshot = await db.collection('audit_logs')
+        .where('timestamp', '<', sevenDaysAgo)
+        .limit(500)
+        .get();
+    if (snapshot.empty) {
+        console.log('AUDIT_PURGE_SKIP: No expired records found in registry.');
+        return;
+    }
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+    await batch.commit();
+    console.log(`AUDIT_PURGE_COMPLETE: Successfully decommissioned ${snapshot.size} entries from audit_logs.`);
 });
 async function sendWhatsApp(to, template, vars, jobKey, office, employeeId, type) {
     const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`;
@@ -258,7 +301,7 @@ async function uploadToMeta(buffer, name) {
     fd.append('file', new Blob([new Uint8Array(buffer)]), name);
     fd.append('type', 'application/pdf');
     fd.append('messaging_product', 'whatsapp');
-    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${ACCESS_TOKEN.value()}` }, body: fd });
+    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN.value()}` }, body: fd });
     const data = await res.json();
     if (!res.ok)
         throw new Error(data.error?.message || 'Meta Upload Failed');
