@@ -18,6 +18,8 @@ const IST_TZ = 'Asia/Kolkata';
  * automatedDailyShiftBriefing
  * STATUS: DEACTIVATED AS PER INSTITUTIONAL REQUEST
  * ACTION: Dispatches schedule briefings for the next two clinical days.
+ * 
+ * To re-activate, uncomment the export and schedule below.
  */
 /*
 export const automatedDailyShiftBriefing = onSchedule({
@@ -73,7 +75,7 @@ export const automatedDailyShiftBriefing = onSchedule({
       const rosterSnap = await db.collection('published_rosters').doc(rosterId).get();
       
       const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
-      const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dStr);
+      const assign = assignments.find((a: any) => String(a.employeeId) === String(employeeId) && a.date === dStr);
       
       if (!rosterSnap.exists || !assign) { 
         missingRoster = true; 
@@ -179,7 +181,7 @@ export const processWeeklyRosterJobs = onDocumentCreated({
     const rosterDays = weekDates.map(date => {
       const dStr = format(date, 'yyyy-MM-dd');
       const assignments = rosterSnap.data()?.assignments || [];
-      const assign = assignments.find((a: any) => a.employeeId === job.employeeId && a.date === dStr);
+      const assign = assignments.find((a: any) => String(a.employeeId) === String(job.employeeId) && a.date === dStr);
       const s = assign ? shiftsMap.get(assign.shiftId) : null;
       const isOff = !assign || assign.shiftId === 'none';
       return {
@@ -249,6 +251,7 @@ export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) =
     const created = new Date(metadata.timeCreated as string);
     const ageHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
 
+    // Retention: Exactly 24 Hours
     if (ageHours > 24) {
       await file.delete();
     }

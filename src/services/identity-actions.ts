@@ -26,6 +26,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 
     const authorizedOffices = profile.officeIds || (profile.office ? [profile.office] : []);
 
+    // Super Admins retain global authority
     if (requestedOfficeId && role !== 'super_admin') {
       if (!authorizedOffices.includes(requestedOfficeId)) {
         throw new Error(`Forbidden: You are not authorized for cluster ${requestedOfficeId}.`);
@@ -56,7 +57,13 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
 
     const caller = await getAuthorizedCaller(idToken, current.office);
 
-    const allowed = ['fullName', 'email', 'whatsappNumber', 'department', 'designation', 'age', 'gender', 'office', 'officeIds', 'role', 'status'];
+    // Whitelist allowed fields for modification
+    const allowed = [
+      'fullName', 'email', 'whatsappNumber', 'department', 
+      'designation', 'age', 'gender', 'office', 
+      'officeIds', 'role', 'status'
+    ];
+    
     const filtered: any = {};
     allowed.forEach(key => { 
       if (updates[key] !== undefined) filtered[key] = updates[key]; 
@@ -64,6 +71,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
 
     if (filtered.role) filtered.role = filtered.role.toLowerCase();
 
+    // Security Scoping: Only Super Admin can modify high-level metadata
     if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.office;
@@ -79,22 +87,23 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
       updatedAt: new Date().toISOString()
     });
 
+    // Mirror updates to the 'users' collection if authUid is linked
     if (current.authUid) {
       const userRef = adminDb.collection('users').doc(current.authUid);
       const userUpdates: any = { 
-        updatedAt: new Date().toISOString(), 
-        ...filtered 
+        updatedAt: new Date().toISOString(),
+        displayName: filtered.fullName || current.fullName,
+        email: filtered.email || current.email,
+        phoneNumber: filtered.whatsappNumber || current.whatsappNumber,
+        office: filtered.office || current.office,
+        role: filtered.role || current.role,
+        status: filtered.status || current.status,
+        officeIds: filtered.officeIds || current.officeIds || []
       };
-      
-      if (filtered.fullName) userUpdates.displayName = filtered.fullName;
-      if (filtered.whatsappNumber) userUpdates.phoneNumber = filtered.whatsappNumber;
-      if (filtered.role) userUpdates.role = filtered.role;
-      if (filtered.office) userUpdates.office = filtered.office;
-      if (filtered.officeIds) userUpdates.officeIds = filtered.officeIds;
-      if (filtered.status) userUpdates.status = filtered.status;
       
       batch.update(userRef, userUpdates);
 
+      // Pulse update to Firebase Auth directly for core fields
       if (filtered.email && filtered.email !== current.email) {
         await adminAuth.updateUser(current.authUid, { email: filtered.email });
       }
@@ -110,6 +119,7 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId, { updatedFields: Object.keys(filtered) });
     return { success: true };
   } catch (e: any) {
+    console.error('ATOMIC_UPDATE_FAILURE:', e.message);
     return { success: false, error: e.message };
   }
 }

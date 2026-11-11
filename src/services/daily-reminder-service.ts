@@ -6,20 +6,22 @@ import { getISTNow, formatWeekId } from '@/lib/date-utils';
 import { format, addDays } from 'date-fns';
 
 /**
- * ROC WORKFORCE — DAILY SHIFT REMINDER SERVICE v11.0
+ * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v12.0
  * 
  * Logic Hardening: Strictly uses Singleton ID Protocol for roster lookups.
- * MANUAL OVERRIDE: bypassMasterCheck allows Super Admin to force dispatches.
+ * MANUAL OVERRIDE: bypassMasterCheck allows Super Admin to force dispatches regardless of system switches.
  */
 
 async function getAuthorizedUser(idToken: string) {
   if (!idToken) throw new Error("Unauthorized.");
   const decoded = await adminAuth.verifyIdToken(idToken);
   const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
-  if (!userSnap.exists || userSnap.data()?.role?.toLowerCase() !== 'super_admin') {
-    throw new Error("Unauthorized: Super Admin access required.");
-  }
-  return decoded.uid;
+  if (!userSnap.exists) throw new Error("Unauthorized: Identity node not found.");
+  const profile = userSnap.data()!;
+  
+  if (profile.status !== 'Active') throw new Error("Unauthorized: Account suspended.");
+  
+  return { uid: decoded.uid, ...profile } as any;
 }
 
 export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?: string) {
@@ -29,17 +31,24 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
   let skippedCount = 0;
 
   try {
-    if (idToken) await getAuthorizedUser(idToken);
+    if (idToken) {
+        const caller = await getAuthorizedUser(idToken);
+        if (caller.role !== 'super_admin' && caller.role !== 'admin') {
+            throw new Error("Unauthorized: Administrative pulse required.");
+        }
+    }
 
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
 
-    // 1. Logic Gate: Always respect 'whatsappEnabled' regardless of pulse source
-    if (!config.whatsappEnabled) return { success: false, error: "WHATSAPP_GATEWAY_DISABLED" };
-
+    // Logic Gate: If manual override (bypassMasterCheck), we skip the automation switches but still require gateway availability
     if (!bypassMasterCheck) {
-      if (!config.masterEnabled) return { success: false, error: "MASTER_DISABLED" };
-      if (!config.dailyReminderEnabled) return { success: false, error: "DAILY_STREAM_DISABLED" };
+      if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
+        return { success: false, error: "AUTOMATION_SWITCHES_OFF" };
+      }
+    } else {
+        // Even for manual, the physical WhatsApp gateway must be enabled
+        if (!config.whatsappEnabled) return { success: false, error: "WHATSAPP_GATEWAY_DISABLED" };
     }
 
     const templateName = 'roc_daily_two_day_shift_reminder';
@@ -65,6 +74,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       const emp = empDoc.data();
       const employeeId = empDoc.id;
 
+      // Filter: Missing Phone, Opt-Out, or Decommissioned Office
       if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
         skippedCount++;
         continue;
@@ -73,12 +83,13 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       try {
         const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
         
+        // Idempotency: Prevent double-dispatch for the same cycle
         const existingLog = await adminDb.collection('whatsapp_logs')
           .where('jobKey', '==', jobKey)
           .where('status', '==', 'success')
           .limit(1).get();
 
-        if (!existingLog.empty && !bypassMasterCheck) {
+        if (!existingLog.empty) {
           skippedCount++;
           continue;
         }
@@ -93,7 +104,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const rosterSnap = await adminDb.collection('published_rosters').doc(rosterId).get();
           
           const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
-          const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dateStrings[i]);
+          const assign = assignments.find((a: any) => String(a.employeeId) === String(employeeId) && a.date === dateStrings[i]);
           
           if (!rosterSnap.exists || !assign) {
              missingRoster = true;
@@ -129,7 +140,8 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           status: dispatch.success ? 'success' : 'failed',
           messageId: dispatch.messageId || null,
           failureReason: dispatch.error || null,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          source: bypassMasterCheck ? 'manual_admin_trigger' : 'automated_scheduler'
         });
 
         if (dispatch.success) successCount++; else failCount++;
@@ -146,6 +158,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     };
 
   } catch (e: any) {
+    console.error('DAILY_DISPATCH_CONFLICT:', e.message);
     return { success: false, error: e.message };
   }
 }
