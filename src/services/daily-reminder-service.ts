@@ -2,14 +2,16 @@
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { sendWhatsAppGenericTemplate } from './whatsapp-action';
+import { generateRosterImage } from './image-generation-service';
 import { getISTNow, formatWeekId } from '@/lib/date-utils';
 import { format, addDays } from 'date-fns';
 
 /**
- * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v12.0
+ * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v13.0
  * 
  * Logic Hardening: Strictly uses Singleton ID Protocol for roster lookups.
  * MANUAL OVERRIDE: bypassMasterCheck allows Super Admin to force dispatches regardless of system switches.
+ * PREMIUM VISUALS: Manual pulses now attach a generated schedule image header.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -41,14 +43,13 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
 
-    // Logic Gate: If manual override (bypassMasterCheck), we skip the automation switches but still require gateway availability
+    // Logic Gate: If manual override (bypassMasterCheck), we skip automation logic switches
     if (!bypassMasterCheck) {
       if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
-        return { success: false, error: "AUTOMATION_SWITCHES_OFF" };
+        return { success: false, error: "AUTOMATION_DISABLED_IN_SETTINGS" };
       }
     } else {
-        // Even for manual, the physical WhatsApp gateway must be enabled
-        if (!config.whatsappEnabled) return { success: false, error: "WHATSAPP_GATEWAY_DISABLED" };
+        if (!config.whatsappEnabled) return { success: false, error: "META_GATEWAY_OFF" };
     }
 
     const templateName = 'roc_daily_two_day_shift_reminder';
@@ -83,18 +84,22 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
       try {
         const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
         
-        // Idempotency: Prevent double-dispatch for the same cycle
-        const existingLog = await adminDb.collection('whatsapp_logs')
-          .where('jobKey', '==', jobKey)
-          .where('status', '==', 'success')
-          .limit(1).get();
+        // Idempotency: Skip ONLY for automated triggers to prevent spam.
+        // Manual triggers (bypassMasterCheck) FORCE a resend.
+        if (!bypassMasterCheck) {
+            const existingLog = await adminDb.collection('whatsapp_logs')
+              .where('jobKey', '==', jobKey)
+              .where('status', '==', 'success')
+              .limit(1).get();
 
-        if (!existingLog.empty) {
-          skippedCount++;
-          continue;
+            if (!existingLog.empty) {
+              skippedCount++;
+              continue;
+            }
         }
 
         const templateVars: string[] = [];
+        const rosterDaysForImage: any[] = [];
         let missingRoster = false;
 
         for (let i = 0; i < 2; i++) {
@@ -115,9 +120,21 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const shift = shiftsMap.get(shiftId);
           const isOff = shiftId === 'none';
 
-          templateVars.push(`${format(targetDate, 'EEEE, dd MMMM')}`);
-          templateVars.push(isOff ? 'Week Off' : (shift?.name || 'Duty'));
-          templateVars.push(isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`);
+          const dateDisplay = format(targetDate, 'EEEE, dd MMMM');
+          const shiftName = isOff ? 'Week Off' : (shift?.name || 'Duty');
+          const shiftTime = isOff ? 'Enjoy your day off!' : `${shift?.startTime} - ${shift?.endTime}`;
+
+          templateVars.push(dateDisplay);
+          templateVars.push(shiftName);
+          templateVars.push(shiftTime);
+
+          rosterDaysForImage.push({
+            date: format(targetDate, 'dd MMM yyyy').toUpperCase(),
+            day: format(targetDate, 'EEEE'),
+            shift: shiftName.toUpperCase(),
+            time: isOff ? '--:--' : shiftTime,
+            shiftId
+          });
         }
 
         if (missingRoster) {
@@ -125,9 +142,18 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           continue;
         }
 
+        // Synthesize Premium Visual Briefing
+        const imageBuffer = await generateRosterImage({
+          employeeName: emp.fullName,
+          employeeId: emp.id,
+          logoBase64: config.logoBase64,
+          nextTwoDays: rosterDaysForImage
+        });
+
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
+          headerMedia: { type: 'image', buffer: imageBuffer, filename: 'Briefing.png' },
           bodyVariables: [emp.fullName, ...templateVars]
         });
 
@@ -147,6 +173,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
         if (dispatch.success) successCount++; else failCount++;
 
       } catch (err: any) {
+        console.error(`PULSE_JOB_FAIL [${employeeId}]:`, err.message);
         failCount++;
       }
     }
@@ -158,7 +185,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     };
 
   } catch (e: any) {
-    console.error('DAILY_DISPATCH_CONFLICT:', e.message);
+    console.error('DAILY_DISPATCH_CRITICAL:', e.message);
     return { success: false, error: e.message };
   }
 }

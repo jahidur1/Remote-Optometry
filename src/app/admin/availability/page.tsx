@@ -282,8 +282,6 @@ export default function MasterMatrix() {
   };
 
   const handleManual2DayDispatch = async () => {
-    if (!confirm("MANUAL OVERRIDE: Dispatch 2-day shift briefings to all active professionals?")) return;
-    
     setDispatchingDaily(true);
     try {
       const idToken = await auth.currentUser?.getIdToken();

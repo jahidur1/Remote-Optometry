@@ -1,3 +1,6 @@
+npm run build
+firebase deploy --only functions
+cd functions
 firebase login --no-localhost
 # Firebase Studio
 
