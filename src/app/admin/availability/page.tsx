@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -432,14 +433,14 @@ export default function MasterMatrix() {
                     </div>
                     <div className="text-right">
                        <span className="text-2xl font-black text-white tabular-nums">
-                         {Math.round(((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100) || 0}%
+                         {activeCampaign.stats.total > 0 ? Math.round(((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100) : 0}%
                        </span>
                     </div>
                  </div>
                  <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/10">
                     <div 
                       className="h-full bg-secondary transition-all duration-1000" 
-                      style={{ width: `${((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100}%` }} 
+                      style={{ width: `${activeCampaign.stats.total > 0 ? ((activeCampaign.stats.total - activeCampaign.stats.pending) / activeCampaign.stats.total) * 100 : 0}%` }} 
                     />
                  </div>
               </div>

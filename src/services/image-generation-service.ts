@@ -1,3 +1,4 @@
+
 'use server';
 
 import satori from 'satori';
@@ -5,12 +6,15 @@ import { Resvg } from '@resvg/resvg-js';
 import React from 'react';
 
 /**
- * ROC WORKFORCE — PREMIUM CLINICAL IMAGE ORCHESTRATOR v6.0
+ * ROC WORKFORCE — PREMIUM CLINICAL IMAGE ORCHESTRATOR v7.0
  * 
  * Generates corporate-grade portrait roster images for WhatsApp delivery.
  * DESIGN: Modern, minimal, clean and elegant.
  * PROTOCOL: Pure-Logic Rendering & Strict < 60KB Quality Guard.
+ * OPTIMIZATION: Global font caching to prevent repetitive network pulse.
  */
+
+let cachedFont: ArrayBuffer | null = null;
 
 type RosterDay = {
   date: string;
@@ -23,8 +27,11 @@ type RosterDay = {
 /**
  * loadFont
  * Fetches institutional Inter-Black font using a resilient multi-source pulse.
+ * Implements global caching for server-side performance.
  */
 async function loadFont() {
+  if (cachedFont) return cachedFont;
+
   const sources = [
     'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuDyfMZg.ttf',
     'https://cdn.jsdelivr.net/gh/googlefonts/inter@master/fonts/ttf/Inter-Black.ttf'
@@ -38,7 +45,8 @@ async function loadFont() {
       });
       
       if (response.ok) {
-        return await response.arrayBuffer();
+        cachedFont = await response.arrayBuffer();
+        return cachedFont;
       }
     } catch (e: any) {
       console.warn(`FONT_PULSE_WARN: Failed source ${url} - ${e.message}`);

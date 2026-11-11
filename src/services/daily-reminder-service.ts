@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -7,11 +8,11 @@ import { getISTNow, formatWeekId } from '@/lib/date-utils';
 import { format, addDays } from 'date-fns';
 
 /**
- * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v13.0
+ * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v14.0
  * 
- * Logic Hardening: Strictly uses Singleton ID Protocol for roster lookups.
- * MANUAL OVERRIDE: bypassMasterCheck allows Super Admin to force dispatches regardless of system switches.
- * PREMIUM VISUALS: Manual pulses now attach a generated schedule image header.
+ * Logic Hardening: Bypasses idempotency for manual administrative pulses.
+ * ROSTER LOOKUP: Strictly identifies professionals even if future roster weeks aren't published.
+ * PREMIUM VISUALS: Synthesizes high-fidelity schedule images for dispatch.
  */
 
 async function getAuthorizedUser(idToken: string) {
@@ -43,13 +44,14 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     const configSnap = await adminDb.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
 
-    // Logic Gate: If manual override (bypassMasterCheck), we skip automation logic switches
+    // Logic Gate: WhatsApp Gateway must be enabled
+    if (!config.whatsappEnabled) return { success: false, error: "META_GATEWAY_OFF" };
+
+    // If automated pulse (not bypassMasterCheck), respect system switches
     if (!bypassMasterCheck) {
-      if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
+      if (!config.masterEnabled || !config.dailyReminderEnabled) {
         return { success: false, error: "AUTOMATION_DISABLED_IN_SETTINGS" };
       }
-    } else {
-        if (!config.whatsappEnabled) return { success: false, error: "META_GATEWAY_OFF" };
     }
 
     const templateName = 'roc_daily_two_day_shift_reminder';
@@ -71,11 +73,13 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     shiftSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
     const activeOffices = new Set(officeSnap.docs.map(d => d.id));
 
+    console.log(`[PULSE_INIT] Targets: ${empSnap.size} | Mode: ${bypassMasterCheck ? 'MANUAL' : 'AUTO'}`);
+
     for (const empDoc of empSnap.docs) {
       const emp = empDoc.data();
       const employeeId = empDoc.id;
 
-      // Filter: Missing Phone, Opt-Out, or Decommissioned Office
+      // Filter: Missing Phone, Opt-Out, or Inactive Office
       if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
         skippedCount++;
         continue;
@@ -100,8 +104,9 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
 
         const templateVars: string[] = [];
         const rosterDaysForImage: any[] = [];
-        let missingRoster = false;
+        let rosterFound = false;
 
+        // Verify next two days. Even if one roster is missing, we try to fetch from Singleton IDs.
         for (let i = 0; i < 2; i++) {
           const targetDate = dates[i];
           const weekId = formatWeekId(targetDate);
@@ -111,14 +116,11 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
           const assign = assignments.find((a: any) => String(a.employeeId) === String(employeeId) && a.date === dateStrings[i]);
           
-          if (!rosterSnap.exists || !assign) {
-             missingRoster = true;
-             break;
-          }
-
-          const shiftId = assign.shiftId || 'none';
+          const shiftId = assign?.shiftId || 'none';
           const shift = shiftsMap.get(shiftId);
-          const isOff = shiftId === 'none';
+          const isOff = !assign || shiftId === 'none';
+
+          if (assign) rosterFound = true;
 
           const dateDisplay = format(targetDate, 'EEEE, dd MMMM');
           const shiftName = isOff ? 'Week Off' : (shift?.name || 'Duty');
@@ -137,23 +139,30 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           });
         }
 
-        if (missingRoster) {
+        // If no assignment found for either day, we skip this professional
+        if (!rosterFound) {
+          console.log(`[PULSE_SKIP] ${employeeId}: No active assignments found for ${dateStrings.join(' or ')}.`);
           skippedCount++;
           continue;
         }
 
         // Synthesize Premium Visual Briefing
-        const imageBuffer = await generateRosterImage({
-          employeeName: emp.fullName,
-          employeeId: emp.id,
-          logoBase64: config.logoBase64,
-          nextTwoDays: rosterDaysForImage
-        });
+        let imageBuffer: Buffer | undefined;
+        try {
+          imageBuffer = await generateRosterImage({
+            employeeName: emp.fullName,
+            employeeId: emp.id,
+            logoBase64: config.logoBase64,
+            nextTwoDays: rosterDaysForImage
+          });
+        } catch (imgErr: any) {
+          console.error(`[PULSE_IMG_FAIL] ${employeeId}: ${imgErr.message}. Dispatching text only.`);
+        }
 
         const dispatch = await sendWhatsAppGenericTemplate({
           to: emp.whatsappNumber,
           templateName,
-          headerMedia: { type: 'image', buffer: imageBuffer, filename: 'Briefing.png' },
+          headerMedia: imageBuffer ? { type: 'image', buffer: imageBuffer, filename: 'Briefing.png' } : undefined,
           bodyVariables: [emp.fullName, ...templateVars]
         });
 
@@ -170,10 +179,15 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
           source: bypassMasterCheck ? 'manual_admin_trigger' : 'automated_scheduler'
         });
 
-        if (dispatch.success) successCount++; else failCount++;
+        if (dispatch.success) {
+          successCount++;
+        } else {
+          console.error(`[PULSE_DISPATCH_FAIL] ${employeeId}: ${dispatch.error}`);
+          failCount++;
+        }
 
       } catch (err: any) {
-        console.error(`PULSE_JOB_FAIL [${employeeId}]:`, err.message);
+        console.error(`[PULSE_JOB_CRITICAL] ${employeeId}:`, err.message);
         failCount++;
       }
     }
@@ -185,7 +199,7 @@ export async function runDailyShiftReminders(bypassMasterCheck = false, idToken?
     };
 
   } catch (e: any) {
-    console.error('DAILY_DISPATCH_CRITICAL:', e.message);
+    console.error('[PULSE_CRITICAL_HALT]:', e.message);
     return { success: false, error: e.message };
   }
 }
