@@ -16,10 +16,10 @@ const IST_TZ = 'Asia/Kolkata';
 
 /**
  * automatedDailyShiftBriefing
- * TRIGGER: 5:00 PM IST (17:00) daily.
+ * STATUS: DEACTIVATED AS PER INSTITUTIONAL REQUEST
  * ACTION: Dispatches schedule briefings for the next two clinical days.
- * REPLACES: dailyTwoDayShiftReminder
  */
+/*
 export const automatedDailyShiftBriefing = onSchedule({
   schedule: '0 17 * * *',
   timeZone: IST_TZ,
@@ -28,16 +28,14 @@ export const automatedDailyShiftBriefing = onSchedule({
 }, async (event) => {
   const db = admin.firestore();
   
-  // 1. Governance Logic Gate
   const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
   const config = configSnap.data() || {};
   
   if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
-    console.log('AUTOMATED_PULSE_SKIP: Global automation switches are OFF in system settings.');
+    console.log('AUTOMATED_PULSE_SKIP: Global automation switches are OFF.');
     return;
   }
 
-  // 2. Temporal Logic (IST Context)
   const now = new Date();
   const istNow = new Date(now.toLocaleString('en-US', { timeZone: IST_TZ }));
   const tomorrow = addDays(istNow, 1);
@@ -45,7 +43,6 @@ export const automatedDailyShiftBriefing = onSchedule({
   const dates = [tomorrow, dayAfter];
   const dateStrings = dates.map(d => format(d, 'yyyy-MM-dd'));
 
-  // 3. System Load
   const [empSnap, shiftsSnap, officeSnap] = await Promise.all([
     db.collection('employees').where('status', '==', 'Active').get(),
     db.collection('shift_master').get(),
@@ -56,34 +53,20 @@ export const automatedDailyShiftBriefing = onSchedule({
   shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
   const activeOffices = new Set(officeSnap.docs.map(d => d.id));
 
-  console.log(`AUTOMATED_PULSE_INITIATED: Processing ${empSnap.size} professionals for ${dateStrings.join(', ')}`);
-
   for (const empDoc of empSnap.docs) {
     const emp = empDoc.data();
     const employeeId = empDoc.id;
 
-    // Eligibility Check
-    if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
-      continue;
-    }
+    if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) continue;
 
     const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
+    const existingLog = await db.collection('whatsapp_logs').where('jobKey', '==', jobKey).where('status', '==', 'success').limit(1).get();
 
-    // 4. Idempotency Guard: Prevent double-dispatch for the same cycle
-    const existingLog = await db.collection('whatsapp_logs')
-      .where('jobKey', '==', jobKey)
-      .where('status', '==', 'success')
-      .limit(1).get();
-
-    if (!existingLog.empty) {
-      console.log(`PULSE_SKIP [${employeeId}]: Briefing already successfully dispatched for this cycle.`);
-      continue;
-    }
+    if (!existingLog.empty) continue;
 
     const templateVars: string[] = [];
     let missingRoster = false;
 
-    // 5. Resolve Schedule Data
     for (const dStr of dateStrings) {
       const weekId = formatWeekId(new Date(dStr));
       const rosterId = `active_${weekId}_${emp.office}`;
@@ -93,7 +76,6 @@ export const automatedDailyShiftBriefing = onSchedule({
       const assign = assignments.find((a: any) => a.employeeId === employeeId && a.date === dStr);
       
       if (!rosterSnap.exists || !assign) { 
-        console.log(`PULSE_DATA_GAP [${employeeId}]: Missing assignment for ${dStr} in Hub ${emp.office}`);
         missingRoster = true; 
         break; 
       }
@@ -109,22 +91,13 @@ export const automatedDailyShiftBriefing = onSchedule({
     if (missingRoster) continue;
     
     try {
-      await sendWhatsApp(
-        emp.whatsappNumber, 
-        'roc_daily_two_day_shift_reminder', 
-        [emp.fullName, ...templateVars], 
-        jobKey, 
-        emp.office, 
-        employeeId, 
-        'daily_shift_reminder'
-      );
+      await sendWhatsApp(emp.whatsappNumber, 'roc_daily_two_day_shift_reminder', [emp.fullName, ...templateVars], jobKey, emp.office, employeeId, 'daily_shift_reminder');
     } catch (e: any) {
       console.error(`PULSE_FAILURE [${employeeId}]:`, e.message);
     }
   }
-  
-  console.log('AUTOMATED_PULSE_COMPLETE');
 });
+*/
 
 export const startWeeklyRosterCampaign = onCall({
   memory: '256MiB',
@@ -264,17 +237,11 @@ export const whatsappStatusWebhook = onRequest({
   res.sendStatus(200);
 });
 
-/**
- * cleanupExpiredRosterPdfs
- * PURGE PROTOCOL: Deletes PDFs older than 24 hours from the weekly-roster-pdfs/ registry.
- */
 export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) => {
   const bucket = admin.storage().bucket();
   const [files] = await bucket.getFiles({ prefix: 'weekly-roster-pdfs/' });
   const now = new Date();
   
-  console.log(`CLEANUP_INITIATED: Auditing ${files.length} documents in weekly-roster-pdfs/`);
-
   for (const file of files) {
     const [metadata] = await file.getMetadata();
     if (!metadata || !metadata.timeCreated) continue;
@@ -282,19 +249,12 @@ export const cleanupExpiredRosterPdfs = onSchedule('every hour', async (event) =
     const created = new Date(metadata.timeCreated as string);
     const ageHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
 
-    // Institutional Retention: 24 Hours
     if (ageHours > 24) {
-      console.log(`CLEANUP_PURGE: Deleting document ${file.name} (Age: ${ageHours.toFixed(1)}h)`);
       await file.delete();
     }
   }
 });
 
-/**
- * cleanupOldAuditLogs
- * TRIGGER: Every 24 hours.
- * ACTION: Purges audit logs older than 7 days to maintain database health.
- */
 export const cleanupOldAuditLogs = onSchedule({
   schedule: 'every 24 hours',
   timeZone: IST_TZ,
@@ -304,17 +264,12 @@ export const cleanupOldAuditLogs = onSchedule({
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
-  console.log(`AUDIT_PURGE_PULSE: Identifying logs older than ${sevenDaysAgo.toISOString()}`);
-
   const snapshot = await db.collection('audit_logs')
     .where('timestamp', '<', sevenDaysAgo)
     .limit(500)
     .get();
 
-  if (snapshot.empty) {
-    console.log('AUDIT_PURGE_SKIP: No expired records found in registry.');
-    return;
-  }
+  if (snapshot.empty) return;
 
   const batch = db.batch();
   snapshot.docs.forEach((doc) => {
@@ -322,7 +277,6 @@ export const cleanupOldAuditLogs = onSchedule({
   });
 
   await batch.commit();
-  console.log(`AUDIT_PURGE_COMPLETE: Successfully decommissioned ${snapshot.size} entries from audit_logs.`);
 });
 
 async function sendWhatsApp(to: string, template: string, vars: string[], jobKey: string, office: string, employeeId: string, type: string) {

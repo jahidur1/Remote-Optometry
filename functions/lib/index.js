@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupOldAuditLogs = exports.cleanupExpiredRosterPdfs = exports.whatsappStatusWebhook = exports.processWeeklyRosterJobs = exports.startWeeklyRosterCampaign = exports.dailyTwoDayShiftReminder = void 0;
+exports.cleanupOldAuditLogs = exports.cleanupExpiredRosterPdfs = exports.whatsappStatusWebhook = exports.processWeeklyRosterJobs = exports.startWeeklyRosterCampaign = exports.automatedDailyShiftBriefing = void 0;
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
@@ -46,7 +46,7 @@ const WHATSAPP_ACCESS_TOKEN = (0, params_1.defineSecret)('WHATSAPP_ACCESS_TOKEN'
 const WHATSAPP_PHONE_NUMBER_ID = (0, params_1.defineSecret)('WHATSAPP_PHONE_NUMBER_ID');
 const WHATSAPP_WEBHOOK_VERIFY_TOKEN = (0, params_1.defineSecret)('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
 const IST_TZ = 'Asia/Kolkata';
-exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
+exports.automatedDailyShiftBriefing = (0, scheduler_1.onSchedule)({
     schedule: '0 17 * * *',
     timeZone: IST_TZ,
     memory: '512MiB',
@@ -56,26 +56,37 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
     const configSnap = await db.collection('system_settings').doc('whatsapp_config').get();
     const config = configSnap.data() || {};
     if (!config.masterEnabled || !config.dailyReminderEnabled || !config.whatsappEnabled) {
-        console.log('DAILY_PULSE_SKIP: Automation switches are OFF in system settings.');
+        console.log('AUTOMATED_PULSE_SKIP: Global automation switches are OFF in system settings.');
         return;
     }
-    const today = new Date(new Date().toLocaleString("en-US", { timeZone: IST_TZ }));
-    const tomorrow = (0, date_fns_1.addDays)(today, 1);
-    const dayAfter = (0, date_fns_1.addDays)(today, 2);
+    const now = new Date();
+    const istNow = new Date(now.toLocaleString('en-US', { timeZone: IST_TZ }));
+    const tomorrow = (0, date_fns_1.addDays)(istNow, 1);
+    const dayAfter = (0, date_fns_1.addDays)(istNow, 2);
     const dates = [tomorrow, dayAfter];
     const dateStrings = dates.map(d => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-    const [empSnap, shiftsSnap] = await Promise.all([
+    const [empSnap, shiftsSnap, officeSnap] = await Promise.all([
         db.collection('employees').where('status', '==', 'Active').get(),
-        db.collection('shift_master').get()
+        db.collection('shift_master').get(),
+        db.collection('offices').where('status', '==', 'Active').get()
     ]);
     const shiftsMap = new Map();
     shiftsSnap.docs.forEach(d => shiftsMap.set(d.id, d.data()));
-    console.log(`DAILY_PULSE_INITIATED: Processing ${empSnap.size} active professionals for dates: ${dateStrings.join(', ')}`);
+    const activeOffices = new Set(officeSnap.docs.map(d => d.id));
+    console.log(`AUTOMATED_PULSE_INITIATED: Processing ${empSnap.size} professionals for ${dateStrings.join(', ')}`);
     for (const empDoc of empSnap.docs) {
         const emp = empDoc.data();
         const employeeId = empDoc.id;
-        if (!emp.whatsappNumber || emp.whatsappOptIn === false) {
-            console.log(`PULSE_SKIP [${employeeId}]: No phone or opted out.`);
+        if (!emp.whatsappNumber || emp.whatsappOptIn === false || !activeOffices.has(emp.office)) {
+            continue;
+        }
+        const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
+        const existingLog = await db.collection('whatsapp_logs')
+            .where('jobKey', '==', jobKey)
+            .where('status', '==', 'success')
+            .limit(1).get();
+        if (!existingLog.empty) {
+            console.log(`PULSE_SKIP [${employeeId}]: Briefing already successfully dispatched for this cycle.`);
             continue;
         }
         const templateVars = [];
@@ -87,7 +98,7 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
             const assignments = rosterSnap.exists ? rosterSnap.data()?.assignments || [] : [];
             const assign = assignments.find((a) => a.employeeId === employeeId && a.date === dStr);
             if (!rosterSnap.exists || !assign) {
-                console.log(`PULSE_DATA_GAP [${employeeId}]: No assignment found for ${dStr} in Hub ${emp.office}`);
+                console.log(`PULSE_DATA_GAP [${employeeId}]: Missing assignment for ${dStr} in Hub ${emp.office}`);
                 missingRoster = true;
                 break;
             }
@@ -97,10 +108,8 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
             templateVars.push(isOff ? 'Week Off' : (s?.name || 'Duty'));
             templateVars.push(isOff ? 'Enjoy your day off!' : `${s?.startTime} - ${s?.endTime}`);
         }
-        if (missingRoster) {
+        if (missingRoster)
             continue;
-        }
-        const jobKey = `daily_${employeeId}_${dateStrings[0]}_${dateStrings[1]}`;
         try {
             await sendWhatsApp(emp.whatsappNumber, 'roc_daily_two_day_shift_reminder', [emp.fullName, ...templateVars], jobKey, emp.office, employeeId, 'daily_shift_reminder');
         }
@@ -108,7 +117,7 @@ exports.dailyTwoDayShiftReminder = (0, scheduler_1.onSchedule)({
             console.error(`PULSE_FAILURE [${employeeId}]:`, e.message);
         }
     }
-    console.log('DAILY_PULSE_COMPLETE');
+    console.log('AUTOMATED_PULSE_COMPLETE');
 });
 exports.startWeeklyRosterCampaign = (0, https_1.onCall)({
     memory: '256MiB',

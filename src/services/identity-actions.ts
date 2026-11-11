@@ -6,7 +6,6 @@ import { assertOfficeActive } from '@/lib/office-utils';
 
 /**
  * Hardened Server-Side Authorization Utility
- * Re-verifies token and matches requested office against authorized officeIds.
  */
 async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) {
   if (!idToken) throw new Error("Unauthorized: Session pulse missing.");
@@ -47,8 +46,7 @@ async function getAuthorizedCaller(idToken: string, requestedOfficeId?: string) 
 
 /**
  * updateEmployeeRecordAction
- * Hardened: Super Admin can modify ANY user details.
- * Ensures atomic synchronization between 'employees' and 'users' collections.
+ * ATOMIC SYNCHRONIZATION: Ensures 'employees' and 'users' remain identical.
  */
 export async function updateEmployeeRecordAction(idToken: string, employeeId: string, updates: any) {
   try {
@@ -58,17 +56,14 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
 
     const caller = await getAuthorizedCaller(idToken, current.office);
 
-    // Whitelist allowed fields for institutional integrity
     const allowed = ['fullName', 'email', 'whatsappNumber', 'department', 'designation', 'age', 'gender', 'office', 'officeIds', 'role', 'status'];
     const filtered: any = {};
     allowed.forEach(key => { 
       if (updates[key] !== undefined) filtered[key] = updates[key]; 
     });
 
-    // Enforce role normalization
     if (filtered.role) filtered.role = filtered.role.toLowerCase();
 
-    // Privilege Guard: Restrict non-super-admins from changing sensitive security fields
     if (caller.role !== 'super_admin') {
       delete filtered.role;
       delete filtered.office;
@@ -91,7 +86,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
         ...filtered 
       };
       
-      // Map Employee fields to User schema fields for consistent Auth profiles
       if (filtered.fullName) userUpdates.displayName = filtered.fullName;
       if (filtered.whatsappNumber) userUpdates.phoneNumber = filtered.whatsappNumber;
       if (filtered.role) userUpdates.role = filtered.role;
@@ -101,7 +95,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
       
       batch.update(userRef, userUpdates);
 
-      // Synchronize with Firebase Authentication service
       if (filtered.email && filtered.email !== current.email) {
         await adminAuth.updateUser(current.authUid, { email: filtered.email });
       }
@@ -117,7 +110,6 @@ export async function updateEmployeeRecordAction(idToken: string, employeeId: st
     await logAuditServer(caller.uid, 'ADMIN_UPDATE_IDENTITY', employeeId, { updatedFields: Object.keys(filtered) });
     return { success: true };
   } catch (e: any) {
-    console.error('Update Institutional Record Failure:', e.message);
     return { success: false, error: e.message };
   }
 }
