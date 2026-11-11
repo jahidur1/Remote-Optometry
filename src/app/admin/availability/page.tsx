@@ -43,7 +43,7 @@ import { cn } from '@/lib/utils';
 import { DemoBadge } from '@/components/ui/demo-badge';
 import { logAudit } from '@/lib/audit';
 import { useToast } from '@/hooks/use-toast';
-import { dispatchOfficeBriefingsAction, previewEmployeeRosterAction } from '@/services/roster-notification-service';
+import { previewEmployeeRosterAction } from '@/services/roster-notification-service';
 import { initiateWeeklyRosterCampaignAction } from '@/services/weekly-roster-pdf-service';
 import { runDailyShiftReminders } from '@/services/daily-reminder-service';
 import {
@@ -161,7 +161,6 @@ export default function MasterMatrix() {
     });
   }, [employees, searchTerm]);
 
-  // Campaign Eligibility Logic
   const campaignEligibility = useMemo(() => {
     if (!employees || !assignments.length) return { total: 0, eligible: 0, missingWA: 0, missingOptIn: 0, missingRoster: 0 };
     
@@ -377,7 +376,7 @@ export default function MasterMatrix() {
       </div>
 
       <Card className="shadow-xl border-none rounded-[2.5rem] bg-primary text-white overflow-hidden relative group">
-         <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={200} /></div>
+         <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={180} /></div>
          <CardHeader className="p-10 pb-6 border-b border-white/5 relative z-10">
             <div className="flex flex-col xl:flex-row items-center justify-between gap-8">
                <div className="space-y-1">

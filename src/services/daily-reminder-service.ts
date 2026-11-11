@@ -8,7 +8,7 @@ import { getISTNow, formatWeekId } from '@/lib/date-utils';
 import { format, addDays } from 'date-fns';
 
 /**
- * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v14.0
+ * ROC WORKFORCE — DAILY SHIFT BRIEFING SERVICE v15.0
  * 
  * Logic Hardening: Bypasses idempotency for manual administrative pulses.
  * ROSTER LOOKUP: Strictly identifies professionals even if future roster weeks aren't published.
