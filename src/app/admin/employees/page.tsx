@@ -19,7 +19,8 @@ import {
   Users, 
   Activity, 
   CheckCircle2, 
-  Loader2
+  Loader2,
+  Filter
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmployeeDialog } from '@/components/admin/employee-dialog';
@@ -30,12 +31,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { updateAccountStatusAction } from '@/services/identity-actions';
 
 export default function UserDetailsManagement() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -66,12 +75,14 @@ export default function UserDetailsManagement() {
   const { data: users, loading } = useCollection(usersQuery);
 
   const filteredUsers = useMemo(() => 
-    users?.filter(u => 
-      (u.displayName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  , [users, searchTerm]);
+    users?.filter(u => {
+      const matchesSearch = (u.displayName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (u.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === 'all' || (u.role || '').toLowerCase() === roleFilter.toLowerCase();
+      return matchesSearch && matchesRole;
+    })
+  , [users, searchTerm, roleFilter]);
 
   const handleEdit = (user: any) => {
     setSelectedUser({
@@ -139,9 +150,9 @@ export default function UserDetailsManagement() {
       </div>
 
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white">
-        <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
-           <div className="flex gap-4 w-full max-w-xl">
-              <div className="relative w-full group">
+        <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col xl:flex-row items-center justify-between gap-8">
+           <div className="flex flex-col md:flex-row gap-4 w-full max-w-2xl">
+              <div className="relative flex-1 group">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
                 <Input 
                   placeholder="Search Identity or Designation..." 
@@ -150,9 +161,25 @@ export default function UserDetailsManagement() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              <div className="w-full md:w-64">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:ring-primary">
+                    <div className="flex items-center gap-2">
+                      <Filter className="size-3.5 text-secondary" />
+                      <SelectValue placeholder="Filter by Role" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                    <SelectItem value="all" className="font-bold text-[11px] py-3 rounded-lg uppercase">All Authorized Roles</SelectItem>
+                    <SelectItem value="super_admin" className="font-bold text-[11px] py-3 rounded-lg uppercase">Super Admin</SelectItem>
+                    <SelectItem value="admin" className="font-bold text-[11px] py-3 rounded-lg uppercase">Cluster Admin</SelectItem>
+                    <SelectItem value="user" className="font-bold text-[11px] py-3 rounded-lg uppercase">Staff Professional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="px-6 py-2 rounded-xl border border-secondary/20 bg-secondary/5 shadow-inner">
-               <span className="font-black text-[10px] uppercase text-secondary tracking-widest">Authorized Count: {users?.length || 0}</span>
+               <span className="font-black text-[10px] uppercase text-secondary tracking-widest">Authorized Count: {filteredUsers?.length || 0}</span>
             </div>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto no-scrollbar">

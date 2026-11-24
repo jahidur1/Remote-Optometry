@@ -1,6 +1,6 @@
 npm run build
 firebase deploy --only functions
-cd functions
+firebase deploy --only functions
 firebase login --no-localhost
 # Firebase Studio
 

@@ -29,7 +29,8 @@ import {
   TrendingUp,
   XCircle,
   FileCheck,
-  Bell
+  Bell,
+  Filter
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDatesForWeek, formatWeekId, displayWeekRange, getCurrentWeekId, getISTNow } from '@/lib/date-utils';
@@ -66,6 +67,7 @@ export default function MasterMatrix() {
   
   const [selectedWeek, setSelectedWeek] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -157,9 +159,11 @@ export default function MasterMatrix() {
       const name = (e.fullName || '').toLowerCase();
       const id = (e.id || '').toLowerCase();
       const search = searchTerm.toLowerCase();
-      return name.includes(search) || id.includes(search);
+      const matchesSearch = name.includes(search) || id.includes(search);
+      const matchesRole = roleFilter === 'all' || (e.role || '').toLowerCase() === roleFilter.toLowerCase();
+      return matchesSearch && matchesRole;
     });
-  }, [employees, searchTerm]);
+  }, [employees, searchTerm, roleFilter]);
 
   const campaignEligibility = useMemo(() => {
     if (!employees || !assignments.length) return { total: 0, eligible: 0, missingWA: 0, missingOptIn: 0, missingRoster: 0 };
@@ -448,8 +452,8 @@ export default function MasterMatrix() {
       </Card>
 
       <Card className="shadow-2xl border border-slate-100 overflow-hidden rounded-[2.5rem] bg-white border-t-8 border-t-primary">
-        <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8">
-           <div className="flex items-center gap-6">
+        <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-10 flex flex-col xl:flex-row items-center justify-between gap-8">
+           <div className="flex items-center gap-6 shrink-0">
               <div className="size-16 rounded-[1.75rem] bg-primary flex items-center justify-center border border-slate-200 shadow-inner">
                  <ArrowRightLeft className="size-8 text-white" />
               </div>
@@ -460,14 +464,32 @@ export default function MasterMatrix() {
                  </CardDescription>
               </div>
            </div>
-           <div className="relative w-full max-xl:max-w-xl group">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
-              <Input 
-                placeholder="Search Professional Name or ID..." 
-                className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:border-primary transition-all text-black shadow-inner"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+           <div className="flex flex-col md:flex-row gap-4 w-full max-w-2xl">
+              <div className="relative flex-1 group">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
+                <Input 
+                  placeholder="Search Professional Name or ID..." 
+                  className="pl-14 h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:border-primary transition-all text-black shadow-inner"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="w-full md:w-64">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="h-14 font-black uppercase text-[11px] tracking-widest bg-white border-2 border-slate-100 rounded-2xl focus:ring-primary shadow-inner">
+                    <div className="flex items-center gap-2">
+                      <Filter className="size-3.5 text-secondary" />
+                      <SelectValue placeholder="Filter Role" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white p-2">
+                    <SelectItem value="all" className="font-bold text-[11px] py-3 rounded-lg uppercase">All Roles</SelectItem>
+                    <SelectItem value="super_admin" className="font-bold text-[11px] py-3 rounded-lg uppercase">Super Admin</SelectItem>
+                    <SelectItem value="admin" className="font-bold text-[11px] py-3 rounded-lg uppercase">Cluster Admin</SelectItem>
+                    <SelectItem value="user" className="font-bold text-[11px] py-3 rounded-lg uppercase">Staff Professional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
         </CardHeader>
         <CardContent className="p-0">
