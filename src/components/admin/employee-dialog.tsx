@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -26,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Zap, User, Fingerprint, Loader2, Lock, Eye, EyeOff, Mail, Phone, ShieldCheck, Building2 } from 'lucide-react';
 import { updateEmployeeRecordAction, provisionIdentityAction } from '@/services/identity-actions';
+import { cn } from '@/lib/utils';
 
 interface EmployeeDialogProps {
   open: boolean;
@@ -41,14 +43,14 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
 
-  // Dynamic Office Registry
+  // Dynamic Office Registry Query: Requires Composite Index (status ASC, officeName ASC)
   const registryQuery = useMemo(() => query(
     collection(db, 'offices'), 
     where('status', '==', 'Active'),
     orderBy('officeName', 'asc')
   ), [db]);
 
-  const { data: registryOffices } = useCollection(registryQuery);
+  const { data: registryOffices, loading: registryLoading } = useCollection(registryQuery);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -105,7 +107,6 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     setFormData(prev => ({
       ...prev,
       role,
-      // If promoting to admin and officeIds is empty, pre-select the primary office
       officeIds: (role === 'admin' || role === 'super_admin') && prev.officeIds.length === 0 && prev.office 
         ? [prev.office] 
         : (role === 'user' ? [] : prev.officeIds)
@@ -259,9 +260,20 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                 <Label className="text-[10px] font-black uppercase tracking-widest text-black/60 ml-1">Primary ROC Center</Label>
                 <Select value={formData.office} onValueChange={(val) => setFormData({ ...formData, office: val })}>
                   <SelectTrigger className="h-14 font-black rounded-2xl border-2 border-slate-100 bg-white text-black">
-                    <SelectValue placeholder="Select Hub..." />
+                    <SelectValue placeholder={registryLoading ? "Syncing Hubs..." : "Select Hub..."} />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl bg-white p-2">
+                    {registryLoading && (
+                      <div className="p-4 flex items-center justify-center">
+                        <Loader2 className="size-4 animate-spin text-secondary mr-2" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Syncing Registry...</span>
+                      </div>
+                    )}
+                    {!registryLoading && registryOffices?.length === 0 && (
+                      <div className="p-4 text-center">
+                        <span className="text-[10px] font-black uppercase text-destructive tracking-widest">No Active Hubs Found</span>
+                      </div>
+                    )}
                     {registryOffices?.map(o => (
                       <SelectItem key={o.officeId} value={o.officeId} className="font-bold text-[11px] uppercase py-3 rounded-xl">
                         {o.officeName}

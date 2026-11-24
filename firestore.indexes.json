@@ -27,6 +27,14 @@
       ]
     },
     {
+      "collectionGroup": "offices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "officeName", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "published_rosters",
       "queryScope": "COLLECTION",
       "fields": [
